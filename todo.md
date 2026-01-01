@@ -146,3 +146,9 @@
 - [x] Optimiser l'affichage pour réponse plus rapide
 - [x] Masquer le raisonnement par défaut
 - [x] Afficher la réponse finale immédiatement
+
+## Phase 12: Correction du comportement méta
+- [x] Bug: Phoenix parle de ses limitations au lieu d'exécuter les tâches
+- [x] Renforcer le prompt système pour interdire les réponses méta
+- [x] Phoenix ne doit jamais se décrire comme "modèle de langage"
+- [x] Phoenix doit agir, pas s'expliquer
