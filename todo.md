@@ -121,3 +121,13 @@
 - [x] Implémenter l'export Markdown avec mise en forme
 - [x] Exporter le journal d'audit
 - [x] Ajouter les boutons d'export dans le dashboard
+
+## Phase 9: Synthèse Vocale Fonctionnelle
+- [x] Implémenter le hook useSpeechSynthesis avec Web Speech API
+- [x] Ajouter la sélection de voix (français prioritaire)
+- [x] Connecter le bouton TTS pour lire les réponses de Phoenix
+- [x] Connecter le mode Auto-Voix pour lecture automatique
+- [x] Ajouter les contrôles (play, pause, stop, vitesse)
+- [x] Ajouter les paramètres de voix (vitesse, tonalité, volume)
+- [x] Sauvegarder les préférences vocales dans localStorage
+- [x] Ajouter un bouton "Tester la voix"
