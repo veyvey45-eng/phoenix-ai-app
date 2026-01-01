@@ -220,7 +220,12 @@ export const auditLog = mysqlTable("auditLog", {
     "vectra_memory_searched",
     "vectra_memory_stored",
     "transpiration_completed",
-    "memory_consolidated"
+    "memory_consolidated",
+    "tool_executed",
+    "file_uploaded",
+    "file_deleted",
+    "demo_started",
+    "export_generated"
   ]).notNull(),
   entityType: varchar("entityType", { length: 64 }).notNull(),
   entityId: int("entityId").notNull(),

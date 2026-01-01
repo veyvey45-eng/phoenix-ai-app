@@ -12,7 +12,12 @@ import {
   Activity,
   Settings,
   Shield,
-  Moon
+  Moon,
+  Wrench,
+  FileUp,
+  Trash2,
+  Sparkles,
+  Download
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +42,12 @@ type EventType =
   | "vectra_memory_searched"
   | "vectra_memory_stored"
   | "transpiration_completed"
-  | "memory_consolidated";
+  | "memory_consolidated"
+  | "tool_executed"
+  | "file_uploaded"
+  | "file_deleted"
+  | "demo_started"
+  | "export_generated";
 
 interface AuditEntry {
   id: number;
@@ -70,7 +80,12 @@ const eventConfig: Record<EventType, { icon: typeof MessageSquare; color: string
   vectra_memory_searched: { icon: Search, color: "text-emerald-400", label: "Vectra recherche" },
   vectra_memory_stored: { icon: Database, color: "text-emerald-500", label: "Vectra stocké" },
   transpiration_completed: { icon: Activity, color: "text-cyan-500", label: "Transpiration" },
-  memory_consolidated: { icon: Moon, color: "text-purple-500", label: "Mémoire consolidée" }
+  memory_consolidated: { icon: Moon, color: "text-purple-500", label: "Mémoire consolidée" },
+  tool_executed: { icon: Wrench, color: "text-yellow-400", label: "Outil exécuté" },
+  file_uploaded: { icon: FileUp, color: "text-blue-500", label: "Fichier uploadé" },
+  file_deleted: { icon: Trash2, color: "text-red-400", label: "Fichier supprimé" },
+  demo_started: { icon: Sparkles, color: "text-pink-400", label: "Démo lancée" },
+  export_generated: { icon: Download, color: "text-green-500", label: "Export généré" }
 };
 
 export function AuditLog({ entries, maxHeight = "400px" }: AuditLogProps) {

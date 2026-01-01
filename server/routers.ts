@@ -7,6 +7,8 @@ import { randomUUID } from "crypto";
 import { phoenix, PhoenixContext, MemoryContext, IssueContext, CriteriaContext } from "./phoenix/core";
 import { getMemoryStore } from './phoenix/vectraMemory';
 import { getSleepModule } from './phoenix/sleepModule';
+import { getToolsEngine, ToolCall } from './phoenix/tools';
+import { getFileProcessor } from './phoenix/fileProcessor';
 import {
   createUtterance,
   getUtterancesByContext,
@@ -530,6 +532,213 @@ export const appRouter = router({
   // VECTRA MEMORY - Vector-based persistent memory (Transpiration)
   // ============================================================================
   
+  // ============================================================================
+  // TOOLS - Phoenix tools for concrete actions
+  // ============================================================================
+  
+  tools: router({
+    /**
+     * Get available tools
+     */
+    list: protectedProcedure.query(async () => {
+      const toolsEngine = getToolsEngine();
+      return toolsEngine.getAvailableTools();
+    }),
+
+    /**
+     * Execute a tool
+     */
+    execute: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        arguments: z.record(z.string(), z.unknown())
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const toolsEngine = getToolsEngine();
+        const toolCall: ToolCall = {
+          id: randomUUID(),
+          name: input.name,
+          arguments: input.arguments,
+          timestamp: new Date()
+        };
+
+        const result = await toolsEngine.executeTool(toolCall);
+
+        await logAuditEvent({
+          eventType: "tool_executed",
+          entityType: "tool",
+          entityId: 0,
+          details: { toolName: input.name, success: result.success, executionTime: result.executionTime },
+          userId: ctx.user.id
+        });
+
+        return result;
+      }),
+
+    /**
+     * Get tool execution history
+     */
+    history: protectedProcedure.query(async () => {
+      const toolsEngine = getToolsEngine();
+      return toolsEngine.getExecutionHistory();
+    }),
+  }),
+
+  // ============================================================================
+  // FILES - File upload and processing
+  // ============================================================================
+  
+  files: router({
+    /**
+     * Get supported file types
+     */
+    supportedTypes: publicProcedure.query(async () => {
+      const processor = getFileProcessor();
+      return {
+        mimeTypes: processor.getSupportedTypes(),
+        extensions: processor.getSupportedExtensions()
+      };
+    }),
+
+    /**
+     * Upload a file (base64 encoded)
+     */
+    upload: protectedProcedure
+      .input(z.object({
+        fileName: z.string(),
+        mimeType: z.string(),
+        base64Content: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const processor = getFileProcessor();
+        
+        // Validate file type
+        const validation = processor.validateFile({
+          name: input.fileName,
+          size: Buffer.from(input.base64Content, 'base64').length,
+          type: input.mimeType
+        });
+
+        if (!validation.valid) {
+          throw new Error(validation.error);
+        }
+
+        // Convert base64 to buffer and upload
+        const buffer = Buffer.from(input.base64Content, 'base64');
+        const uploadedFile = await processor.uploadFile(
+          buffer,
+          input.fileName,
+          input.mimeType,
+          ctx.user.id
+        );
+
+        await logAuditEvent({
+          eventType: "file_uploaded",
+          entityType: "file",
+          entityId: 0,
+          details: { 
+            fileId: uploadedFile.id, 
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+            size: buffer.length,
+            hasExtractedText: !!uploadedFile.extractedText
+          },
+          userId: ctx.user.id
+        });
+
+        return {
+          id: uploadedFile.id,
+          originalName: uploadedFile.originalName,
+          mimeType: uploadedFile.mimeType,
+          size: uploadedFile.size,
+          extractedText: uploadedFile.extractedText,
+          uploadedAt: uploadedFile.uploadedAt
+        };
+      }),
+
+    /**
+     * Get user's uploaded files
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const processor = getFileProcessor();
+      return processor.getUserFiles(ctx.user.id).map(f => ({
+        id: f.id,
+        originalName: f.originalName,
+        mimeType: f.mimeType,
+        size: f.size,
+        hasExtractedText: !!f.extractedText,
+        uploadedAt: f.uploadedAt
+      }));
+    }),
+
+    /**
+     * Get a specific file's content
+     */
+    get: protectedProcedure
+      .input(z.object({ fileId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const processor = getFileProcessor();
+        const file = processor.getFile(input.fileId);
+        
+        if (!file || file.userId !== ctx.user.id) {
+          throw new Error('Fichier non trouvé');
+        }
+
+        return {
+          id: file.id,
+          originalName: file.originalName,
+          mimeType: file.mimeType,
+          size: file.size,
+          extractedText: file.extractedText,
+          metadata: file.metadata,
+          storageUrl: file.storageUrl,
+          uploadedAt: file.uploadedAt
+        };
+      }),
+
+    /**
+     * Search in uploaded files
+     */
+    search: protectedProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const processor = getFileProcessor();
+        const results = processor.searchInFiles(ctx.user.id, input.query);
+        
+        return results.map(r => ({
+          fileId: r.file.id,
+          fileName: r.file.originalName,
+          matches: r.matches
+        }));
+      }),
+
+    /**
+     * Delete a file
+     */
+    delete: protectedProcedure
+      .input(z.object({ fileId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const processor = getFileProcessor();
+        const file = processor.getFile(input.fileId);
+        
+        if (!file || file.userId !== ctx.user.id) {
+          throw new Error('Fichier non trouvé');
+        }
+
+        processor.deleteFile(input.fileId);
+
+        await logAuditEvent({
+          eventType: "file_deleted",
+          entityType: "file",
+          entityId: 0,
+          details: { fileId: input.fileId, fileName: file.originalName },
+          userId: ctx.user.id
+        });
+
+        return { success: true };
+      }),
+  }),
+
   vectraMemory: router({
     /**
      * Search vector memory for relevant memories

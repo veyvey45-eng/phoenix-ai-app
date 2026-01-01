@@ -8,6 +8,9 @@ import { HypothesesPanel } from "@/components/HypothesesPanel";
 import { IssuesPanel, IssueStats } from "@/components/IssuesPanel";
 import { AuditLog, CompactAudit } from "@/components/AuditLog";
 import { MemoryExplorer } from "@/components/MemoryExplorer";
+import { DemoMode, DemoScenario } from "@/components/DemoMode";
+import { FileUpload } from "@/components/FileUpload";
+import { ExportPanel } from "@/components/ExportPanel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +23,8 @@ import {
   MessageSquare,
   Sparkles,
   Shield,
-  BarChart3
+  BarChart3,
+  FileUp
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -134,7 +138,7 @@ export default function Dashboard() {
         {/* Main content area */}
         <div className="flex-1 flex flex-col">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b border-border px-4">
+            <div className="border-b border-border px-4 flex items-center justify-between">
               <TabsList className="h-12">
                 <TabsTrigger value="chat" className="gap-2">
                   <MessageSquare className="w-4 h-4" />
@@ -152,7 +156,45 @@ export default function Dashboard() {
                   <Database className="w-4 h-4" />
                   Mémoire
                 </TabsTrigger>
+                <TabsTrigger value="files" className="gap-2">
+                  <FileUp className="w-4 h-4" />
+                  Fichiers
+                </TabsTrigger>
               </TabsList>
+              
+              <div className="flex items-center gap-2">
+                <DemoMode 
+                  onRunDemo={(scenario) => {
+                    toast.info(`Démo: ${scenario.title}`, {
+                      description: "Lancement de la démonstration..."
+                    });
+                    // Simuler les étapes de la démo
+                    scenario.steps.forEach((step, idx) => {
+                      setTimeout(() => {
+                        if (step.type === 'user') {
+                          handleSendMessage(step.content);
+                        } else if (step.type === 'system') {
+                          toast.info(step.content, { description: step.highlight });
+                        }
+                      }, idx * 2000);
+                    });
+                  }}
+                  isRunning={chatMutation.isPending}
+                />
+                <ExportPanel 
+                  messages={messages.map(m => ({
+                    ...m,
+                    timestamp: m.timestamp
+                  }))}
+                  auditLog={auditLog.data || []}
+                  phoenixState={state ? {
+                    tormentScore: state.tormentScore,
+                    openIssuesCount: state.openIssuesCount,
+                    totalDecisions: state.totalDecisions,
+                    totalUtterances: state.totalUtterances
+                  } : undefined}
+                />
+              </div>
             </div>
 
             <TabsContent value="chat" className="flex-1 m-0">
@@ -214,6 +256,22 @@ export default function Dashboard() {
             <TabsContent value="memory" className="flex-1 m-0 p-4 overflow-auto">
               <div className="max-w-4xl mx-auto">
                 <MemoryExplorer />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="files" className="flex-1 m-0 p-4 overflow-auto">
+              <div className="max-w-4xl mx-auto space-y-4">
+                <Card className="phoenix-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileUp className="w-5 h-5 text-primary" />
+                      Upload de Fichiers
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FileUpload />
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
           </Tabs>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Brain, User, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Radio, Volume2 } from "lucide-react";
+import { Send, Loader2, Brain, User, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Radio, Volume2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Streamdown } from "streamdown";
 import { CompactHypotheses } from "./HypothesesPanel";
 import { TormentBar } from "./TormentGauge";
 import { TTSButton } from "./TextToSpeech";
+import { FileUpload } from "./FileUpload";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
@@ -169,15 +170,26 @@ export function PhoenixChat({
           </div>
           
           <form onSubmit={handleSubmit} className="flex gap-2">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Posez une question à Phoenix..."
-              className="min-h-[60px] max-h-[200px] resize-none bg-card"
-              disabled={isLoading}
-            />
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Posez une question à Phoenix..."
+                className="min-h-[60px] max-h-[200px] resize-none bg-card pr-10"
+                disabled={isLoading}
+              />
+              <div className="absolute right-2 bottom-2">
+                <FileUpload 
+                  compact 
+                  onFileUploaded={(file) => {
+                    const fileInfo = `[Fichier: ${file.originalName}]`;
+                    setInput(prev => prev ? `${prev}\n${fileInfo}` : fileInfo);
+                  }}
+                />
+              </div>
+            </div>
             <Button 
               type="submit" 
               size="icon" 

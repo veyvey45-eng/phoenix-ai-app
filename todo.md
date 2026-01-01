@@ -87,3 +87,37 @@
 - [x] Ajouter le bouton de lecture vocale
 - [x] Gérer les contrôles (play, pause, stop)
 - [x] Supporter plusieurs langues (français prioritaire)
+
+## Phase 8: Outils, Upload, Démo et Export
+
+### Outils Concrets
+- [x] Créer le module ToolsEngine avec interface standard
+- [x] Implémenter l'outil Calculatrice (évaluation d'expressions mathématiques)
+- [x] Implémenter l'outil Recherche Web (via API intégrée)
+- [x] Implémenter l'outil Lecture de Fichiers (extraction de texte)
+- [x] Implémenter l'outil Date/Heure
+- [x] Intégrer les outils dans l'orchestrateur Phoenix
+- [x] Ajouter l'affichage des appels d'outils dans le chat
+
+### Upload de Fichiers
+- [x] Créer l'endpoint d'upload avec stockage S3
+- [x] Supporter les formats PDF, TXT, DOCX, images
+- [x] Implémenter l'extraction de texte des PDFs
+- [x] Ajouter le composant FileUpload dans le chat
+- [x] Permettre l'analyse de fichiers par Phoenix
+- [x] Stocker les fichiers uploadés dans la mémoire
+
+### Mode Démo
+- [x] Créer des scénarios de démonstration pré-configurés
+- [x] Scénario 1: Détection de contradictions
+- [x] Scénario 2: Auto-correction avec mémoire
+- [x] Scénario 3: Utilisation d'outils
+- [x] Scénario 4: Arbitrage multi-hypothèses
+- [x] Ajouter un bouton "Démo" dans l'interface
+- [x] Afficher les explications pendant la démo
+
+### Export des Conversations
+- [x] Implémenter l'export JSON des conversations
+- [x] Implémenter l'export Markdown avec mise en forme
+- [x] Exporter le journal d'audit
+- [x] Ajouter les boutons d'export dans le dashboard
