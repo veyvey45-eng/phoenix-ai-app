@@ -1,28 +1,502 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { z } from "zod";
+import { randomUUID } from "crypto";
+import { phoenix, PhoenixContext, MemoryContext, IssueContext, CriteriaContext } from "./phoenix/core";
+import {
+  createUtterance,
+  getUtterancesByContext,
+  getRecentUtterances,
+  createDecision,
+  getDecisionsByUser,
+  createIssue,
+  getActiveIssues,
+  updateIssueStatus,
+  getIssueStats,
+  createMemory,
+  getMemoriesByUser,
+  updateMemoryUsage,
+  createActionRequest,
+  updateActionRequestStatus,
+  getPendingActionRequests,
+  createActionResult,
+  getActiveCriteria,
+  initializeDefaultCriteria,
+  getOrCreatePhoenixState,
+  updatePhoenixState,
+  logAuditEvent,
+  getAuditLog,
+  createConversation,
+  getConversationsByUser,
+  getConversationByContextId
+} from "./db";
 
 export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
+  
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
+      return { success: true } as const;
     }),
   }),
 
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  // ============================================================================
+  // PHOENIX CORE - Main orchestration endpoints
+  // ============================================================================
+  
+  phoenix: router({
+    /**
+     * Process a user message through the Phoenix orchestrator
+     * Implements the "penser vs agir" separation
+     */
+    chat: protectedProcedure
+      .input(z.object({
+        message: z.string().min(1),
+        contextId: z.string().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+        const contextId = input.contextId || randomUUID();
+
+        // Initialize criteria if needed
+        await initializeDefaultCriteria();
+
+        // Get or create Phoenix state
+        const state = await getOrCreatePhoenixState(userId);
+
+        // Build context
+        const memories = await getMemoriesByUser(userId, 50);
+        const recentUtterances = await getRecentUtterances(userId, 10);
+        const activeIssues = await getActiveIssues(userId);
+        const criteriaList = await getActiveCriteria();
+
+        const phoenixContext: PhoenixContext = {
+          userId,
+          contextId,
+          memories: memories.map(m => ({
+            id: m.id,
+            content: m.content,
+            salience: m.salience ?? 0.5,
+            memoryType: m.memoryType
+          })),
+          recentUtterances: recentUtterances.map(u => ({
+            role: u.role,
+            content: u.content,
+            confidence: u.confidence ?? 1.0
+          })),
+          activeIssues: activeIssues.map(i => ({
+            id: i.id,
+            type: i.type,
+            severity: i.severity,
+            evidence: i.evidence
+          })),
+          tormentScore: state.tormentScore,
+          criteria: criteriaList.map(c => ({
+            name: c.name,
+            level: c.level,
+            rule: c.rule,
+            weight: c.weight
+          }))
+        };
+
+        // Store user utterance
+        const userUtterance = await createUtterance({
+          role: "user",
+          content: input.message,
+          contextId,
+          confidence: 1.0,
+          userId
+        });
+
+        // Log audit event
+        await logAuditEvent({
+          eventType: "utterance_created",
+          entityType: "utterance",
+          entityId: userUtterance?.id || 0,
+          details: { role: "user", contextId },
+          userId
+        });
+
+        // Process through Phoenix orchestrator
+        const decision = await phoenix.process(input.message, phoenixContext);
+
+        // Store the decision
+        const storedDecision = await createDecision({
+          options: decision.hypotheses.map(h => ({
+            id: h.id,
+            content: h.content,
+            score: h.confidence
+          })),
+          chosen: decision.chosen.id,
+          rationale: decision.rationale,
+          criteriaSnapshot: criteriaList.reduce((acc, c) => ({ ...acc, [c.name]: c.weight }), {}),
+          tormentBefore: decision.tormentBefore,
+          tormentAfter: decision.tormentAfter,
+          contextId,
+          userId
+        });
+
+        // Log decision
+        await logAuditEvent({
+          eventType: "decision_made",
+          entityType: "decision",
+          entityId: storedDecision?.id || 0,
+          details: {
+            hypothesesCount: decision.hypotheses.length,
+            chosenId: decision.chosen.id,
+            tormentChange: decision.tormentAfter - decision.tormentBefore
+          },
+          userId
+        });
+
+        // Store assistant utterance
+        const assistantUtterance = await createUtterance({
+          role: "assistant",
+          content: decision.chosen.content,
+          contextId,
+          confidence: decision.chosen.confidence,
+          sources: decision.chosen.sources,
+          decisionId: storedDecision?.id,
+          userId
+        });
+
+        // Store as memory if high confidence
+        if (decision.chosen.confidence > 0.8) {
+          const embedding = phoenix.computeEmbedding(decision.chosen.content);
+          const salience = phoenix.computeSalience(decision.chosen.content, phoenixContext);
+          
+          await createMemory({
+            content: decision.chosen.content,
+            embedding,
+            tags: ["conversation", contextId],
+            salience,
+            provenance: `conversation:${contextId}`,
+            memoryType: decision.chosen.confidence > 0.9 ? "fact" : "hypothesis",
+            userId
+          });
+
+          await logAuditEvent({
+            eventType: "memory_stored",
+            entityType: "memory",
+            entityId: 0,
+            details: { salience, memoryType: decision.chosen.confidence > 0.9 ? "fact" : "hypothesis" },
+            userId
+          });
+        }
+
+        // Update Phoenix state
+        await updatePhoenixState(userId, {
+          tormentScore: decision.tormentAfter,
+          activeHypotheses: decision.hypotheses.map(h => ({
+            id: h.id,
+            content: h.content.substring(0, 200),
+            confidence: h.confidence
+          })),
+          totalDecisions: state.totalDecisions + 1,
+          totalUtterances: state.totalUtterances + 2
+        });
+
+        // Log torment update if significant change
+        if (Math.abs(decision.tormentAfter - decision.tormentBefore) > 5) {
+          await logAuditEvent({
+            eventType: "torment_updated",
+            entityType: "state",
+            entityId: state.id,
+            details: {
+              before: decision.tormentBefore,
+              after: decision.tormentAfter,
+              change: decision.tormentAfter - decision.tormentBefore
+            },
+            userId
+          });
+        }
+
+        return {
+          response: decision.chosen.content,
+          confidence: decision.chosen.confidence,
+          reasoning: decision.chosen.reasoning,
+          hypotheses: decision.hypotheses,
+          rationale: decision.rationale,
+          tormentScore: decision.tormentAfter,
+          tormentChange: decision.tormentAfter - decision.tormentBefore,
+          actionRequest: decision.actionRequest,
+          contextId,
+          decisionId: storedDecision?.id,
+          utteranceId: assistantUtterance?.id
+        };
+      }),
+
+    /**
+     * Get current Phoenix state for a user
+     */
+    getState: protectedProcedure.query(async ({ ctx }) => {
+      const state = await getOrCreatePhoenixState(ctx.user.id);
+      const issueStats = await getIssueStats(ctx.user.id);
+      const activeIssues = await getActiveIssues(ctx.user.id);
+      
+      return {
+        ...state,
+        issueStats,
+        activeIssues: activeIssues.slice(0, 10)
+      };
+    }),
+
+    /**
+     * Get conversation history
+     */
+    getHistory: protectedProcedure
+      .input(z.object({
+        contextId: z.string()
+      }))
+      .query(async ({ ctx, input }) => {
+        const utterances = await getUtterancesByContext(input.contextId);
+        return utterances.reverse(); // Oldest first
+      }),
+
+    /**
+     * Get all conversations for a user
+     */
+    getConversations: protectedProcedure.query(async ({ ctx }) => {
+      return getConversationsByUser(ctx.user.id);
+    }),
+
+    /**
+     * Create a new conversation
+     */
+    createConversation: protectedProcedure
+      .input(z.object({
+        title: z.string().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const contextId = randomUUID();
+        return createConversation({
+          userId: ctx.user.id,
+          title: input.title || "Nouvelle conversation",
+          contextId,
+          isActive: true
+        });
+      }),
+  }),
+
+  // ============================================================================
+  // ISSUES - Problem tracking and resolution
+  // ============================================================================
+  
+  issues: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getActiveIssues(ctx.user.id);
+    }),
+
+    resolve: protectedProcedure
+      .input(z.object({
+        issueId: z.number(),
+        resolution: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateIssueStatus(input.issueId, "resolved", input.resolution);
+        
+        await logAuditEvent({
+          eventType: "issue_resolved",
+          entityType: "issue",
+          entityId: input.issueId,
+          details: { resolution: input.resolution },
+          userId: ctx.user.id
+        });
+
+        return { success: true };
+      }),
+
+    defer: protectedProcedure
+      .input(z.object({
+        issueId: z.number()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateIssueStatus(input.issueId, "deferred");
+        return { success: true };
+      }),
+
+    stats: protectedProcedure.query(async ({ ctx }) => {
+      return getIssueStats(ctx.user.id);
+    }),
+  }),
+
+  // ============================================================================
+  // MEMORY - Long-term memory management
+  // ============================================================================
+  
+  memory: router({
+    list: protectedProcedure
+      .input(z.object({
+        limit: z.number().optional().default(50)
+      }))
+      .query(async ({ ctx, input }) => {
+        return getMemoriesByUser(ctx.user.id, input.limit);
+      }),
+
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string()
+      }))
+      .query(async ({ ctx, input }) => {
+        const allMemories = await getMemoriesByUser(ctx.user.id, 100);
+        const memoryContexts: MemoryContext[] = allMemories.map(m => ({
+          id: m.id,
+          content: m.content,
+          salience: m.salience ?? 0.5,
+          memoryType: m.memoryType
+        }));
+        
+        const relevant = phoenix.retrieveMemories(input.query, memoryContexts);
+        
+        // Update usage stats for retrieved memories
+        for (const mem of relevant) {
+          await updateMemoryUsage(mem.id);
+        }
+
+        await logAuditEvent({
+          eventType: "memory_retrieved",
+          entityType: "memory",
+          entityId: 0,
+          details: { query: input.query, resultsCount: relevant.length },
+          userId: ctx.user.id
+        });
+
+        return relevant;
+      }),
+
+    add: protectedProcedure
+      .input(z.object({
+        content: z.string(),
+        memoryType: z.enum(["fact", "hypothesis", "experience", "rule"]),
+        tags: z.array(z.string()).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const state = await getOrCreatePhoenixState(ctx.user.id);
+        const phoenixContext: PhoenixContext = {
+          userId: ctx.user.id,
+          contextId: "",
+          memories: [],
+          recentUtterances: [],
+          activeIssues: [],
+          tormentScore: state.tormentScore,
+          criteria: []
+        };
+
+        const embedding = phoenix.computeEmbedding(input.content);
+        const salience = phoenix.computeSalience(input.content, phoenixContext);
+
+        const memory = await createMemory({
+          content: input.content,
+          embedding,
+          tags: input.tags || [],
+          salience,
+          provenance: "user_input",
+          memoryType: input.memoryType,
+          userId: ctx.user.id
+        });
+
+        await logAuditEvent({
+          eventType: "memory_stored",
+          entityType: "memory",
+          entityId: memory?.id || 0,
+          details: { memoryType: input.memoryType, salience },
+          userId: ctx.user.id
+        });
+
+        return memory;
+      }),
+  }),
+
+  // ============================================================================
+  // DECISIONS - Decision history and analysis
+  // ============================================================================
+  
+  decisions: router({
+    list: protectedProcedure
+      .input(z.object({
+        limit: z.number().optional().default(50)
+      }))
+      .query(async ({ ctx, input }) => {
+        return getDecisionsByUser(ctx.user.id, input.limit);
+      }),
+  }),
+
+  // ============================================================================
+  // ACTIONS - Action requests and execution
+  // ============================================================================
+  
+  actions: router({
+    pending: protectedProcedure.query(async ({ ctx }) => {
+      return getPendingActionRequests(ctx.user.id);
+    }),
+
+    approve: protectedProcedure
+      .input(z.object({
+        actionId: z.number()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateActionRequestStatus(input.actionId, "approved");
+        
+        await logAuditEvent({
+          eventType: "action_executed",
+          entityType: "action",
+          entityId: input.actionId,
+          details: { status: "approved" },
+          userId: ctx.user.id
+        });
+
+        return { success: true };
+      }),
+
+    reject: protectedProcedure
+      .input(z.object({
+        actionId: z.number(),
+        reason: z.string().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateActionRequestStatus(input.actionId, "rejected");
+        
+        await logAuditEvent({
+          eventType: "action_rejected",
+          entityType: "action",
+          entityId: input.actionId,
+          details: { reason: input.reason },
+          userId: ctx.user.id
+        });
+
+        return { success: true };
+      }),
+  }),
+
+  // ============================================================================
+  // CRITERIA - Judgment criteria management
+  // ============================================================================
+  
+  criteria: router({
+    list: protectedProcedure.query(async () => {
+      await initializeDefaultCriteria();
+      return getActiveCriteria();
+    }),
+  }),
+
+  // ============================================================================
+  // AUDIT - Audit log access
+  // ============================================================================
+  
+  audit: router({
+    list: protectedProcedure
+      .input(z.object({
+        limit: z.number().optional().default(100)
+      }))
+      .query(async ({ ctx, input }) => {
+        return getAuditLog(ctx.user.id, input.limit);
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
