@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, Brain, User, Sparkles, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Loader2, Brain, User, Sparkles, AlertTriangle, ChevronDown, ChevronUp, Radio, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Streamdown } from "streamdown";
 import { CompactHypotheses } from "./HypothesesPanel";
 import { TormentBar } from "./TormentGauge";
+import { TTSButton } from "./TextToSpeech";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface Hypothesis {
   id: string;
@@ -36,16 +39,20 @@ interface PhoenixChatProps {
   onSendMessage: (message: string) => Promise<void>;
   isLoading?: boolean;
   currentTorment?: number;
+  isStreaming?: boolean;
 }
 
 export function PhoenixChat({ 
   messages, 
   onSendMessage, 
   isLoading = false,
-  currentTorment = 0 
+  currentTorment = 0,
+  isStreaming = false
 }: PhoenixChatProps) {
   const [input, setInput] = useState("");
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [liveMode, setLiveMode] = useState(false);
+  const [autoTTS, setAutoTTS] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -127,9 +134,38 @@ export function PhoenixChat({
       {/* Input area */}
       <div className="border-t border-border p-4 bg-background/80 backdrop-blur">
         <div className="max-w-3xl mx-auto">
-          {/* Torment indicator */}
-          <div className="mb-3">
+          {/* Controls row */}
+          <div className="mb-3 flex items-center justify-between">
             <TormentBar score={currentTorment} />
+            
+            <div className="flex items-center gap-4">
+              {/* Live mode toggle */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="live-mode"
+                  checked={liveMode}
+                  onCheckedChange={setLiveMode}
+                  className="data-[state=checked]:bg-red-500"
+                />
+                <Label htmlFor="live-mode" className="text-xs flex items-center gap-1 cursor-pointer">
+                  <Radio className={cn("w-3 h-3", liveMode && "text-red-500 animate-pulse")} />
+                  Live
+                </Label>
+              </div>
+              
+              {/* Auto TTS toggle */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="auto-tts"
+                  checked={autoTTS}
+                  onCheckedChange={setAutoTTS}
+                />
+                <Label htmlFor="auto-tts" className="text-xs flex items-center gap-1 cursor-pointer">
+                  <Volume2 className="w-3 h-3" />
+                  Voix
+                </Label>
+              </div>
+            </div>
           </div>
           
           <form onSubmit={handleSubmit} className="flex gap-2">
@@ -244,6 +280,9 @@ function MessageBubble({ message, isExpanded, onToggleExpand }: MessageBubblePro
                     Tourment: {message.tormentChange > 0 ? "+" : ""}{message.tormentChange.toFixed(1)}
                   </Badge>
                 )}
+                
+                {/* TTS Button */}
+                <TTSButton text={message.content} className="ml-auto" />
               </div>
 
               {/* Hypotheses (collapsible) */}

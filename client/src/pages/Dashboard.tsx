@@ -7,6 +7,7 @@ import { TormentGauge } from "@/components/TormentGauge";
 import { HypothesesPanel } from "@/components/HypothesesPanel";
 import { IssuesPanel, IssueStats } from "@/components/IssuesPanel";
 import { AuditLog, CompactAudit } from "@/components/AuditLog";
+import { MemoryExplorer } from "@/components/MemoryExplorer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +148,10 @@ export default function Dashboard() {
                   <Activity className="w-4 h-4" />
                   Journal
                 </TabsTrigger>
+                <TabsTrigger value="memory" className="gap-2">
+                  <Database className="w-4 h-4" />
+                  Mémoire
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -203,6 +208,12 @@ export default function Dashboard() {
                   entries={auditLog.data || []} 
                   maxHeight="calc(100vh - 250px)"
                 />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="memory" className="flex-1 m-0 p-4 overflow-auto">
+              <div className="max-w-4xl mx-auto">
+                <MemoryExplorer />
               </div>
             </TabsContent>
           </Tabs>

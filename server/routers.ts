@@ -6,6 +6,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import { phoenix, PhoenixContext, MemoryContext, IssueContext, CriteriaContext } from "./phoenix/core";
 import { getMemoryStore } from './phoenix/vectraMemory';
+import { getSleepModule } from './phoenix/sleepModule';
 import {
   createUtterance,
   getUtterancesByContext,
@@ -626,21 +627,29 @@ export const appRouter = router({
       }),
 
     /**
-     * Consolidate memories (simplified sleep module)
+     * Consolidate memories (full sleep module)
      */
     consolidate: protectedProcedure.mutation(async ({ ctx }) => {
-      const memoryStore = getMemoryStore();
-      const result = await memoryStore.consolidate(ctx.user.id);
+      const sleepModule = getSleepModule();
+      const result = await sleepModule.consolidate(ctx.user.id);
 
       await logAuditEvent({
         eventType: "memory_consolidated",
         entityType: "vectra_memory",
         entityId: 0,
-        details: result,
+        details: { ...result },
         userId: ctx.user.id
       });
 
       return result;
+    }),
+
+    /**
+     * Get sleep module statistics
+     */
+    sleepStats: protectedProcedure.query(async ({ ctx }) => {
+      const sleepModule = getSleepModule();
+      return sleepModule.getStats(ctx.user.id);
     }),
 
     /**

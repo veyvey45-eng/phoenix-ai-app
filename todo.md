@@ -54,3 +54,36 @@
 - [x] Mettre à jour les types d'événements d'audit
 - [x] Tests unitaires du système de mémoire Vectra (16 tests passés)
 - [x] Validation de la persistance entre sessions (intégré dans le chat)
+
+## Phase 7: Fonctionnalités Avancées
+
+### Embeddings Réels
+- [x] Intégrer l'API LLM pour générer des embeddings sémantiques
+- [x] Remplacer les embeddings hash-based par des embeddings réels
+- [x] Tester la qualité du retrieval sémantique
+
+### Module Sommeil Complet
+- [x] Implémenter la détection de mémoires similaires
+- [x] Créer la logique de fusion des mémoires
+- [x] Ajouter le renforcement des patterns récurrents
+- [x] Créer un endpoint pour déclencher la consolidation
+- [x] Ajouter des statistiques de consolidation
+
+### Visualisation de la Mémoire
+- [x] Créer le composant MemoryExplorer
+- [x] Afficher les mémoires avec leur saillance et type
+- [x] Ajouter la recherche dans les mémoires
+- [x] Visualiser les connexions sémantiques
+
+### Bouton Live (Streaming)
+- [x] Implémenter le streaming SSE côté serveur
+- [x] Créer le hook useStreamingChat côté client
+- [x] Ajouter le bouton Live dans l'interface de chat
+- [x] Afficher les tokens en temps réel
+
+### Synthèse Vocale (TTS)
+- [x] Intégrer l'API Web Speech ou un service TTS
+- [x] Créer le composant TextToSpeech
+- [x] Ajouter le bouton de lecture vocale
+- [x] Gérer les contrôles (play, pause, stop)
+- [x] Supporter plusieurs langues (français prioritaire)

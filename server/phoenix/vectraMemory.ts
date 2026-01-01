@@ -8,7 +8,7 @@
 
 import { LocalIndex } from 'vectra';
 import path from 'path';
-import { invokeLLM } from '../_core/llm';
+import { generateSemanticEmbedding, generateHashEmbedding } from './embeddings';
 import crypto from 'crypto';
 
 // Types
@@ -74,23 +74,16 @@ export class VectraMemoryStore {
 
   /**
    * Génère un embedding pour un texte donné
-   * Utilise l'API LLM intégrée ou un fallback hash-based
+   * Utilise l'extraction sémantique via LLM ou un fallback hash-based
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      // Essayer d'utiliser l'API LLM pour les embeddings
-      const response = await invokeLLM({
-        messages: [
-          { role: 'system', content: 'Generate a semantic representation of the following text.' },
-          { role: 'user', content: text }
-        ]
-      });
-
-      // Si l'API ne supporte pas les embeddings directement, utiliser le fallback
-      return this.generateHashEmbedding(text);
+      // Utiliser les embeddings sémantiques via LLM
+      return await generateSemanticEmbedding(text);
     } catch (error) {
       // Fallback: embedding basé sur hash (déterministe mais moins sémantique)
-      return this.generateHashEmbedding(text);
+      console.warn('[VectraMemory] Semantic embedding failed, using hash fallback');
+      return generateHashEmbedding(text);
     }
   }
 
