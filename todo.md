@@ -131,3 +131,9 @@
 - [x] Ajouter les paramètres de voix (vitesse, tonalité, volume)
 - [x] Sauvegarder les préférences vocales dans localStorage
 - [x] Ajouter un bouton "Tester la voix"
+
+## Phase 10: Corrections de bugs
+- [x] Bug: TypeError "Cannot read properties of undefined (reading 'cancel')" - Ajout de vérifications null
+- [x] Bug: Détection incorrecte du support de synthèse vocale sur mobile - Refactorisation complète
+- [x] Bug: Erreur générale dans le dashboard - Gestion d'erreurs améliorée
+- [x] Ajouter des vérifications de sécurité pour window.speechSynthesis - synthRef avec try/catch

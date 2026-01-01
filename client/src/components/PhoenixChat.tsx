@@ -146,15 +146,20 @@ export function PhoenixChat({
   };
 
   const handleAutoTTSChange = (enabled: boolean) => {
+    if (enabled && !speech.isSupported) {
+      toast.error("La synthèse vocale n'est pas disponible sur cet appareil. Essayez avec un autre navigateur.");
+      setAutoTTS(false);
+      return;
+    }
     setAutoTTS(enabled);
     if (enabled) {
-      if (!speech.isSupported) {
-        toast.error("La synthèse vocale n'est pas supportée par votre navigateur");
-        return;
-      }
       toast.success("🔊 Mode Voix activé - Phoenix parlera automatiquement");
     } else {
-      speech.stop();
+      try {
+        speech.stop();
+      } catch (e) {
+        // Ignore stop errors
+      }
       toast.info("Mode Voix désactivé");
     }
   };
