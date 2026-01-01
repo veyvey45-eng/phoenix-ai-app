@@ -41,3 +41,16 @@
 - [x] Tests d'intégration frontend/backend
 - [x] Tests de scénarios (mémoire fausse, contradictions)
 - [x] Validation du système de sécurité
+
+## Phase 6: Intégration Vector Store (Vectra)
+- [x] Installer vectra (alternative à Chroma pour mode embarqué Node.js)
+- [x] Configurer Vectra en mode embarqué (persistance locale fichiers)
+- [x] Créer le service VectraMemoryStore
+- [x] Générer des embeddings (hash-based pour MVP, LLM-ready)
+- [x] Implémenter le stockage automatique des conversations (transpiration)
+- [x] Implémenter le retrieval contextuel intelligent
+- [x] Ajouter la consolidation de mémoire (Module Sommeil simplifié)
+- [x] Ajouter les endpoints tRPC pour vectraMemory
+- [x] Mettre à jour les types d'événements d'audit
+- [x] Tests unitaires du système de mémoire Vectra (16 tests passés)
+- [x] Validation de la persistance entre sessions (intégré dans le chat)

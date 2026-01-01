@@ -5,6 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { phoenix, PhoenixContext, MemoryContext, IssueContext, CriteriaContext } from "./phoenix/core";
+import { getMemoryStore } from './phoenix/vectraMemory';
 import {
   createUtterance,
   getUtterancesByContext,
@@ -199,6 +200,32 @@ export const appRouter = router({
           })),
           totalDecisions: state.totalDecisions + 1,
           totalUtterances: state.totalUtterances + 2
+        });
+
+        // ============================================
+        // TRANSPIRATION - Store in Vectra vector memory
+        // This is where Phoenix "learns" from each conversation
+        // ============================================
+        const memoryStore = getMemoryStore();
+        
+        // Transpire user message
+        await memoryStore.transpire({
+          userId,
+          contextId,
+          role: 'user',
+          content: input.message,
+          confidence: 1.0
+        });
+
+        // Transpire assistant response with hypotheses and any issues
+        await memoryStore.transpire({
+          userId,
+          contextId,
+          role: 'assistant',
+          content: decision.chosen.content,
+          confidence: decision.chosen.confidence,
+          hypotheses: decision.hypotheses.map(h => h.content),
+          issues: activeIssues.map(i => i.evidence)
         });
 
         // Log torment update if significant change
@@ -496,6 +523,133 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return getAuditLog(ctx.user.id, input.limit);
       }),
+  }),
+
+  // ============================================================================
+  // VECTRA MEMORY - Vector-based persistent memory (Transpiration)
+  // ============================================================================
+  
+  vectraMemory: router({
+    /**
+     * Search vector memory for relevant memories
+     */
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        limit: z.number().optional().default(10),
+        types: z.array(z.enum(['utterance', 'decision', 'fact', 'correction', 'insight'])).optional()
+      }))
+      .query(async ({ ctx, input }) => {
+        const memoryStore = getMemoryStore();
+        const memories = await memoryStore.retrieve(input.query, ctx.user.id, {
+          limit: input.limit,
+          types: input.types
+        });
+
+        await logAuditEvent({
+          eventType: "vectra_memory_searched",
+          entityType: "vectra_memory",
+          entityId: 0,
+          details: { query: input.query, resultsCount: memories.length },
+          userId: ctx.user.id
+        });
+
+        return memories;
+      }),
+
+    /**
+     * Store a new memory in vector store
+     */
+    store: protectedProcedure
+      .input(z.object({
+        content: z.string(),
+        type: z.enum(['utterance', 'decision', 'fact', 'correction', 'insight']),
+        salience: z.number().min(0).max(1).optional().default(0.5),
+        contextId: z.string().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const memoryStore = getMemoryStore();
+        const id = await memoryStore.store({
+          userId: ctx.user.id,
+          content: input.content,
+          type: input.type,
+          timestamp: Date.now(),
+          salience: input.salience,
+          contextId: input.contextId
+        });
+
+        await logAuditEvent({
+          eventType: "vectra_memory_stored",
+          entityType: "vectra_memory",
+          entityId: 0,
+          details: { memoryId: id, type: input.type, salience: input.salience },
+          userId: ctx.user.id
+        });
+
+        return { id, success: true };
+      }),
+
+    /**
+     * Transpire - automatically store a conversation event
+     * This is the core of Phoenix's learning mechanism
+     */
+    transpire: protectedProcedure
+      .input(z.object({
+        contextId: z.string(),
+        role: z.enum(['user', 'assistant']),
+        content: z.string(),
+        confidence: z.number().optional(),
+        hypotheses: z.array(z.string()).optional(),
+        issues: z.array(z.string()).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const memoryStore = getMemoryStore();
+        await memoryStore.transpire({
+          userId: ctx.user.id,
+          contextId: input.contextId,
+          role: input.role,
+          content: input.content,
+          confidence: input.confidence,
+          hypotheses: input.hypotheses,
+          issues: input.issues
+        });
+
+        await logAuditEvent({
+          eventType: "transpiration_completed",
+          entityType: "vectra_memory",
+          entityId: 0,
+          details: { contextId: input.contextId, role: input.role },
+          userId: ctx.user.id
+        });
+
+        return { success: true };
+      }),
+
+    /**
+     * Consolidate memories (simplified sleep module)
+     */
+    consolidate: protectedProcedure.mutation(async ({ ctx }) => {
+      const memoryStore = getMemoryStore();
+      const result = await memoryStore.consolidate(ctx.user.id);
+
+      await logAuditEvent({
+        eventType: "memory_consolidated",
+        entityType: "vectra_memory",
+        entityId: 0,
+        details: result,
+        userId: ctx.user.id
+      });
+
+      return result;
+    }),
+
+    /**
+     * Get memory statistics
+     */
+    stats: protectedProcedure.query(async ({ ctx }) => {
+      const memoryStore = getMemoryStore();
+      return memoryStore.getStats(ctx.user.id);
+    }),
   }),
 });
 

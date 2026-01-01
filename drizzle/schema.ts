@@ -216,7 +216,11 @@ export const auditLog = mysqlTable("auditLog", {
     "torment_updated",
     "criteria_changed",
     "security_violation",
-    "consolidation_run"
+    "consolidation_run",
+    "vectra_memory_searched",
+    "vectra_memory_stored",
+    "transpiration_completed",
+    "memory_consolidated"
   ]).notNull(),
   entityType: varchar("entityType", { length: 64 }).notNull(),
   entityId: int("entityId").notNull(),

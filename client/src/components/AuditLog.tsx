@@ -33,7 +33,11 @@ type EventType =
   | "torment_updated"
   | "criteria_changed"
   | "security_violation"
-  | "consolidation_run";
+  | "consolidation_run"
+  | "vectra_memory_searched"
+  | "vectra_memory_stored"
+  | "transpiration_completed"
+  | "memory_consolidated";
 
 interface AuditEntry {
   id: number;
@@ -62,7 +66,11 @@ const eventConfig: Record<EventType, { icon: typeof MessageSquare; color: string
   torment_updated: { icon: Activity, color: "text-amber-400", label: "Tourment mis à jour" },
   criteria_changed: { icon: Settings, color: "text-gray-400", label: "Critères modifiés" },
   security_violation: { icon: Shield, color: "text-red-500", label: "Violation sécurité" },
-  consolidation_run: { icon: Moon, color: "text-violet-400", label: "Consolidation" }
+  consolidation_run: { icon: Moon, color: "text-violet-400", label: "Consolidation" },
+  vectra_memory_searched: { icon: Search, color: "text-emerald-400", label: "Vectra recherche" },
+  vectra_memory_stored: { icon: Database, color: "text-emerald-500", label: "Vectra stocké" },
+  transpiration_completed: { icon: Activity, color: "text-cyan-500", label: "Transpiration" },
+  memory_consolidated: { icon: Moon, color: "text-purple-500", label: "Mémoire consolidée" }
 };
 
 export function AuditLog({ entries, maxHeight = "400px" }: AuditLogProps) {

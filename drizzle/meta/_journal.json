@@ -15,6 +15,13 @@
       "when": 1767301158146,
       "tag": "0001_foamy_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1767304785374,
+      "tag": "0002_cute_magik",
+      "breakpoints": true
     }
   ]
 }
