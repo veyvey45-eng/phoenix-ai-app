@@ -137,3 +137,12 @@
 - [x] Bug: Détection incorrecte du support de synthèse vocale sur mobile - Refactorisation complète
 - [x] Bug: Erreur générale dans le dashboard - Gestion d'erreurs améliorée
 - [x] Ajouter des vérifications de sécurité pour window.speechSynthesis - synthRef avec try/catch
+
+## Phase 11: Optimisation du comportement et de la vitesse
+- [x] Bug: Phoenix analyse les phrases au lieu d'exécuter les tâches - Prompt système réécrit
+- [x] Modifier le prompt système pour orienter vers l'exécution
+- [x] Masquer les hypothèses par défaut (garder en arrière-plan)
+- [x] Ajouter un toggle "Voir les hypothèses" optionnel
+- [x] Optimiser l'affichage pour réponse plus rapide
+- [x] Masquer le raisonnement par défaut
+- [x] Afficher la réponse finale immédiatement

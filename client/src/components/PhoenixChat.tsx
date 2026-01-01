@@ -541,19 +541,21 @@ function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageB
                 </Button>
               </div>
 
-              {/* Hypotheses (collapsible) */}
-              {message.hypotheses && message.hypotheses.length > 0 && (
+              {/* Hypotheses - masquées par défaut pour une réponse plus rapide */}
+              {message.hypotheses && message.hypotheses.length > 1 && (
                 <div className="mt-2">
                   <button
                     onClick={onToggleExpand}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex items-center gap-1 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                   >
                     {isExpanded ? (
                       <ChevronUp className="w-3 h-3" />
                     ) : (
                       <ChevronDown className="w-3 h-3" />
                     )}
-                    {message.hypotheses.length} hypothèses générées
+                    <span className="opacity-70">
+                      {isExpanded ? "Masquer" : "Voir"} les {message.hypotheses.length} hypothèses
+                    </span>
                   </button>
                   
                   <AnimatePresence>
@@ -576,8 +578,8 @@ function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageB
                 </div>
               )}
 
-              {/* Reasoning (if available) */}
-              {message.reasoning && (
+              {/* Reasoning - masqué par défaut, visible seulement si hypothèses dépliées */}
+              {isExpanded && message.reasoning && (
                 <div className="mt-2 text-xs text-muted-foreground italic">
                   💭 {message.reasoning}
                 </div>
