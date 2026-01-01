@@ -152,3 +152,30 @@
 - [x] Renforcer le prompt système pour interdire les réponses méta
 - [x] Phoenix ne doit jamais se décrire comme "modèle de langage"
 - [x] Phoenix doit agir, pas s'expliquer
+
+
+## Phase 13: Optimisation de la Vitesse et TTS Serveur
+
+### Mode Rapide (1 hypothèse)
+- [x] Ajouter un paramètre fastMode dans l'API phoenix.chat
+- [x] Modifier ArbitrageModule pour supporter n=1 hypothèse
+- [x] Ajouter le toggle "Mode Rapide" dans l'interface utilisateur
+- [x] Sauvegarder la préférence dans localStorage
+
+### TTS Côté Serveur
+- [x] Créer l'endpoint tRPC pour synthèse vocale serveur
+- [x] Intégrer l'API TTS de Manus (ou alternative)
+- [x] Modifier le hook useSpeechSynthesis pour utiliser le serveur en fallback
+- [ ] Tester sur navigateurs mobiles (Samsung Internet, etc.)
+
+### Tool Gateway Avancé
+- [x] Créer le module toolGateway.ts avec signatures et scopes
+- [x] Implémenter le système de permissions par catégorie
+- [x] Ajouter la vérification de signature avant exécution
+- [ ] Créer les tables de base de données pour ActionRequest/Signature
+- [x] Implémenter l'approbation humaine pour actions sensibles
+
+### Tests Unitaires
+- [x] Tests pour Tool Gateway (24 tests)
+- [x] Tests pour TTS serveur (17 tests)
+- [x] Tous les tests passent (96 tests au total)

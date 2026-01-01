@@ -9,6 +9,7 @@ import { getMemoryStore } from './phoenix/vectraMemory';
 import { getSleepModule } from './phoenix/sleepModule';
 import { getToolsEngine, ToolCall } from './phoenix/tools';
 import { getFileProcessor } from './phoenix/fileProcessor';
+import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
   getUtterancesByContext,
@@ -61,7 +62,8 @@ export const appRouter = router({
     chat: protectedProcedure
       .input(z.object({
         message: z.string().min(1),
-        contextId: z.string().optional()
+        contextId: z.string().optional(),
+        fastMode: z.boolean().optional().default(false)
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
@@ -127,7 +129,8 @@ export const appRouter = router({
         });
 
         // Process through Phoenix orchestrator
-        const decision = await phoenix.process(input.message, phoenixContext);
+        // fastMode: 1 hypothèse pour réponse rapide, sinon 3 hypothèses
+        const decision = await phoenix.process(input.message, phoenixContext, input.fastMode);
 
         // Store the decision
         const storedDecision = await createDecision({
@@ -867,6 +870,68 @@ export const appRouter = router({
     stats: protectedProcedure.query(async ({ ctx }) => {
       const memoryStore = getMemoryStore();
       return memoryStore.getStats(ctx.user.id);
+    }),
+  }),
+
+  // ============================================================================
+  // TTS - Text-to-Speech endpoints
+  // ============================================================================
+  
+  tts: router({
+    /**
+     * Synthesize speech from text
+     * Returns audio as base64 encoded string
+     */
+    synthesize: protectedProcedure
+      .input(z.object({
+        text: z.string().min(1).max(4096),
+        voice: z.enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]).optional().default("nova"),
+        format: z.enum(["mp3", "opus", "aac", "flac", "wav", "pcm"]).optional().default("mp3"),
+        speed: z.number().min(0.25).max(4.0).optional().default(1.0)
+      }))
+      .mutation(async ({ input }) => {
+        const result = await synthesizeSpeech({
+          text: input.text,
+          voice: input.voice as TTSVoice,
+          format: input.format as TTSFormat,
+          speed: input.speed
+        });
+        return result;
+      }),
+
+    /**
+     * Synthesize long text by splitting into segments
+     * Returns array of audio segments
+     */
+    synthesizeLong: protectedProcedure
+      .input(z.object({
+        text: z.string().min(1),
+        voice: z.enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]).optional().default("nova"),
+        format: z.enum(["mp3", "opus", "aac", "flac", "wav", "pcm"]).optional().default("mp3"),
+        speed: z.number().min(0.25).max(4.0).optional().default(1.0)
+      }))
+      .mutation(async ({ input }) => {
+        const segments = splitTextForTTS(input.text);
+        const results = await Promise.all(
+          segments.map(segment => synthesizeSpeech({
+            text: segment,
+            voice: input.voice as TTSVoice,
+            format: input.format as TTSFormat,
+            speed: input.speed
+          }))
+        );
+        return {
+          segments: results,
+          totalDuration: results.reduce((sum, r) => sum + r.estimatedDuration, 0)
+        };
+      }),
+
+    /**
+     * Check if TTS service is available
+     */
+    checkAvailability: protectedProcedure.query(async () => {
+      const available = await checkTTSAvailability();
+      return { available };
     }),
   }),
 });

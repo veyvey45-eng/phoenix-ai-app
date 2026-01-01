@@ -298,21 +298,25 @@ export class TormentModule {
 
 export class ArbitrageModule {
   private defaultHypothesesCount = 3;
+  private fastModeHypothesesCount = 1;
 
   /**
    * Génère N hypothèses concurrentes via LLM
+   * @param fastMode - Si true, génère une seule hypothèse pour une réponse plus rapide
    */
   async generateHypotheses(
     userInput: string,
     context: PhoenixContext,
-    n: number = this.defaultHypothesesCount
+    n?: number,
+    fastMode: boolean = false
   ): Promise<Hypothesis[]> {
+    const hypothesesCount = n ?? (fastMode ? this.fastModeHypothesesCount : this.defaultHypothesesCount);
     const systemPrompt = this.buildSystemPrompt(context);
     
     const response = await invokeLLM({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Génère ${n} hypothèses distinctes pour répondre à: "${userInput}"
+        { role: "user", content: `Génère ${hypothesesCount} hypothèse${hypothesesCount > 1 ? 's distinctes' : ''} pour répondre à: "${userInput}"
         
 Pour chaque hypothèse, fournis:
 - Un ID unique (hyp_1, hyp_2, etc.)
@@ -789,14 +793,15 @@ export class PhoenixOrchestrator {
   /**
    * Traite une entrée utilisateur selon l'architecture Phoenix
    * Séparation "penser" vs "agir"
+   * @param fastMode - Si true, génère une seule hypothèse pour une réponse plus rapide
    */
-  async process(userInput: string, context: PhoenixContext): Promise<PhoenixDecision> {
+  async process(userInput: string, context: PhoenixContext, fastMode: boolean = false): Promise<PhoenixDecision> {
     // 1. PENSER: Récupérer les mémoires pertinentes
     const relevantMemories = this.memory.retrieve(userInput, context.memories);
     const enrichedContext = { ...context, memories: relevantMemories };
 
-    // 2. PENSER: Générer des hypothèses
-    const hypotheses = await this.arbitrage.generateHypotheses(userInput, enrichedContext);
+    // 2. PENSER: Générer des hypothèses (1 en mode rapide, 3 par défaut)
+    const hypotheses = await this.arbitrage.generateHypotheses(userInput, enrichedContext, undefined, fastMode);
 
     // 3. PENSER: Détecter les erreurs potentielles
     for (const hyp of hypotheses) {

@@ -17,7 +17,8 @@ import {
   Play,
   Square,
   Settings,
-  Paperclip 
+  Paperclip,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +44,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import { useServerTTS, AVAILABLE_VOICES, TTSVoice } from "@/hooks/useServerTTS";
 import { toast } from "sonner";
 
 interface Hypothesis {
@@ -68,10 +70,12 @@ interface Message {
 
 interface PhoenixChatProps {
   messages: Message[];
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: string, fastMode?: boolean) => Promise<void>;
   isLoading?: boolean;
   currentTorment?: number;
   isStreaming?: boolean;
+  fastMode?: boolean;
+  onFastModeChange?: (enabled: boolean) => void;
 }
 
 export function PhoenixChat({ 
@@ -79,18 +83,113 @@ export function PhoenixChat({
   onSendMessage, 
   isLoading = false,
   currentTorment = 0,
-  isStreaming = false
+  isStreaming = false,
+  fastMode = false,
+  onFastModeChange
 }: PhoenixChatProps) {
   const [input, setInput] = useState("");
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [liveMode, setLiveMode] = useState(false);
   const [autoTTS, setAutoTTS] = useState(false);
+  const [localFastMode, setLocalFastMode] = useState(() => {
+    // Récupérer la préférence depuis localStorage
+    const saved = localStorage.getItem('phoenix-fast-mode');
+    return saved ? JSON.parse(saved) : false;
+  });
+  
+  // Utiliser le mode rapide local ou celui passé en props
+  const isFastMode = onFastModeChange ? fastMode : localFastMode;
+  
+  const handleFastModeChange = (enabled: boolean) => {
+    if (onFastModeChange) {
+      onFastModeChange(enabled);
+    } else {
+      setLocalFastMode(enabled);
+      localStorage.setItem('phoenix-fast-mode', JSON.stringify(enabled));
+    }
+    if (enabled) {
+      toast.success("⚡ Mode Rapide activé - Réponses plus rapides (1 hypothèse)");
+    } else {
+      toast.info("Mode Rapide désactivé - Analyse complète (3 hypothèses)");
+    }
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastMessageIdRef = useRef<string | null>(null);
   
-  // Speech synthesis hook
-  const speech = useSpeechSynthesis();
+  // Speech synthesis hooks - browser and server fallback
+  const browserSpeech = useSpeechSynthesis();
+  const serverTTS = useServerTTS();
+  
+  // Use server TTS as fallback when browser TTS is not supported
+  const [useServerMode, setUseServerMode] = useState(() => {
+    const saved = localStorage.getItem('phoenix-use-server-tts');
+    return saved ? JSON.parse(saved) : false;
+  });
+  
+  // Combined speech interface
+  const speech = {
+    isSupported: browserSpeech.isSupported || serverTTS.isAvailable,
+    isPlaying: useServerMode ? serverTTS.isPlaying : browserSpeech.isPlaying,
+    isPaused: useServerMode ? serverTTS.isPaused : browserSpeech.isPaused,
+    isLoading: serverTTS.isLoading,
+    voices: browserSpeech.voices,
+    currentVoice: browserSpeech.currentVoice,
+    settings: browserSpeech.settings,
+    serverSettings: serverTTS.settings,
+    speak: async (text: string) => {
+      if (useServerMode || !browserSpeech.isSupported) {
+        await serverTTS.speak(text);
+      } else {
+        browserSpeech.speak(text);
+      }
+    },
+    pause: () => {
+      if (useServerMode) {
+        serverTTS.pause();
+      } else {
+        browserSpeech.pause();
+      }
+    },
+    resume: () => {
+      if (useServerMode) {
+        serverTTS.resume();
+      } else {
+        browserSpeech.resume();
+      }
+    },
+    stop: () => {
+      if (useServerMode) {
+        serverTTS.stop();
+      } else {
+        browserSpeech.stop();
+      }
+    },
+    setVoice: browserSpeech.setVoice,
+    setRate: browserSpeech.setRate,
+    setPitch: browserSpeech.setPitch,
+    setVolume: browserSpeech.setVolume,
+    togglePlayPause: (text: string) => {
+      if (useServerMode || !browserSpeech.isSupported) {
+        if (!serverTTS.isPlaying) {
+          serverTTS.speak(text);
+        } else if (serverTTS.isPaused) {
+          serverTTS.resume();
+        } else {
+          serverTTS.pause();
+        }
+      } else {
+        browserSpeech.togglePlayPause(text);
+      }
+    },
+    // Server TTS specific
+    serverTTS,
+    useServerMode,
+    setUseServerMode: (enabled: boolean) => {
+      setUseServerMode(enabled);
+      localStorage.setItem('phoenix-use-server-tts', JSON.stringify(enabled));
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -123,7 +222,7 @@ export function PhoenixChat({
     
     const message = input.trim();
     setInput("");
-    await onSendMessage(message);
+    await onSendMessage(message, isFastMode);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -223,6 +322,20 @@ export function PhoenixChat({
             <TormentBar score={currentTorment} />
             
             <div className="flex items-center gap-4">
+              {/* Fast mode toggle */}
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="fast-mode"
+                  checked={isFastMode}
+                  onCheckedChange={handleFastModeChange}
+                  className="data-[state=checked]:bg-yellow-500"
+                />
+                <Label htmlFor="fast-mode" className="text-xs flex items-center gap-1 cursor-pointer">
+                  <Zap className={cn("w-3 h-3", isFastMode && "text-yellow-500")} />
+                  Rapide
+                </Label>
+              </div>
+              
               {/* Live mode toggle */}
               <div className="flex items-center gap-2">
                 <Switch
@@ -341,8 +454,36 @@ export function PhoenixChat({
   );
 }
 
-// Voice settings popover
-function VoiceSettings({ speech }: { speech: ReturnType<typeof useSpeechSynthesis> }) {
+// Voice settings popover - supports both browser and server TTS
+interface ExtendedSpeech {
+  isSupported: boolean;
+  isPlaying: boolean;
+  isPaused: boolean;
+  isLoading?: boolean;
+  voices: Array<{ voice: { name: string }; label: string; isCloud: boolean }>;
+  currentVoice: string;
+  settings: { rate: number; pitch: number; volume: number };
+  serverSettings?: { voice: string; speed: number; volume: number };
+  speak: (text: string) => void;
+  setVoice: (name: string) => void;
+  setRate: (rate: number) => void;
+  setPitch: (pitch: number) => void;
+  setVolume: (volume: number) => void;
+  togglePlayPause: (text: string) => void;
+  serverTTS?: {
+    setVoice: (voice: TTSVoice) => void;
+    setSpeed: (speed: number) => void;
+    setVolume: (volume: number) => void;
+    isAvailable: boolean;
+  };
+  useServerMode?: boolean;
+  setUseServerMode?: (enabled: boolean) => void;
+}
+
+function VoiceSettings({ speech }: { speech: ExtendedSpeech }) {
+  const hasServerTTS = speech.serverTTS?.isAvailable;
+  const useServer = speech.useServerMode ?? false;
+  
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -355,74 +496,149 @@ function VoiceSettings({ speech }: { speech: ReturnType<typeof useSpeechSynthesi
           <Settings className="h-3 w-3" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72" align="end">
+      <PopoverContent className="w-80" align="end">
         <div className="space-y-4">
           <h4 className="font-medium text-sm">Paramètres de la voix</h4>
           
-          {/* Voice selection */}
-          <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Voix</label>
-            <Select value={speech.currentVoice} onValueChange={speech.setVoice}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Sélectionner une voix" />
-              </SelectTrigger>
-              <SelectContent>
-                {speech.voices.map((v) => (
-                  <SelectItem key={v.voice.name} value={v.voice.name} className="text-xs">
-                    {v.label} {v.isCloud && "☁️"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Speed */}
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <label className="text-xs text-muted-foreground">Vitesse</label>
-              <span className="text-xs text-muted-foreground">{speech.settings.rate.toFixed(1)}x</span>
+          {/* Server TTS toggle */}
+          {hasServerTTS && speech.setUseServerMode && (
+            <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+              <div className="flex flex-col">
+                <span className="text-xs font-medium">Mode Serveur (IA)</span>
+                <span className="text-xs text-muted-foreground">Voix haute qualité</span>
+              </div>
+              <Switch
+                checked={useServer}
+                onCheckedChange={speech.setUseServerMode}
+                className="data-[state=checked]:bg-blue-500"
+              />
             </div>
-            <Slider
-              value={[speech.settings.rate]}
-              onValueChange={([v]) => speech.setRate(v)}
-              min={0.5}
-              max={2}
-              step={0.1}
-              className="w-full"
-            />
-          </div>
+          )}
+          
+          {useServer && speech.serverTTS && speech.serverSettings ? (
+            // Server TTS settings
+            <>
+              {/* Server Voice selection */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Voix IA</label>
+                <Select 
+                  value={speech.serverSettings.voice} 
+                  onValueChange={(v) => speech.serverTTS?.setVoice(v as TTSVoice)}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Sélectionner une voix" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AVAILABLE_VOICES.map((v) => (
+                      <SelectItem key={v.value} value={v.value} className="text-xs">
+                        {v.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {/* Pitch */}
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <label className="text-xs text-muted-foreground">Tonalité</label>
-              <span className="text-xs text-muted-foreground">{speech.settings.pitch.toFixed(1)}</span>
-            </div>
-            <Slider
-              value={[speech.settings.pitch]}
-              onValueChange={([v]) => speech.setPitch(v)}
-              min={0.5}
-              max={2}
-              step={0.1}
-              className="w-full"
-            />
-          </div>
+              {/* Server Speed */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label className="text-xs text-muted-foreground">Vitesse</label>
+                  <span className="text-xs text-muted-foreground">{speech.serverSettings.speed.toFixed(1)}x</span>
+                </div>
+                <Slider
+                  value={[speech.serverSettings.speed]}
+                  onValueChange={([v]) => speech.serverTTS?.setSpeed(v)}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
 
-          {/* Volume */}
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <label className="text-xs text-muted-foreground">Volume</label>
-              <span className="text-xs text-muted-foreground">{Math.round(speech.settings.volume * 100)}%</span>
-            </div>
-            <Slider
-              value={[speech.settings.volume]}
-              onValueChange={([v]) => speech.setVolume(v)}
-              min={0}
-              max={1}
-              step={0.1}
-              className="w-full"
-            />
-          </div>
+              {/* Server Volume */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label className="text-xs text-muted-foreground">Volume</label>
+                  <span className="text-xs text-muted-foreground">{Math.round(speech.serverSettings.volume * 100)}%</span>
+                </div>
+                <Slider
+                  value={[speech.serverSettings.volume]}
+                  onValueChange={([v]) => speech.serverTTS?.setVolume(v)}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+            </>
+          ) : (
+            // Browser TTS settings
+            <>
+              {/* Browser Voice selection */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Voix navigateur</label>
+                <Select value={speech.currentVoice} onValueChange={speech.setVoice}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Sélectionner une voix" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {speech.voices.map((v) => (
+                      <SelectItem key={v.voice.name} value={v.voice.name} className="text-xs">
+                        {v.label} {v.isCloud && "☁️"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Browser Speed */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label className="text-xs text-muted-foreground">Vitesse</label>
+                  <span className="text-xs text-muted-foreground">{speech.settings.rate.toFixed(1)}x</span>
+                </div>
+                <Slider
+                  value={[speech.settings.rate]}
+                  onValueChange={([v]) => speech.setRate(v)}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Browser Pitch */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label className="text-xs text-muted-foreground">Tonalité</label>
+                  <span className="text-xs text-muted-foreground">{speech.settings.pitch.toFixed(1)}</span>
+                </div>
+                <Slider
+                  value={[speech.settings.pitch]}
+                  onValueChange={([v]) => speech.setPitch(v)}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Browser Volume */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <label className="text-xs text-muted-foreground">Volume</label>
+                  <span className="text-xs text-muted-foreground">{Math.round(speech.settings.volume * 100)}%</span>
+                </div>
+                <Slider
+                  value={[speech.settings.volume]}
+                  onValueChange={([v]) => speech.setVolume(v)}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+            </>
+          )}
 
           {/* Test button */}
           <Button 
@@ -430,10 +646,17 @@ function VoiceSettings({ speech }: { speech: ReturnType<typeof useSpeechSynthesi
             size="sm" 
             className="w-full"
             onClick={() => speech.speak("Bonjour, je suis Phoenix, votre assistant intelligent.")}
+            disabled={speech.isLoading}
           >
             <Volume2 className="h-3 w-3 mr-2" />
-            Tester la voix
+            {speech.isLoading ? "Chargement..." : "Tester la voix"}
           </Button>
+          
+          {!speech.isSupported && (
+            <p className="text-xs text-muted-foreground text-center">
+              Synthèse vocale non disponible sur ce navigateur
+            </p>
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -444,7 +667,7 @@ interface MessageBubbleProps {
   message: Message;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  speech: ReturnType<typeof useSpeechSynthesis>;
+  speech: ExtendedSpeech;
 }
 
 function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageBubbleProps) {

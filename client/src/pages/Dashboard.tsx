@@ -53,6 +53,10 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [contextId] = useState(() => crypto.randomUUID());
   const [activeTab, setActiveTab] = useState("chat");
+  const [fastMode, setFastMode] = useState(() => {
+    const saved = localStorage.getItem('phoenix-fast-mode');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Queries
   const phoenixState = trpc.phoenix.getState.useQuery(undefined, {
@@ -104,7 +108,7 @@ export default function Dashboard() {
     }
   });
 
-  const handleSendMessage = useCallback(async (content: string) => {
+  const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
     // Add user message immediately
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -114,12 +118,13 @@ export default function Dashboard() {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send to Phoenix
+    // Send to Phoenix with fastMode option
     await chatMutation.mutateAsync({
       message: content,
-      contextId
+      contextId,
+      fastMode: useFastMode ?? fastMode
     });
-  }, [chatMutation, contextId]);
+  }, [chatMutation, contextId, fastMode]);
 
   const handleResolveIssue = useCallback((issueId: number, resolution: string) => {
     resolveIssueMutation.mutate({ issueId, resolution });
@@ -203,6 +208,11 @@ export default function Dashboard() {
                 onSendMessage={handleSendMessage}
                 isLoading={chatMutation.isPending}
                 currentTorment={state?.tormentScore || 0}
+                fastMode={fastMode}
+                onFastModeChange={(enabled) => {
+                  setFastMode(enabled);
+                  localStorage.setItem('phoenix-fast-mode', JSON.stringify(enabled));
+                }}
               />
             </TabsContent>
 
