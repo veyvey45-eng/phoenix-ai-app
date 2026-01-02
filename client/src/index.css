@@ -79,10 +79,10 @@
 }
 
 .dark {
-  /* Phoenix Fire Theme */
-  --primary: oklch(0.70 0.22 30);
+  /* Phoenix Green-Blue Theme */
+  --primary: oklch(0.65 0.18 145);
   --primary-foreground: oklch(0.13 0.02 260);
-  --sidebar-primary: oklch(0.65 0.20 35);
+  --sidebar-primary: oklch(0.60 0.16 150);
   --sidebar-primary-foreground: oklch(0.95 0.01 260);
   --background: oklch(0.13 0.02 260);
   --foreground: oklch(0.95 0.01 260);
@@ -100,28 +100,28 @@
   --destructive-foreground: oklch(0.95 0.01 260);
   --border: oklch(0.30 0.02 260);
   --input: oklch(0.25 0.02 260);
-  --ring: oklch(0.70 0.18 30);
-  --chart-1: oklch(0.70 0.18 30);
-  --chart-2: oklch(0.65 0.15 160);
-  --chart-3: oklch(0.60 0.20 200);
-  --chart-4: oklch(0.75 0.15 80);
-  --chart-5: oklch(0.55 0.22 300);
+  --ring: oklch(0.65 0.18 145);
+  --chart-1: oklch(0.65 0.18 145);
+  --chart-2: oklch(0.60 0.16 200);
+  --chart-3: oklch(0.55 0.20 160);
+  --chart-4: oklch(0.70 0.15 120);
+  --chart-5: oklch(0.50 0.18 180);
   --sidebar: oklch(0.15 0.02 260);
   --sidebar-foreground: oklch(0.95 0.01 260);
   --sidebar-accent: oklch(0.22 0.03 260);
   --sidebar-accent-foreground: oklch(0.95 0.01 260);
   --sidebar-border: oklch(0.25 0.02 260);
-  --sidebar-ring: oklch(0.70 0.18 30);
+  --sidebar-ring: oklch(0.65 0.18 145);
   
-  /* Phoenix specific */
-  --phoenix-fire: oklch(0.70 0.22 30);
-  --phoenix-ember: oklch(0.60 0.20 40);
+  /* Phoenix Green-Blue specific */
+  --phoenix-green: oklch(0.65 0.18 145);
+  --phoenix-blue: oklch(0.55 0.20 200);
   --phoenix-ash: oklch(0.35 0.02 260);
-  --phoenix-glow: oklch(0.80 0.15 50);
+  --phoenix-glow: oklch(0.75 0.15 160);
   --torment-low: oklch(0.65 0.18 145);
-  --torment-medium: oklch(0.70 0.18 80);
-  --torment-high: oklch(0.60 0.22 30);
-  --torment-critical: oklch(0.55 0.25 25);
+  --torment-medium: oklch(0.60 0.16 150);
+  --torment-high: oklch(0.55 0.20 200);
+  --torment-critical: oklch(0.50 0.22 180);
 }
 
 @layer base {
@@ -146,8 +146,8 @@
 
 /* Phoenix specific utilities */
 .phoenix-glow {
-  box-shadow: 0 0 20px oklch(0.70 0.18 30 / 0.3),
-              0 0 40px oklch(0.70 0.18 30 / 0.1);
+  box-shadow: 0 0 20px oklch(0.65 0.18 145 / 0.3),
+              0 0 40px oklch(0.65 0.18 145 / 0.1);
 }
 
 .phoenix-card {

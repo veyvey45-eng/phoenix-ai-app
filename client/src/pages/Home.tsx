@@ -79,12 +79,22 @@ export default function Home() {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="text-5xl md:text-7xl font-bold mb-6"
+              className="text-5xl md:text-7xl font-bold mb-2"
             >
-              <span className="bg-gradient-to-r from-primary via-orange-400 to-yellow-500 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-green-500 via-emerald-400 to-blue-500 bg-clip-text text-transparent">
                 Phoenix
               </span>
             </motion.h1>
+            
+            {/* ADAGA Copyright */}
+            <motion.p
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.25 }}
+              className="text-sm text-gray-400 mb-6"
+            >
+              Propriété ADAGA
+            </motion.p>
 
             {/* Subtitle */}
             <motion.p
