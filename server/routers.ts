@@ -17,6 +17,7 @@ import { getRenaissance } from './phoenix/renaissance';
 import { getCommunication } from './phoenix/communication';
 import { getOptimizer } from './phoenix/optimizer';
 import { getSecurity } from './phoenix/security';
+import { getEvolutionInstance } from './phoenix/evolution';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -2394,6 +2395,335 @@ export const appRouter = router({
         const security = getSecurity();
         return { valid: security.verifySignature(input.data, input.signature) };
       }),
+  }),
+
+  // ==================== EVOLUTION MODULE ====================
+  evolution: router({
+    /**
+     * Get current system version
+     */
+    getVersion: publicProcedure.query(async () => {
+      const evolution = getEvolutionInstance();
+      return evolution.getCurrentVersion();
+    }),
+
+    /**
+     * Check compatibility with target version
+     */
+    checkCompatibility: protectedProcedure
+      .input(z.object({ targetVersion: z.string() }))
+      .query(async ({ input }) => {
+        const evolution = getEvolutionInstance();
+        return evolution.checkCompatibility(input.targetVersion);
+      }),
+
+    /**
+     * Get scalability metrics
+     */
+    getMetrics: protectedProcedure.query(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+      
+      const evolution = getEvolutionInstance();
+      return evolution.getScalabilityMetrics();
+    }),
+
+    /**
+     * List all modules
+     */
+    listModules: protectedProcedure.query(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+      
+      const evolution = getEvolutionInstance();
+      return evolution.listModules();
+    }),
+
+    /**
+     * Enable a module
+     */
+    enableModule: protectedProcedure
+      .input(z.object({ moduleId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.enableModule(input.moduleId as any, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'module_enabled',
+            resourceType: 'module',
+            resourceId: 0,
+            changes: { moduleId: input.moduleId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * Disable a module
+     */
+    disableModule: protectedProcedure
+      .input(z.object({ moduleId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.disableModule(input.moduleId as any, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'module_disabled',
+            resourceType: 'module',
+            resourceId: 0,
+            changes: { moduleId: input.moduleId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * List all extensions
+     */
+    listExtensions: protectedProcedure
+      .input(z.object({
+        status: z.enum(['pending', 'approved', 'active', 'disabled', 'rejected']).optional(),
+        category: z.enum(['ai_model', 'data_source', 'api_integration', 'tool', 'visualization', 'automation']).optional()
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        return evolution.listExtensions(input);
+      }),
+
+    /**
+     * Register a new extension
+     */
+    registerExtension: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        description: z.string(),
+        category: z.enum(['ai_model', 'data_source', 'api_integration', 'tool', 'visualization', 'automation']),
+        version: z.string(),
+        author: z.string(),
+        dependencies: z.array(z.string()).default([]),
+        capabilities: z.array(z.string()).default([]),
+        config: z.record(z.string(), z.any()).default({})
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const extension = evolution.registerExtension(input);
+        
+        await logAdminAction({
+          adminId: ctx.user.id,
+          action: 'extension_registered',
+          resourceType: 'extension',
+          resourceId: 0,
+          changes: { extensionId: extension.id, name: extension.name }
+        });
+        
+        return extension;
+      }),
+
+    /**
+     * Approve an extension
+     */
+    approveExtension: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.approveExtension(input.extensionId, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'extension_approved',
+            resourceType: 'extension',
+            resourceId: 0,
+            changes: { extensionId: input.extensionId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * Activate an extension
+     */
+    activateExtension: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.activateExtension(input.extensionId, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'extension_activated',
+            resourceType: 'extension',
+            resourceId: 0,
+            changes: { extensionId: input.extensionId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * Deactivate an extension
+     */
+    deactivateExtension: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.deactivateExtension(input.extensionId, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'extension_deactivated',
+            resourceType: 'extension',
+            resourceId: 0,
+            changes: { extensionId: input.extensionId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * Remove an extension
+     */
+    removeExtension: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        const success = evolution.removeExtension(input.extensionId, String(ctx.user.id));
+        
+        if (success) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'extension_removed',
+            resourceType: 'extension',
+            resourceId: 0,
+            changes: { extensionId: input.extensionId }
+          });
+        }
+        
+        return { success };
+      }),
+
+    /**
+     * Run security scan on extension
+     */
+    scanExtension: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        return evolution.runSecurityScan(input.extensionId);
+      }),
+
+    /**
+     * Verify axiom compatibility
+     */
+    verifyAxiomCompatibility: protectedProcedure
+      .input(z.object({ extensionId: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        return evolution.verifyAxiomCompatibility(input.extensionId);
+      }),
+
+    /**
+     * Get event log
+     */
+    getEventLog: protectedProcedure
+      .input(z.object({ limit: z.number().default(100) }).optional())
+      .query(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        
+        const evolution = getEvolutionInstance();
+        return evolution.getEventLog(input?.limit);
+      }),
+
+    /**
+     * Optimize resources
+     */
+    optimizeResources: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+      
+      const evolution = getEvolutionInstance();
+      evolution.optimizeResources();
+      
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: 'resources_optimized',
+        resourceType: 'system',
+        resourceId: 0,
+        changes: {}
+      });
+      
+      return { success: true };
+    }),
   }),
 });
 

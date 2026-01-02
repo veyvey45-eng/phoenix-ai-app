@@ -249,6 +249,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="comms">Communication</TabsTrigger>
             <TabsTrigger value="optimizer">Optimisation</TabsTrigger>
             <TabsTrigger value="security">Sécurité</TabsTrigger>
+            <TabsTrigger value="evolution">Évolution</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -496,6 +497,11 @@ export default function AdminDashboard() {
 
           <TabsContent value="security">
             <SecurityPanel />
+          </TabsContent>
+
+          {/* Evolution Tab */}
+          <TabsContent value="evolution">
+            <EvolutionPanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -3324,6 +3330,601 @@ function SecurityPanel() {
               <div className="text-center py-8 text-muted-foreground">
                 <Shield className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Aucun événement de sécurité</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+// ==================== EVOLUTION PANEL ====================
+function EvolutionPanel() {
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [newExtension, setNewExtension] = useState({
+    name: '',
+    description: '',
+    category: 'tool' as 'ai_model' | 'data_source' | 'api_integration' | 'tool' | 'visualization' | 'automation',
+    version: '1.0.0',
+    author: '',
+    dependencies: [] as string[],
+    capabilities: [] as string[],
+    config: {} as Record<string, any>
+  });
+  const [showNewExtensionForm, setShowNewExtensionForm] = useState(false);
+
+  // Queries
+  const { data: version, refetch: refetchVersion } = trpc.evolution.getVersion.useQuery();
+  const { data: metrics, refetch: refetchMetrics } = trpc.evolution.getMetrics.useQuery();
+  const { data: modules, refetch: refetchModules } = trpc.evolution.listModules.useQuery();
+  const { data: extensions, refetch: refetchExtensions } = trpc.evolution.listExtensions.useQuery(
+    selectedCategory === 'all' ? undefined : { category: selectedCategory as any }
+  );
+  const { data: eventLog, refetch: refetchEvents } = trpc.evolution.getEventLog.useQuery({ limit: 50 });
+
+  // Mutations
+  const enableModule = trpc.evolution.enableModule.useMutation({
+    onSuccess: () => {
+      toast.success("Module activé");
+      refetchModules();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const disableModule = trpc.evolution.disableModule.useMutation({
+    onSuccess: () => {
+      toast.success("Module désactivé");
+      refetchModules();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const registerExtension = trpc.evolution.registerExtension.useMutation({
+    onSuccess: () => {
+      toast.success("Extension enregistrée");
+      refetchExtensions();
+      refetchEvents();
+      setShowNewExtensionForm(false);
+      setNewExtension({
+        name: '',
+        description: '',
+        category: 'tool',
+        version: '1.0.0',
+        author: '',
+        dependencies: [],
+        capabilities: [],
+        config: {}
+      });
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const approveExtension = trpc.evolution.approveExtension.useMutation({
+    onSuccess: () => {
+      toast.success("Extension approuvée");
+      refetchExtensions();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const activateExtension = trpc.evolution.activateExtension.useMutation({
+    onSuccess: () => {
+      toast.success("Extension activée");
+      refetchExtensions();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const deactivateExtension = trpc.evolution.deactivateExtension.useMutation({
+    onSuccess: () => {
+      toast.success("Extension désactivée");
+      refetchExtensions();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const removeExtension = trpc.evolution.removeExtension.useMutation({
+    onSuccess: () => {
+      toast.success("Extension supprimée");
+      refetchExtensions();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const optimizeResources = trpc.evolution.optimizeResources.useMutation({
+    onSuccess: () => {
+      toast.success("Ressources optimisées");
+      refetchMetrics();
+      refetchEvents();
+    },
+    onError: (error) => toast.error(`Erreur: ${error.message}`)
+  });
+
+  const refetchAll = () => {
+    refetchVersion();
+    refetchMetrics();
+    refetchModules();
+    refetchExtensions();
+    refetchEvents();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'approved': return 'bg-blue-500';
+      case 'pending': return 'bg-yellow-500';
+      case 'disabled': return 'bg-gray-500';
+      case 'rejected': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'ai_model': return <Cpu className="w-4 h-4" />;
+      case 'data_source': return <Database className="w-4 h-4" />;
+      case 'api_integration': return <Globe className="w-4 h-4" />;
+      case 'tool': return <Settings className="w-4 h-4" />;
+      case 'visualization': return <BarChart3 className="w-4 h-4" />;
+      case 'automation': return <Zap className="w-4 h-4" />;
+      default: return <Settings className="w-4 h-4" />;
+    }
+  };
+
+  const getEventTypeIcon = (type: string) => {
+    switch (type) {
+      case 'module_enabled':
+      case 'module_disabled':
+        return <Settings className="w-4 h-4 text-blue-500" />;
+      case 'extension_registered':
+      case 'extension_approved':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'extension_activated':
+        return <Play className="w-4 h-4 text-green-500" />;
+      case 'extension_deactivated':
+        return <Square className="w-4 h-4 text-yellow-500" />;
+      case 'extension_removed':
+        return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'security_scan':
+        return <Shield className="w-4 h-4 text-purple-500" />;
+      case 'resources_optimized':
+        return <TrendingUp className="w-4 h-4 text-cyan-500" />;
+      default:
+        return <Activity className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Version Info */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Module 10: Évolution & Extension
+              </CardTitle>
+              <CardDescription>
+                Gestion de la scalabilité, des extensions et du contrôle de version
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-4">
+              <Badge variant="outline" className="text-lg px-4 py-2">
+                Version: v{version?.major || 1}.{version?.minor || 0}.{version?.patch || 0}
+              </Badge>
+              <Button variant="outline" onClick={refetchAll}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Actualiser
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Scalability Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Modules Actifs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {metrics?.activeModules || 0}
+              <span className="text-muted-foreground text-sm font-normal">
+                /{metrics?.totalModules || 10}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Extensions Actives
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
+              {metrics?.activeExtensions || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              En Attente d'Approbation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-500">
+              {metrics?.pendingExtensions || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Utilisation Ressources
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {((metrics?.resourceUsage || 0) * 100).toFixed(1)}%
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Modules Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Gestion des 10 Modules Phoenix
+          </CardTitle>
+          <CardDescription>
+            Activez ou désactivez les modules de l'architecture Phoenix via le système d'évolution
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {modules?.map((module) => (
+              <div
+                key={module.id}
+                className={`p-4 rounded-lg border ${module.enabled ? 'border-primary bg-primary/5' : 'border-muted bg-muted/20'}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${module.enabled ? 'bg-primary/20' : 'bg-muted'}`}>
+                      <Settings className={`w-5 h-5 ${module.enabled ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div>
+                      <h4 className="font-medium">{module.name}</h4>
+                      <p className="text-xs text-muted-foreground">{module.id}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={module.enabled ? "default" : "secondary"}>
+                      {module.enabled ? "Actif" : "Inactif"}
+                    </Badge>
+                    <Switch
+                      checked={module.enabled}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          enableModule.mutate({ moduleId: module.id });
+                        } else {
+                          disableModule.mutate({ moduleId: module.id });
+                        }
+                      }}
+                      disabled={module.id === 'evolution'} // Can't disable self
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Extensions Management */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="w-5 h-5" />
+                Gestion des Extensions
+              </CardTitle>
+              <CardDescription>
+                Enregistrez, approuvez et gérez les extensions du système
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3 py-2 rounded-md border bg-background"
+              >
+                <option value="all">Toutes les catégories</option>
+                <option value="ai_model">Modèles IA</option>
+                <option value="data_source">Sources de données</option>
+                <option value="api_integration">Intégrations API</option>
+                <option value="tool">Outils</option>
+                <option value="visualization">Visualisation</option>
+                <option value="automation">Automatisation</option>
+              </select>
+              <Button onClick={() => setShowNewExtensionForm(!showNewExtensionForm)}>
+                {showNewExtensionForm ? 'Annuler' : 'Nouvelle Extension'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* New Extension Form */}
+          {showNewExtensionForm && (
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle className="text-lg">Enregistrer une Nouvelle Extension</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Nom</label>
+                    <input
+                      type="text"
+                      value={newExtension.name}
+                      onChange={(e) => setNewExtension({ ...newExtension, name: e.target.value })}
+                      className="w-full px-3 py-2 rounded-md border bg-background mt-1"
+                      placeholder="Nom de l'extension"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Catégorie</label>
+                    <select
+                      value={newExtension.category}
+                      onChange={(e) => setNewExtension({ ...newExtension, category: e.target.value as any })}
+                      className="w-full px-3 py-2 rounded-md border bg-background mt-1"
+                    >
+                      <option value="ai_model">Modèle IA</option>
+                      <option value="data_source">Source de données</option>
+                      <option value="api_integration">Intégration API</option>
+                      <option value="tool">Outil</option>
+                      <option value="visualization">Visualisation</option>
+                      <option value="automation">Automatisation</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Description</label>
+                  <textarea
+                    value={newExtension.description}
+                    onChange={(e) => setNewExtension({ ...newExtension, description: e.target.value })}
+                    className="w-full px-3 py-2 rounded-md border bg-background mt-1"
+                    rows={2}
+                    placeholder="Description de l'extension"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Version</label>
+                    <input
+                      type="text"
+                      value={newExtension.version}
+                      onChange={(e) => setNewExtension({ ...newExtension, version: e.target.value })}
+                      className="w-full px-3 py-2 rounded-md border bg-background mt-1"
+                      placeholder="1.0.0"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Auteur</label>
+                    <input
+                      type="text"
+                      value={newExtension.author}
+                      onChange={(e) => setNewExtension({ ...newExtension, author: e.target.value })}
+                      className="w-full px-3 py-2 rounded-md border bg-background mt-1"
+                      placeholder="Nom de l'auteur"
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={() => registerExtension.mutate(newExtension)}
+                  disabled={!newExtension.name || !newExtension.description || registerExtension.isPending}
+                >
+                  Enregistrer l'Extension
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Extensions List */}
+          <ScrollArea className="h-[400px]">
+            {extensions && extensions.length > 0 ? (
+              <div className="space-y-3">
+                {extensions.map((ext) => (
+                  <div
+                    key={ext.id}
+                    className="p-4 rounded-lg border bg-card"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-muted">
+                          {getCategoryIcon(ext.category)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{ext.name}</h4>
+                            <Badge variant="outline">{ext.version}</Badge>
+                            <Badge className={getStatusColor(ext.status)}>{ext.status}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{ext.description}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Par {ext.author} • {ext.category}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {ext.status === 'pending' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-500"
+                            onClick={() => approveExtension.mutate({ extensionId: ext.id })}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Approuver
+                          </Button>
+                        )}
+                        {ext.status === 'approved' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-blue-500"
+                            onClick={() => activateExtension.mutate({ extensionId: ext.id })}
+                          >
+                            <Play className="w-4 h-4 mr-1" />
+                            Activer
+                          </Button>
+                        )}
+                        {ext.status === 'active' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-yellow-500"
+                            onClick={() => deactivateExtension.mutate({ extensionId: ext.id })}
+                          >
+                            <Square className="w-4 h-4 mr-1" />
+                            Désactiver
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500"
+                          onClick={() => {
+                            if (confirm(`Êtes-vous sûr de vouloir supprimer l'extension "${ext.name}" ?`)) {
+                              removeExtension.mutate({ extensionId: ext.id });
+                            }
+                          }}
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Zap className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucune extension enregistrée</p>
+                <p className="text-sm">Cliquez sur "Nouvelle Extension" pour en ajouter une</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Resource Optimization */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Gauge className="w-5 h-5" />
+                Optimisation des Ressources
+              </CardTitle>
+              <CardDescription>
+                Gérez l'allocation des ressources et optimisez les performances
+              </CardDescription>
+            </div>
+            <Button
+              onClick={() => optimizeResources.mutate()}
+              disabled={optimizeResources.isPending}
+            >
+              {optimizeResources.isPending ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <TrendingUp className="w-4 h-4 mr-2" />
+              )}
+              Optimiser
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Mémoire Utilisée</p>
+              <p className="text-2xl font-bold">{((metrics?.memoryUsage || 0) * 100).toFixed(1)}%</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">CPU Utilisé</p>
+              <p className="text-2xl font-bold">{((metrics?.cpuUsage || 0) * 100).toFixed(1)}%</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Dernière Optimisation</p>
+              <p className="text-lg font-medium">
+                {metrics?.lastOptimization
+                  ? new Date(metrics.lastOptimization).toLocaleString()
+                  : 'Jamais'}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Event Log */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Journal des Événements
+              </CardTitle>
+              <CardDescription>Historique des événements du module Évolution</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchEvents()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Actualiser
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {eventLog && eventLog.length > 0 ? (
+              <div className="space-y-2">
+                {eventLog.map((event: any) => (
+                  <div key={event.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3">
+                      {getEventTypeIcon(event.type)}
+                      <div>
+                        <p className="text-sm font-medium">{event.type.replace(/_/g, ' ')}</p>
+                        <p className="text-xs text-muted-foreground">{event.details}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(event.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucun événement enregistré</p>
               </div>
             )}
           </ScrollArea>
