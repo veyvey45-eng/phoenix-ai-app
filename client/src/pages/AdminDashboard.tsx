@@ -31,6 +31,9 @@ import {
   Flame,
   Heart,
   Zap,
+  MessageSquare,
+  BellRing,
+  Send,
   TrendingUp,
   TrendingDown,
   Play,
@@ -226,7 +229,7 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-9">
+          <TabsList className="grid w-full grid-cols-10">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="modules">Modules (10)</TabsTrigger>
             <TabsTrigger value="validations">Axiomes (16)</TabsTrigger>
@@ -234,6 +237,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="actions">Actions Web</TabsTrigger>
             <TabsTrigger value="reports">Rapports</TabsTrigger>
             <TabsTrigger value="renaissance">Renaissance</TabsTrigger>
+            <TabsTrigger value="comms">Communication</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -467,6 +471,11 @@ export default function AdminDashboard() {
           {/* Renaissance Tab */}
           <TabsContent value="renaissance">
             <RenaissancePanel />
+          </TabsContent>
+
+          {/* Communication Tab */}
+          <TabsContent value="comms">
+            <CommunicationPanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -2073,6 +2082,390 @@ function RenaissancePanel() {
               <div className="text-center py-8 text-muted-foreground">
                 <Flame className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Aucun cycle Renaissance enregistré</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+/**
+ * Communication Panel - Module 07: Communication & Interface
+ */
+function CommunicationPanel() {
+  const utils = trpc.useUtils();
+  const [newNotification, setNewNotification] = useState({
+    type: 'info' as 'alert' | 'info' | 'warning' | 'approval_request',
+    message: '',
+    priority: 'H3' as 'H0' | 'H1' | 'H2' | 'H3',
+    targetRole: 'all' as 'admin' | 'user' | 'viewer' | 'all'
+  });
+
+  const { data: stats } = trpc.communication.getStats.useQuery();
+  const { data: notifications } = trpc.communication.getNotifications.useQuery({ includeRead: true });
+  const { data: alertLevel } = trpc.communication.getAlertLevel.useQuery();
+  const { data: messageHistory } = trpc.communication.getMessageHistory.useQuery({ limit: 50 });
+  const { data: axiomDescriptions } = trpc.communication.getAxiomDescriptions.useQuery();
+
+  const sendNotification = trpc.communication.sendNotification.useMutation({
+    onSuccess: () => {
+      utils.communication.getNotifications.invalidate();
+      utils.communication.getStats.invalidate();
+      setNewNotification({
+        type: 'info',
+        message: '',
+        priority: 'H3',
+        targetRole: 'all'
+      });
+    }
+  });
+
+  const markAsRead = trpc.communication.markAsRead.useMutation({
+    onSuccess: () => {
+      utils.communication.getNotifications.invalidate();
+      utils.communication.getStats.invalidate();
+    }
+  });
+
+  const markAllAsRead = trpc.communication.markAllAsRead.useMutation({
+    onSuccess: () => {
+      utils.communication.getNotifications.invalidate();
+      utils.communication.getStats.invalidate();
+    }
+  });
+
+  const resetAlertLevel = trpc.communication.resetAlertLevel.useMutation({
+    onSuccess: () => {
+      utils.communication.getAlertLevel.invalidate();
+    }
+  });
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'H0': return 'bg-red-500';
+      case 'H1': return 'bg-orange-500';
+      case 'H2': return 'bg-yellow-500';
+      case 'H3': return 'bg-blue-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'alert': return <AlertTriangle className="w-4 h-4" />;
+      case 'warning': return <AlertOctagon className="w-4 h-4" />;
+      case 'approval_request': return <CheckCircle className="w-4 h-4" />;
+      default: return <MessageSquare className="w-4 h-4" />;
+    }
+  };
+
+  const getAlertLevelColor = (level: string) => {
+    switch (level) {
+      case 'critical': return 'text-red-500';
+      case 'elevated': return 'text-orange-500';
+      default: return 'text-green-500';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Messages Total</p>
+                <p className="text-2xl font-bold">{stats?.totalMessages || 0}</p>
+              </div>
+              <MessageSquare className="w-8 h-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Alertes Admin</p>
+                <p className="text-2xl font-bold">{stats?.adminAlerts || 0}</p>
+              </div>
+              <Shield className="w-8 h-8 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Notifications</p>
+                <p className="text-2xl font-bold">{stats?.pendingNotifications || 0}</p>
+              </div>
+              <BellRing className={`w-8 h-8 ${(stats?.pendingNotifications || 0) > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Alertes Critiques</p>
+                <p className="text-2xl font-bold">{stats?.criticalAlerts || 0}</p>
+              </div>
+              <AlertTriangle className={`w-8 h-8 ${(stats?.criticalAlerts || 0) > 0 ? 'text-red-500' : 'text-muted-foreground'}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Niveau d'Alerte</p>
+                <p className={`text-2xl font-bold capitalize ${getAlertLevelColor(alertLevel || 'standard')}`}>
+                  {alertLevel === 'critical' ? 'Critique' : 
+                   alertLevel === 'elevated' ? 'Élevé' : 'Standard'}
+                </p>
+              </div>
+              {alertLevel !== 'standard' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => resetAlertLevel.mutate()}
+                >
+                  Réinitialiser
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Send Notification */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5" />
+              Envoyer une Notification
+            </CardTitle>
+            <CardDescription>Créer une notification pour les utilisateurs</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium">Type</label>
+                <select
+                  className="w-full mt-1 p-2 rounded-md border bg-background"
+                  value={newNotification.type}
+                  onChange={(e) => setNewNotification({
+                    ...newNotification,
+                    type: e.target.value as any
+                  })}
+                >
+                  <option value="info">Information</option>
+                  <option value="warning">Avertissement</option>
+                  <option value="alert">Alerte</option>
+                  <option value="approval_request">Demande d'approbation</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Priorité</label>
+                <select
+                  className="w-full mt-1 p-2 rounded-md border bg-background"
+                  value={newNotification.priority}
+                  onChange={(e) => setNewNotification({
+                    ...newNotification,
+                    priority: e.target.value as any
+                  })}
+                >
+                  <option value="H3">H3 - Basse</option>
+                  <option value="H2">H2 - Moyenne</option>
+                  <option value="H1">H1 - Haute</option>
+                  <option value="H0">H0 - Critique</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Destinataire</label>
+              <select
+                className="w-full mt-1 p-2 rounded-md border bg-background"
+                value={newNotification.targetRole}
+                onChange={(e) => setNewNotification({
+                  ...newNotification,
+                  targetRole: e.target.value as any
+                })}
+              >
+                <option value="all">Tous</option>
+                <option value="admin">Admin uniquement</option>
+                <option value="user">Utilisateurs</option>
+                <option value="viewer">Viewers</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Message</label>
+              <textarea
+                className="w-full mt-1 p-2 rounded-md border bg-background min-h-[100px]"
+                placeholder="Contenu de la notification..."
+                value={newNotification.message}
+                onChange={(e) => setNewNotification({
+                  ...newNotification,
+                  message: e.target.value
+                })}
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => sendNotification.mutate(newNotification)}
+              disabled={!newNotification.message || sendNotification.isPending}
+            >
+              {sendNotification.isPending ? (
+                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Send className="w-4 h-4 mr-2" />
+              )}
+              Envoyer
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Active Notifications */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <BellRing className="w-5 h-5" />
+                  Notifications Actives
+                </CardTitle>
+                <CardDescription>Notifications en attente de lecture</CardDescription>
+              </div>
+              {notifications && notifications.filter((n: any) => !n.read).length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => markAllAsRead.mutate()}
+                >
+                  Tout marquer lu
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              {notifications && notifications.length > 0 ? (
+                <div className="space-y-3">
+                  {notifications.map((notif: any) => (
+                    <div
+                      key={notif.id}
+                      className={`p-3 rounded-lg border ${notif.read ? 'opacity-60' : 'bg-card'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(notif.type)}
+                          <Badge className={getPriorityColor(notif.priority)}>
+                            {notif.priority}
+                          </Badge>
+                          <Badge variant="outline">{notif.targetRole}</Badge>
+                        </div>
+                        {!notif.read && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => markAsRead.mutate({ notificationId: notif.id })}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-sm mt-2">{notif.message}</p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span>{new Date(notif.createdAt).toLocaleString()}</span>
+                        {notif.actionRequired && (
+                          <Badge variant="destructive" className="text-xs">Action requise</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BellRing className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Aucune notification</p>
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Axiom Reference */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Référence des 16 Axiomes
+          </CardTitle>
+          <CardDescription>Axiomes utilisés pour justifier les décisions Phoenix</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {axiomDescriptions && Object.entries(axiomDescriptions).map(([key, desc]) => (
+              <div key={key} className="p-3 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="font-mono">{key}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">{desc as string}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Message History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5" />
+            Historique des Messages
+          </CardTitle>
+          <CardDescription>Derniers messages formatés par Phoenix</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {messageHistory && messageHistory.length > 0 ? (
+              <div className="space-y-3">
+                {messageHistory.map((msg: any, idx: number) => (
+                  <div key={idx} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className={getPriorityColor(msg.priority)}>{msg.priority}</Badge>
+                      <Badge variant="outline">{msg.role}</Badge>
+                      {msg.axiomReference && (
+                        <Badge variant="secondary">{msg.axiomReference}</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                      <span>{new Date(msg.timestamp).toLocaleString()}</span>
+                      {msg.confidenceScore !== undefined && (
+                        <span>Confiance: {(msg.confidenceScore * 100).toFixed(1)}%</span>
+                      )}
+                      {msg.tormentScore !== undefined && (
+                        <span>Tourment: {(msg.tormentScore * 100).toFixed(1)}%</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucun message dans l'historique</p>
               </div>
             )}
           </ScrollArea>

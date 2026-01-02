@@ -14,6 +14,7 @@ import { getArbitrator } from './phoenix/arbitrage';
 import { getActionEngine } from './phoenix/actionEngine';
 import { getReporter } from './phoenix/reporter';
 import { getRenaissance } from './phoenix/renaissance';
+import { getCommunication } from './phoenix/communication';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1766,6 +1767,184 @@ export const appRouter = router({
     isLocked: protectedProcedure.query(async () => {
       const renaissance = getRenaissance();
       return renaissance.isLocked();
+    }),
+  }),
+
+  /**
+   * Module 07: Communication & Interface
+   */
+  communication: router({
+    /**
+     * Get communication stats
+     */
+    getStats: protectedProcedure.query(async () => {
+      const comms = getCommunication();
+      return comms.getStats();
+    }),
+
+    /**
+     * Get notifications for current user
+     */
+    getNotifications: protectedProcedure
+      .input(z.object({ includeRead: z.boolean().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const comms = getCommunication();
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        const role = isAdmin ? 'admin' : 'user';
+        return comms.getNotifications(role, input?.includeRead || false);
+      }),
+
+    /**
+     * Mark notification as read
+     */
+    markAsRead: protectedProcedure
+      .input(z.object({ notificationId: z.string() }))
+      .mutation(async ({ input }) => {
+        const comms = getCommunication();
+        return comms.markAsRead(input.notificationId);
+      }),
+
+    /**
+     * Mark all notifications as read
+     */
+    markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
+      const comms = getCommunication();
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      const role = isAdmin ? 'admin' : 'user';
+      return comms.markAllAsRead(role);
+    }),
+
+    /**
+     * Send notification (Admin only)
+     */
+    sendNotification: protectedProcedure
+      .input(z.object({
+        type: z.enum(['alert', 'info', 'warning', 'approval_request']),
+        message: z.string(),
+        priority: z.enum(['H0', 'H1', 'H2', 'H3']),
+        targetRole: z.enum(['admin', 'user', 'viewer', 'all']).optional(),
+        actionRequired: z.boolean().optional(),
+        actionUrl: z.string().optional(),
+        expiresIn: z.number().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to send notifications");
+        }
+        const comms = getCommunication();
+        return comms.sendNotification(
+          input.type,
+          input.message,
+          input.priority,
+          input.targetRole || 'all',
+          {
+            actionRequired: input.actionRequired,
+            actionUrl: input.actionUrl,
+            expiresIn: input.expiresIn
+          }
+        );
+      }),
+
+    /**
+     * Get message history
+     */
+    getMessageHistory: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const comms = getCommunication();
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        const role = isAdmin ? 'admin' : 'user';
+        return comms.getMessageHistory(input?.limit || 100, role);
+      }),
+
+    /**
+     * Get current alert level
+     */
+    getAlertLevel: protectedProcedure.query(async () => {
+      const comms = getCommunication();
+      return comms.getAlertLevel();
+    }),
+
+    /**
+     * Reset alert level (Admin only)
+     */
+    resetAlertLevel: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to reset alert level");
+      }
+      const comms = getCommunication();
+      comms.resetAlertLevel();
+      return { success: true, alertLevel: 'standard' };
+    }),
+
+    /**
+     * Get axiom descriptions
+     */
+    getAxiomDescriptions: protectedProcedure.query(async () => {
+      const comms = getCommunication();
+      return comms.getAxiomDescriptions();
+    }),
+
+    /**
+     * Format message with role and priority
+     */
+    formatMessage: protectedProcedure
+      .input(z.object({
+        content: z.string(),
+        priority: z.enum(['H0', 'H1', 'H2', 'H3']).optional(),
+        axiomReference: z.string().optional(),
+        confidenceScore: z.number().optional(),
+        tormentScore: z.number().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const comms = getCommunication();
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        const role = isAdmin ? 'admin' : 'user';
+        return comms.formatMessage(
+          input.content,
+          role,
+          input.priority || 'H3',
+          {
+            axiomReference: input.axiomReference,
+            confidenceScore: input.confidenceScore,
+            tormentScore: input.tormentScore
+          }
+        );
+      }),
+
+    /**
+     * Justify a decision with axiom references
+     */
+    justifyDecision: protectedProcedure
+      .input(z.object({
+        decision: z.string(),
+        axioms: z.array(z.string()),
+        confidenceScore: z.number(),
+        tormentScore: z.number()
+      }))
+      .query(async ({ input }) => {
+        const comms = getCommunication();
+        return comms.justifyDecision(
+          input.decision,
+          input.axioms,
+          input.confidenceScore,
+          input.tormentScore
+        );
+      }),
+
+    /**
+     * Clear expired notifications
+     */
+    clearExpired: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to clear notifications");
+      }
+      const comms = getCommunication();
+      const cleared = comms.clearExpiredNotifications();
+      return { cleared };
     }),
   }),
 });
