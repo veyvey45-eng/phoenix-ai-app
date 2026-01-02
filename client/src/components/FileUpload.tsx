@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Upload, 
@@ -62,6 +62,22 @@ export function FileUpload({
 
   const { data: supportedTypes } = trpc.files.supportedTypes.useQuery();
   const uploadMutation = trpc.files.upload.useMutation();
+  const deleteMutation = trpc.files.delete.useMutation();
+  const { data: persistedFiles = [], refetch: refetchFiles } = trpc.files.list.useQuery();
+
+  // Charger les fichiers persistés depuis la base de données
+  useEffect(() => {
+    if (persistedFiles && persistedFiles.length > 0) {
+      setUploadedFiles(persistedFiles.map(f => ({
+        id: f.id.toString(),
+        originalName: f.originalName,
+        mimeType: f.mimeType,
+        size: f.size,
+        extractedText: undefined,
+        uploadedAt: new Date(f.uploadedAt)
+      })));
+    }
+  }, [persistedFiles]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -145,6 +161,9 @@ export function FileUpload({
         setUploadedFiles(prev => [...prev, uploadedFile]);
         onFileUploaded?.(uploadedFile);
         
+        // Recharger la liste depuis la base de données
+        await refetchFiles();
+        
         toast.success(`${file.name} uploadé avec succès`);
       } catch (error) {
         setUploadingFiles(prev => {
@@ -171,8 +190,16 @@ export function FileUpload({
     });
   };
 
-  const removeFile = (fileId: string) => {
-    setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+  const removeFile = async (fileId: string) => {
+    // Supprimer de la base de données
+    try {
+      await deleteMutation.mutateAsync({ fileId });
+      setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
+      await refetchFiles();
+      toast.success('Fichier supprimé');
+    } catch (error) {
+      toast.error('Erreur lors de la suppression');
+    }
   };
 
   const selectFile = (file: UploadedFile) => {
@@ -315,7 +342,7 @@ export function FileUpload({
                     className="h-8 w-8"
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeFile(file.id);
+                      void removeFile(file.id);
                     }}
                   >
                     <X className="h-4 w-4" />
