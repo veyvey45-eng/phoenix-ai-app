@@ -123,7 +123,8 @@ export class DocumentAnalyzer {
 
   private extractTopics(text: string): string[] {
     const words = text.split(/\s+/).filter(w => w.length > 5);
-    return [...new Set(words)].slice(0, 5);
+    const uniqueWords = Array.from(new Set(words));
+    return uniqueWords.slice(0, 5);
   }
 }
 
