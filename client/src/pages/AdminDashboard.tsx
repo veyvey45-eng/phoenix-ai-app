@@ -25,7 +25,15 @@ import {
   Search,
   Scale,
   Undo2,
-  AlertOctagon
+  AlertOctagon,
+  Globe,
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Play,
+  Square,
+  FileBarChart,
+  Bell
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -215,11 +223,13 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="modules">Modules (10)</TabsTrigger>
             <TabsTrigger value="validations">Axiomes (16)</TabsTrigger>
             <TabsTrigger value="arbitrage">Arbitrage</TabsTrigger>
+            <TabsTrigger value="actions">Actions Web</TabsTrigger>
+            <TabsTrigger value="reports">Rapports</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -438,6 +448,16 @@ export default function AdminDashboard() {
           {/* Arbitrage Tab */}
           <TabsContent value="arbitrage">
             <ArbitragePanel />
+          </TabsContent>
+
+          {/* Actions Web Tab */}
+          <TabsContent value="actions">
+            <ActionEnginePanel />
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports">
+            <ReporterPanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -1124,6 +1144,594 @@ function ArbitragePanel() {
           </ScrollArea>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ==================== ACTION ENGINE PANEL ====================
+function ActionEnginePanel() {
+  const [taskForm, setTaskForm] = useState({
+    description: "",
+    taskType: "search" as "search" | "extract" | "navigate" | "interact" | "monitor",
+    targetUrl: "",
+    priority: "medium" as "low" | "medium" | "high" | "critical"
+  });
+  const [securityCheckContent, setSecurityCheckContent] = useState("");
+  const [domainToValidate, setDomainToValidate] = useState("");
+
+  const { data: stats, refetch: refetchStats } = trpc.actionEngine.getStats.useQuery();
+  const { data: userTasks, refetch: refetchTasks } = trpc.actionEngine.getUserTasks.useQuery();
+  const { data: securityFilters } = trpc.actionEngine.getSecurityFilters.useQuery();
+  const { data: trustedDomains } = trpc.actionEngine.getTrustedDomains.useQuery();
+
+  const createTaskMutation = trpc.actionEngine.createTask.useMutation({
+    onSuccess: () => {
+      toast.success("Tâche créée avec succès");
+      refetchTasks();
+      refetchStats();
+      setTaskForm({ description: "", taskType: "search", targetUrl: "", priority: "medium" });
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const executeTaskMutation = trpc.actionEngine.executeTask.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("Tâche exécutée avec succès");
+      } else {
+        toast.error(result.error || "Échec de l'exécution");
+      }
+      refetchTasks();
+      refetchStats();
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const cancelTaskMutation = trpc.actionEngine.cancelTask.useMutation({
+    onSuccess: () => {
+      toast.success("Tâche annulée");
+      refetchTasks();
+      refetchStats();
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const { data: securityCheckResult } = trpc.actionEngine.checkSecurity.useQuery(
+    { content: securityCheckContent },
+    { enabled: securityCheckContent.length > 0 }
+  );
+
+  const { data: domainValidation } = trpc.actionEngine.validateDomain.useQuery(
+    { url: domainToValidate },
+    { enabled: domainToValidate.length > 0 }
+  );
+
+  const statusColors: Record<string, string> = {
+    pending: "bg-yellow-500",
+    validating: "bg-blue-500",
+    executing: "bg-purple-500",
+    completed: "bg-green-500",
+    blocked: "bg-red-500",
+    failed: "bg-gray-500"
+  };
+
+  const priorityColors: Record<string, string> = {
+    low: "bg-gray-500",
+    medium: "bg-blue-500",
+    high: "bg-orange-500",
+    critical: "bg-red-500"
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold">{stats?.totalTasks || 0}</div>
+            <p className="text-xs text-muted-foreground">Total Tâches</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold text-green-500">{stats?.completedTasks || 0}</div>
+            <p className="text-xs text-muted-foreground">Complétées</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold text-red-500">{stats?.blockedTasks || 0}</div>
+            <p className="text-xs text-muted-foreground">Bloquées</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold text-yellow-500">{stats?.pendingTasks || 0}</div>
+            <p className="text-xs text-muted-foreground">En attente</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold text-orange-500">{stats?.securityBlocksCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Blocages Sécurité</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Create Task */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="w-5 h-5" />
+              Créer une Tâche Web
+            </CardTitle>
+            <CardDescription>
+              Soumettre une nouvelle action web à l'arbitrage
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Description de la tâche..."
+                value={taskForm.description}
+                onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <select
+                value={taskForm.taskType}
+                onChange={(e) => setTaskForm({ ...taskForm, taskType: e.target.value as any })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              >
+                <option value="search">Recherche</option>
+                <option value="extract">Extraction</option>
+                <option value="navigate">Navigation</option>
+                <option value="interact">Interaction</option>
+                <option value="monitor">Surveillance</option>
+              </select>
+              <input
+                type="text"
+                placeholder="URL cible (optionnel)"
+                value={taskForm.targetUrl}
+                onChange={(e) => setTaskForm({ ...taskForm, targetUrl: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <select
+                value={taskForm.priority}
+                onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value as any })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              >
+                <option value="low">Basse</option>
+                <option value="medium">Moyenne</option>
+                <option value="high">Haute</option>
+                <option value="critical">Critique</option>
+              </select>
+              <Button
+                onClick={() => createTaskMutation.mutate(taskForm)}
+                disabled={!taskForm.description || createTaskMutation.isPending}
+                className="w-full"
+              >
+                {createTaskMutation.isPending ? "Création..." : "Créer la Tâche"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Security Check */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5" />
+              Vérification de Sécurité
+            </CardTitle>
+            <CardDescription>
+              Tester le contenu contre les filtres de sécurité
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <textarea
+                placeholder="Contenu à vérifier..."
+                value={securityCheckContent}
+                onChange={(e) => setSecurityCheckContent(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background min-h-[100px]"
+              />
+              {securityCheckResult && (
+                <div className="p-3 border rounded-lg space-y-2">
+                  <div className="flex items-center gap-2">
+                    {securityCheckResult.blocked ? (
+                      <XCircle className="w-5 h-5 text-red-500" />
+                    ) : securityCheckResult.redacted ? (
+                      <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                    ) : (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    )}
+                    <span className="font-medium">
+                      {securityCheckResult.blocked ? "Bloqué" : 
+                       securityCheckResult.redacted ? "Expurgé" : "Sûr"}
+                    </span>
+                  </div>
+                  {securityCheckResult.triggeredFilters.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {securityCheckResult.triggeredFilters.map((filter, idx) => (
+                        <Badge key={idx} variant="outline">{filter}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Domain Validation & Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="w-5 h-5" />
+              Validation de Domaine
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="https://example.com"
+                value={domainToValidate}
+                onChange={(e) => setDomainToValidate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              {domainValidation && (
+                <div className="flex items-center gap-2 p-3 border rounded-lg">
+                  {domainValidation.trusted ? (
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5 text-yellow-500" />
+                  )}
+                  <span>
+                    {domainValidation.domain}: {domainValidation.trusted ? "Domaine de confiance" : "Domaine externe"}
+                  </span>
+                </div>
+              )}
+              <div className="mt-4">
+                <p className="text-sm font-medium mb-2">Domaines de confiance:</p>
+                <div className="flex flex-wrap gap-1">
+                  {trustedDomains?.map((domain, idx) => (
+                    <Badge key={idx} variant="secondary">{domain}</Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="w-5 h-5" />
+              Filtres de Sécurité Actifs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-2">
+                {securityFilters?.map((filter, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 border rounded">
+                    <span className="text-sm">{filter.name}</span>
+                    <div className="flex gap-2">
+                      <Badge className={priorityColors[filter.priority.toLowerCase()] || "bg-gray-500"}>
+                        {filter.priority}
+                      </Badge>
+                      <Badge variant={filter.action === "block" ? "destructive" : "outline"}>
+                        {filter.action}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Task List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Tâches Web Récentes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {userTasks && userTasks.length > 0 ? (
+              <div className="space-y-2">
+                {userTasks.map((task: any) => (
+                  <div key={task.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className={statusColors[task.status]}>{task.status}</Badge>
+                        <Badge className={priorityColors[task.priority]}>{task.priority}</Badge>
+                        <span className="font-medium text-sm">{task.taskType}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        {(task.status === "pending" || task.status === "validating") && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => executeTaskMutation.mutate({ taskId: task.id })}
+                              disabled={executeTaskMutation.isPending}
+                            >
+                              <Play className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => cancelTaskMutation.mutate({ taskId: task.id })}
+                              disabled={cancelTaskMutation.isPending}
+                            >
+                              <Square className="w-3 h-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm">{task.description}</p>
+                    {task.targetUrl && (
+                      <p className="text-xs text-muted-foreground mt-1">{task.targetUrl}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(task.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Aucune tâche web enregistrée
+              </p>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ==================== REPORTER PANEL ====================
+function ReporterPanel() {
+  const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily");
+
+  const { data: quickSummary, refetch: refetchSummary } = trpc.reporter.getQuickSummary.useQuery();
+  const { data: reportHistory } = trpc.reporter.getReportHistory.useQuery({ limit: 10 });
+  const { data: unresolvedAlerts, refetch: refetchAlerts } = trpc.reporter.getUnresolvedAlerts.useQuery();
+  const { data: integrityTrend } = trpc.reporter.getIntegrityTrend.useQuery({ days: 30 });
+
+  const generateReportMutation = trpc.reporter.generateReport.useMutation({
+    onSuccess: (report) => {
+      toast.success(`Rapport généré: ${report.title}`);
+      refetchSummary();
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const resolveAlertMutation = trpc.reporter.resolveAlert.useMutation({
+    onSuccess: () => {
+      toast.success("Alerte résolue");
+      refetchAlerts();
+      refetchSummary();
+    },
+    onError: (error) => toast.error(error.message)
+  });
+
+  const trendIcon = quickSummary?.trend === "improving" ? (
+    <TrendingUp className="w-5 h-5 text-green-500" />
+  ) : quickSummary?.trend === "declining" ? (
+    <TrendingDown className="w-5 h-5 text-red-500" />
+  ) : (
+    <Activity className="w-5 h-5 text-blue-500" />
+  );
+
+  const severityColors: Record<string, string> = {
+    critical: "bg-red-500",
+    high: "bg-orange-500",
+    medium: "bg-yellow-500",
+    low: "bg-green-500"
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Quick Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold">{quickSummary?.integrityScore?.toFixed(1) || 0}%</div>
+                <p className="text-xs text-muted-foreground">Score d'Intégrité</p>
+              </div>
+              {trendIcon}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold text-red-500">{quickSummary?.unresolvedAlerts || 0}</div>
+            <p className="text-xs text-muted-foreground">Alertes Non Résolues</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-2xl font-bold">{quickSummary?.recentActions || 0}</div>
+            <p className="text-xs text-muted-foreground">Actions Récentes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-sm">
+              {quickSummary?.lastReportDate 
+                ? new Date(quickSummary.lastReportDate).toLocaleDateString()
+                : "Aucun"}
+            </div>
+            <p className="text-xs text-muted-foreground">Dernier Rapport</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Generate Report */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileBarChart className="w-5 h-5" />
+              Générer un Rapport
+            </CardTitle>
+            <CardDescription>
+              Créer un rapport d'intégrité Phoenix
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <select
+                value={reportPeriod}
+                onChange={(e) => setReportPeriod(e.target.value as any)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              >
+                <option value="daily">Quotidien</option>
+                <option value="weekly">Hebdomadaire</option>
+                <option value="monthly">Mensuel</option>
+              </select>
+              <Button
+                onClick={() => generateReportMutation.mutate({ period: reportPeriod })}
+                disabled={generateReportMutation.isPending}
+                className="w-full"
+              >
+                {generateReportMutation.isPending ? "Génération..." : "Générer le Rapport"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Unresolved Alerts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5" />
+              Alertes Critiques
+            </CardTitle>
+            <CardDescription>
+              Alertes nécessitant une attention immédiate
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              {unresolvedAlerts && unresolvedAlerts.length > 0 ? (
+                <div className="space-y-2">
+                  {unresolvedAlerts.map((alert: any) => (
+                    <div key={alert.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge className={severityColors[alert.severity]}>{alert.severity}</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resolveAlertMutation.mutate({ alertId: alert.id })}
+                          disabled={resolveAlertMutation.isPending}
+                        >
+                          Résoudre
+                        </Button>
+                      </div>
+                      <p className="text-sm">{alert.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(alert.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Aucune alerte non résolue
+                </p>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Report History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            Historique des Rapports
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {reportHistory?.reports && reportHistory.reports.length > 0 ? (
+              <div className="space-y-2">
+                {reportHistory.reports.map((report: any) => (
+                  <div key={report.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium">{report.title}</span>
+                      <Badge variant="outline">{report.period}</Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Intégrité: </span>
+                        <span className="font-medium">{report.integrityScore?.overall?.toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Actions: </span>
+                        <span className="font-medium">{report.actionSummary?.totalActions || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Alertes: </span>
+                        <span className="font-medium">{report.criticalAlerts?.length || 0}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Généré le {new Date(report.generatedAt).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Aucun rapport généré
+              </p>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Integrity Trend */}
+      {integrityTrend && integrityTrend.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Tendance d'Intégrité (30 jours)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[100px] flex items-end gap-1">
+              {integrityTrend.map((point: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex-1 bg-primary rounded-t"
+                  style={{ height: `${point.score}%` }}
+                  title={`${point.score.toFixed(1)}% - ${new Date(point.timestamp).toLocaleDateString()}`}
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import { getToolsEngine, ToolCall } from './phoenix/tools';
 import { getFileProcessor } from './phoenix/fileProcessor';
 import { getMemorySyncModule } from './phoenix/memorySync';
 import { getArbitrator } from './phoenix/arbitrage';
+import { getActionEngine } from './phoenix/actionEngine';
+import { getReporter } from './phoenix/reporter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1422,6 +1424,242 @@ export const appRouter = router({
           userId: ctx.user.id,
           ...input.context
         });
+      }),
+  }),
+
+  // ==================== MODULE 04: ACTION ENGINE ====================
+  actionEngine: router({
+    /**
+     * Create a new web task
+     */
+    createTask: protectedProcedure
+      .input(z.object({
+        description: z.string(),
+        taskType: z.enum(['search', 'extract', 'navigate', 'interact', 'monitor']),
+        targetUrl: z.string().optional(),
+        parameters: z.record(z.string(), z.any()).optional(),
+        priority: z.enum(['low', 'medium', 'high', 'critical']).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const engine = getActionEngine();
+        return engine.createTask({
+          ...input,
+          userId: ctx.user.id
+        });
+      }),
+
+    /**
+     * Execute a task
+     */
+    executeTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .mutation(async ({ input }) => {
+        const engine = getActionEngine();
+        return engine.executeTask(input.taskId);
+      }),
+
+    /**
+     * Cancel a pending task
+     */
+    cancelTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const engine = getActionEngine();
+        return engine.cancelTask(input.taskId, ctx.user.id);
+      }),
+
+    /**
+     * Get task by ID
+     */
+    getTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .query(async ({ input }) => {
+        const engine = getActionEngine();
+        return engine.getTask(input.taskId);
+      }),
+
+    /**
+     * Get user's tasks
+     */
+    getUserTasks: protectedProcedure.query(async ({ ctx }) => {
+      const engine = getActionEngine();
+      return engine.getTasksByUser(ctx.user.id);
+    }),
+
+    /**
+     * Get pending tasks (admin only)
+     */
+    getPendingTasks: protectedProcedure.query(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+      const engine = getActionEngine();
+      return engine.getPendingTasks();
+    }),
+
+    /**
+     * Get action engine stats
+     */
+    getStats: protectedProcedure.query(async () => {
+      const engine = getActionEngine();
+      return engine.getStats();
+    }),
+
+    /**
+     * Check security filters on content
+     */
+    checkSecurity: protectedProcedure
+      .input(z.object({ content: z.string() }))
+      .query(async ({ input }) => {
+        const engine = getActionEngine();
+        return engine.checkSecurityFilters(input.content);
+      }),
+
+    /**
+     * Validate domain
+     */
+    validateDomain: protectedProcedure
+      .input(z.object({ url: z.string() }))
+      .query(async ({ input }) => {
+        const engine = getActionEngine();
+        return engine.validateDomain(input.url);
+      }),
+
+    /**
+     * Get security filters list
+     */
+    getSecurityFilters: protectedProcedure.query(async () => {
+      const engine = getActionEngine();
+      return engine.getSecurityFilters().map(f => ({
+        name: f.name,
+        action: f.action,
+        priority: f.priority
+      }));
+    }),
+
+    /**
+     * Get trusted domains
+     */
+    getTrustedDomains: protectedProcedure.query(async () => {
+      const engine = getActionEngine();
+      return engine.getTrustedDomains();
+    }),
+  }),
+
+  // ==================== MODULE 05: REPORTER ====================
+  reporter: router({
+    /**
+     * Generate a report
+     */
+    generateReport: protectedProcedure
+      .input(z.object({
+        period: z.enum(['daily', 'weekly', 'monthly', 'custom']),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        format: z.enum(['json', 'summary', 'detailed']).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to generate reports");
+        }
+        const reporter = getReporter();
+        return reporter.generateReport({
+          period: input.period,
+          startDate: input.startDate ? new Date(input.startDate) : undefined,
+          endDate: input.endDate ? new Date(input.endDate) : undefined,
+          format: input.format,
+          userId: ctx.user.id
+        });
+      }),
+
+    /**
+     * Get quick summary for dashboard
+     */
+    getQuickSummary: protectedProcedure.query(async ({ ctx }) => {
+      const reporter = getReporter();
+      return reporter.generateQuickSummary(ctx.user.id);
+    }),
+
+    /**
+     * Get report history
+     */
+    getReportHistory: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const reporter = getReporter();
+        return reporter.getReportHistory(input?.limit || 20);
+      }),
+
+    /**
+     * Get a specific report
+     */
+    getReport: protectedProcedure
+      .input(z.object({ reportId: z.string() }))
+      .query(async ({ input }) => {
+        const reporter = getReporter();
+        return reporter.getReport(input.reportId);
+      }),
+
+    /**
+     * Get unresolved alerts
+     */
+    getUnresolvedAlerts: protectedProcedure.query(async () => {
+      const reporter = getReporter();
+      return reporter.getUnresolvedAlerts();
+    }),
+
+    /**
+     * Get all alerts
+     */
+    getAllAlerts: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const reporter = getReporter();
+        return reporter.getAllAlerts(input?.limit || 100);
+      }),
+
+    /**
+     * Resolve an alert
+     */
+    resolveAlert: protectedProcedure
+      .input(z.object({ alertId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to resolve alerts");
+        }
+        const reporter = getReporter();
+        return reporter.resolveAlert(input.alertId, ctx.user.id);
+      }),
+
+    /**
+     * Add a critical alert (for system use)
+     */
+    addAlert: protectedProcedure
+      .input(z.object({
+        type: z.enum(['h0_violation', 'security_breach', 'system_error', 'integrity_drop']),
+        severity: z.enum(['critical', 'high', 'medium', 'low']),
+        description: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to add alerts");
+        }
+        const reporter = getReporter();
+        return reporter.addCriticalAlert(input);
+      }),
+
+    /**
+     * Get integrity trend data
+     */
+    getIntegrityTrend: protectedProcedure
+      .input(z.object({ days: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const reporter = getReporter();
+        return reporter.getIntegrityTrend(input?.days || 30);
       }),
   }),
 });
