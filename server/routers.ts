@@ -16,6 +16,7 @@ import { getReporter } from './phoenix/reporter';
 import { getRenaissance } from './phoenix/renaissance';
 import { getCommunication } from './phoenix/communication';
 import { getOptimizer } from './phoenix/optimizer';
+import { getSecurity } from './phoenix/security';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -2178,6 +2179,220 @@ export const appRouter = router({
       .query(async ({ input }) => {
         const optimizer = getOptimizer();
         return optimizer.getLoadHistory(input.samples);
+      }),
+  }),
+
+  // ==================== MODULE 09: SECURITY ====================
+  security: router({
+    /**
+     * Get security status
+     */
+    getStatus: protectedProcedure.query(async () => {
+      const security = getSecurity();
+      return security.getStatus();
+    }),
+
+    /**
+     * Get security metrics
+     */
+    getMetrics: protectedProcedure.query(async () => {
+      const security = getSecurity();
+      return security.getMetrics();
+    }),
+
+    /**
+     * Get audit log
+     */
+    getAuditLog: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const security = getSecurity();
+        return security.getAuditLog(input.limit);
+      }),
+
+    /**
+     * Get recent violations
+     */
+    getViolations: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const security = getSecurity();
+        return security.getRecentViolations(input.limit);
+      }),
+
+    /**
+     * Verify audit integrity
+     */
+    verifyIntegrity: protectedProcedure.query(async () => {
+      const security = getSecurity();
+      return security.verifyAuditIntegrity();
+    }),
+
+    /**
+     * Filter content for sensitive data
+     */
+    filterContent: protectedProcedure
+      .input(z.object({ content: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const security = getSecurity();
+        return security.filterOutput(input.content, String(ctx.user.id));
+      }),
+
+    /**
+     * Encrypt data (admin only)
+     */
+    encryptData: protectedProcedure
+      .input(z.object({ data: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required for encryption");
+        }
+        
+        const security = getSecurity();
+        return security.encrypt(input.data);
+      }),
+
+    /**
+     * Decrypt data (admin only)
+     */
+    decryptData: protectedProcedure
+      .input(z.object({
+        iv: z.string(),
+        data: z.string(),
+        tag: z.string(),
+        algorithm: z.string(),
+        timestamp: z.number()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required for decryption");
+        }
+        
+        const security = getSecurity();
+        return { decrypted: security.decrypt(input) };
+      }),
+
+    /**
+     * Unlock system (admin only)
+     */
+    unlock: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to unlock system");
+      }
+      
+      const security = getSecurity();
+      const success = security.unlock(String(ctx.user.id));
+      
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: 'system_unlock',
+        resourceType: 'security',
+        resourceId: 0,
+        changes: { success }
+      });
+      
+      return { success };
+    }),
+
+    /**
+     * Toggle encryption (admin only)
+     */
+    setEncryption: protectedProcedure
+      .input(z.object({ enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to change encryption settings");
+        }
+        
+        const security = getSecurity();
+        security.setEncryptionEnabled(input.enabled, String(ctx.user.id));
+        
+        await logAdminAction({
+          adminId: ctx.user.id,
+          action: input.enabled ? 'encryption_enabled' : 'encryption_disabled',
+          resourceType: 'security',
+          resourceId: 0,
+          changes: { enabled: input.enabled }
+        });
+        
+        return { enabled: input.enabled };
+      }),
+
+    /**
+     * Toggle filter (admin only)
+     */
+    setFilter: protectedProcedure
+      .input(z.object({ enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to change filter settings");
+        }
+        
+        const security = getSecurity();
+        security.setFilterEnabled(input.enabled, String(ctx.user.id));
+        
+        await logAdminAction({
+          adminId: ctx.user.id,
+          action: input.enabled ? 'filter_enabled' : 'filter_disabled',
+          resourceType: 'security',
+          resourceId: 0,
+          changes: { enabled: input.enabled }
+        });
+        
+        return { enabled: input.enabled };
+      }),
+
+    /**
+     * Reset metrics (admin only)
+     */
+    resetMetrics: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to reset metrics");
+      }
+      
+      const security = getSecurity();
+      security.resetMetrics(String(ctx.user.id));
+      
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: 'security_metrics_reset',
+        resourceType: 'security',
+        resourceId: 0,
+        changes: {}
+      });
+      
+      return { success: true };
+    }),
+
+    /**
+     * Generate signature
+     */
+    generateSignature: protectedProcedure
+      .input(z.object({ data: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required for signature generation");
+        }
+        
+        const security = getSecurity();
+        return { signature: security.generateSignature(input.data) };
+      }),
+
+    /**
+     * Verify signature
+     */
+    verifySignature: protectedProcedure
+      .input(z.object({ data: z.string(), signature: z.string() }))
+      .query(async ({ input }) => {
+        const security = getSecurity();
+        return { valid: security.verifySignature(input.data, input.signature) };
       }),
   }),
 });

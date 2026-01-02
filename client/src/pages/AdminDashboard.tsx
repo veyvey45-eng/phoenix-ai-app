@@ -28,6 +28,11 @@ import {
   AlertOctagon,
   Globe,
   BarChart3,
+  ShieldCheck,
+  Key,
+  Eye,
+  EyeOff,
+  FileKey,
   Flame,
   Heart,
   Zap,
@@ -243,6 +248,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="renaissance">Renaissance</TabsTrigger>
             <TabsTrigger value="comms">Communication</TabsTrigger>
             <TabsTrigger value="optimizer">Optimisation</TabsTrigger>
+            <TabsTrigger value="security">Sécurité</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -486,6 +492,10 @@ export default function AdminDashboard() {
           {/* Optimizer Tab */}
           <TabsContent value="optimizer">
             <OptimizerPanel />
+          </TabsContent>
+
+          <TabsContent value="security">
+            <SecurityPanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -2996,6 +3006,324 @@ function OptimizerPanel() {
               <div className="text-center py-8 text-muted-foreground">
                 <Timer className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Aucune tâche récente</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+// ==================== SECURITY PANEL ====================
+function SecurityPanel() {
+  const { data: status, refetch: refetchStatus } = trpc.security.getStatus.useQuery();
+  const { data: metrics, refetch: refetchMetrics } = trpc.security.getMetrics.useQuery();
+  const { data: auditLog, refetch: refetchAudit } = trpc.security.getAuditLog.useQuery({ limit: 50 });
+  const { data: violations } = trpc.security.getViolations.useQuery({ limit: 20 });
+  const { data: integrity } = trpc.security.verifyIntegrity.useQuery();
+
+  const unlockMutation = trpc.security.unlock.useMutation({
+    onSuccess: () => {
+      refetchStatus();
+      refetchMetrics();
+    },
+  });
+
+  const setEncryptionMutation = trpc.security.setEncryption.useMutation({
+    onSuccess: () => refetchStatus(),
+  });
+
+  const setFilterMutation = trpc.security.setFilter.useMutation({
+    onSuccess: () => refetchStatus(),
+  });
+
+  const resetMetricsMutation = trpc.security.resetMetrics.useMutation({
+    onSuccess: () => refetchMetrics(),
+  });
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'bg-red-500 text-white';
+      case 'warning': return 'bg-yellow-500 text-white';
+      default: return 'bg-blue-500 text-white';
+    }
+  };
+
+  const getEventTypeIcon = (type: string) => {
+    switch (type) {
+      case 'access': return <Key className="w-4 h-4" />;
+      case 'encryption': return <FileKey className="w-4 h-4" />;
+      case 'filter': return <Eye className="w-4 h-4" />;
+      case 'violation': return <AlertTriangle className="w-4 h-4" />;
+      case 'lockdown': return <Lock className="w-4 h-4" />;
+      default: return <Shield className="w-4 h-4" />;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Security Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className={status?.isLocked ? 'border-red-500' : 'border-green-500'}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              {status?.isLocked ? <Lock className="w-4 h-4 text-red-500" /> : <Unlock className="w-4 h-4 text-green-500" />}
+              État du Système
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {status?.isLocked ? 'VERROUILLÉ' : 'ACTIF'}
+            </div>
+            {status?.isLocked && (
+              <div className="mt-2">
+                <p className="text-xs text-muted-foreground">{status.lockReason}</p>
+                <Button 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => unlockMutation.mutate()}
+                  disabled={unlockMutation.isPending}
+                >
+                  <Unlock className="w-4 h-4 mr-2" />
+                  Déverrouiller
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Score d'Intégrité
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.integrityScore || 100}%</div>
+            <p className="text-xs text-muted-foreground">
+              Basé sur les violations détectées
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Violations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{status?.violationCount || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Seuil de verrouillage: 5
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Opérations
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics?.totalEvents || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics?.blockedAttempts || 0} bloquées
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Security Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Contrôles de Sécurité
+          </CardTitle>
+          <CardDescription>Configuration des protections du système</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <FileKey className="w-5 h-5 text-blue-500" />
+              <div>
+                <p className="font-medium">Chiffrement des Données</p>
+                <p className="text-sm text-muted-foreground">
+                  Chiffre les données sensibles avant stockage (AES-256-GCM)
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={status?.encryptionEnabled || false}
+              onCheckedChange={(checked) => setEncryptionMutation.mutate({ enabled: checked })}
+              disabled={setEncryptionMutation.isPending}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <Eye className="w-5 h-5 text-purple-500" />
+              <div>
+                <p className="font-medium">Filtrage de Sortie</p>
+                <p className="text-sm text-muted-foreground">
+                  Filtre les données sensibles (API keys, credentials, tokens)
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={status?.filterEnabled || false}
+              onCheckedChange={(checked) => setFilterMutation.mutate({ enabled: checked })}
+              disabled={setFilterMutation.isPending}
+            />
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <Shield className="w-5 h-5 text-green-500" />
+              <div>
+                <p className="font-medium">Audit Immuable</p>
+                <p className="text-sm text-muted-foreground">
+                  Journal d'audit avec chaîne de hachage SHA-256
+                </p>
+              </div>
+            </div>
+            <Badge className={integrity?.valid ? 'bg-green-500' : 'bg-red-500'}>
+              {integrity?.valid ? 'Intègre' : 'Compromis'}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Metrics */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Métriques de Sécurité
+              </CardTitle>
+              <CardDescription>Statistiques des opérations de sécurité</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => resetMetricsMutation.mutate()}
+              disabled={resetMetricsMutation.isPending}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Réinitialiser
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 rounded-lg bg-muted">
+              <p className="text-2xl font-bold">{metrics?.encryptionOperations || 0}</p>
+              <p className="text-sm text-muted-foreground">Chiffrements</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted">
+              <p className="text-2xl font-bold">{metrics?.filterOperations || 0}</p>
+              <p className="text-sm text-muted-foreground">Filtrages</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted">
+              <p className="text-2xl font-bold">{metrics?.violationsDetected || 0}</p>
+              <p className="text-sm text-muted-foreground">Violations</p>
+            </div>
+            <div className="text-center p-4 rounded-lg bg-muted">
+              <p className="text-2xl font-bold">{metrics?.lockdownsTriggered || 0}</p>
+              <p className="text-sm text-muted-foreground">Verrouillages</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Violations */}
+      {violations && violations.length > 0 && (
+        <Card className="border-red-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-red-500">
+              <AlertOctagon className="w-5 h-5" />
+              Violations Récentes
+            </CardTitle>
+            <CardDescription>Tentatives d'accès non autorisées</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-2">
+                {violations.map((violation: any) => (
+                  <div key={violation.id} className="flex items-center justify-between p-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="w-4 h-4 text-red-500" />
+                      <div>
+                        <p className="text-sm font-medium">{violation.action}</p>
+                        <p className="text-xs text-muted-foreground">{violation.details}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(violation.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Audit Log */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Journal d'Audit Sécurité
+              </CardTitle>
+              <CardDescription>Historique des événements de sécurité</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchAudit()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Actualiser
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            {auditLog && auditLog.length > 0 ? (
+              <div className="space-y-2">
+                {auditLog.map((event: any) => (
+                  <div key={event.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3">
+                      {getEventTypeIcon(event.type)}
+                      <Badge className={getSeverityColor(event.severity)}>{event.severity}</Badge>
+                      <div>
+                        <p className="text-sm font-medium">{event.action}</p>
+                        <p className="text-xs text-muted-foreground">{event.details}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {event.blocked && (
+                        <Badge variant="destructive">Bloqué</Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Shield className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucun événement de sécurité</p>
               </div>
             )}
           </ScrollArea>
