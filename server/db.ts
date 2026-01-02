@@ -127,7 +127,7 @@ export async function getUtterancesByContext(contextId: string, limit = 50): Pro
     .limit(limit);
 }
 
-export async function getRecentUtterances(userId: number, limit = 20): Promise<Utterance[]> {
+export async function getRecentUtterances(userId: number, limit = 200): Promise<Utterance[]> {
   const db = await getDb();
   if (!db) return [];
 

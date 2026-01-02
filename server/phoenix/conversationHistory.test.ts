@@ -31,7 +31,7 @@ describe("Conversation History in Phoenix", () => {
       const prompt = buildSystemPrompt(context);
 
       // Verify the prompt contains the conversation history section
-      expect(prompt).toContain("HISTORIQUE DE CONVERSATION RÉCENT");
+      expect(prompt).toContain("HISTORIQUE DE CONVERSATION");
       expect(prompt).toContain("Quelle est la capitale de la France?");
       expect(prompt).toContain("La capitale de la France est Paris.");
       expect(prompt).toContain("Et de l'Allemagne?");

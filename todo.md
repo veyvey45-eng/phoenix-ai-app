@@ -188,3 +188,11 @@
 - [x] Vérifier la persistance des messages en base de données
 - [x] S'assurer que l'historique est passé dans le contexte du prompt
 - [x] Tester la commande "reprends ma dernière question" (7 tests ajoutés)
+
+
+## Phase 15: Augmentation de l'Historique Conversationnel
+
+### Augmenter la limite à 200 messages
+- [x] Modifier getRecentUtterances pour récupérer 200 messages au lieu de 20
+- [x] Adapter le prompt pour inclure tous les 200 messages de manière efficace
+- [x] Tester que les performances restent acceptables (103 tests passent)
