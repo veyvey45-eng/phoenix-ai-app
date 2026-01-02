@@ -6,6 +6,7 @@
  */
 
 import { webSearchIntegration, SearchResponse } from './webSearch';
+import { weatherApi } from './weatherApi';
 
 interface EnrichmentResult {
   needsInternet: boolean;
@@ -103,7 +104,31 @@ class ContextEnricher {
     }
 
     try {
-      // Effectuer la recherche web
+      // Pour les questions météo, utiliser l'API météo dédiée
+      if (analysis.category === 'weather') {
+        const city = this.extractCityFromQuery(query);
+        console.log(`[ContextEnricher] Requête météo pour: ${city}`);
+        
+        const isForecast = /demain|prévision|semaine|jours/i.test(query);
+        
+        if (isForecast) {
+          const forecast = await weatherApi.getForecast(city, 5);
+          return {
+            needsInternet: true,
+            category: 'weather',
+            enrichedContext: weatherApi.formatForecastForContext(forecast)
+          };
+        } else {
+          const weather = await weatherApi.getCurrentWeather(city);
+          return {
+            needsInternet: true,
+            category: 'weather',
+            enrichedContext: weatherApi.formatWeatherForContext(weather)
+          };
+        }
+      }
+
+      // Pour les autres catégories, utiliser la recherche web
       const searchResults = await webSearchIntegration.search(query, {
         userId,
         maxResults: 5,
@@ -111,7 +136,6 @@ class ContextEnricher {
         region: 'FR'
       });
 
-      // Construire le contexte enrichi
       const enrichedContext = this.buildEnrichedContext(analysis.category, searchResults, query);
 
       return {
@@ -128,6 +152,32 @@ class ContextEnricher {
         enrichedContext: `[Note: Recherche web indisponible temporairement pour "${query}"]`
       };
     }
+  }
+
+  private extractCityFromQuery(query: string): string {
+    const patterns = [
+      /météo\s+(?:à|a|au|en|de|du)?\s*([A-Za-zà-ü\s-]+)/i,
+      /temps\s+(?:à|a|au|en|de|du)?\s*([A-Za-zà-ü\s-]+)/i,
+      /(?:à|a|au|en|de|du)\s+([A-Za-zà-ü\s-]+)\s*\??$/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = query.match(pattern);
+      if (match && match[1]) {
+        const city = match[1].trim()
+          .replace(/\b(aujourd'hui|demain|cette|semaine|ce|soir|matin)\b/gi, '')
+          .trim();
+        if (city.length > 1) return city;
+      }
+    }
+
+    const knownCities = ['luxembourg', 'paris', 'bruxelles', 'berlin', 'london', 'londres', 'lyon', 'marseille'];
+    const lowerQuery = query.toLowerCase();
+    for (const city of knownCities) {
+      if (lowerQuery.includes(city)) return city.charAt(0).toUpperCase() + city.slice(1);
+    }
+
+    return 'Luxembourg';
   }
 
   /**
