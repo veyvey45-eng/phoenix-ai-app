@@ -196,3 +196,15 @@
 - [x] Modifier getRecentUtterances pour récupérer 200 messages au lieu de 20
 - [x] Adapter le prompt pour inclure tous les 200 messages de manière efficace
 - [x] Tester que les performances restent acceptables (103 tests passent)
+
+
+## Phase 16: Système de Rôles Admin et Permissions
+
+### Implémentation des permissions Admin
+- [x] Créer les tables pour les rôles (admin, user, viewer)
+- [x] Implémenter l'authentification des rôles
+- [x] Ajouter les permissions d'approbation des validations sensibles
+- [x] Créer l'accès exclusif à la configuration des 10 modules
+- [x] Implémenter la visibilité totale des logs d'audit
+- [x] Créer le tableau de bord d'approbation
+- [x] Tester les permissions et l'audit (21 tests Admin, 124 tests au total)

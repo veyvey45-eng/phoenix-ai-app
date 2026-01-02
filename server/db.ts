@@ -11,7 +11,13 @@ import {
   criteria, InsertCriteria, Criteria,
   phoenixState, InsertPhoenixState, PhoenixState,
   auditLog, InsertAuditLog, AuditLog,
-  conversations, InsertConversation, Conversation
+  conversations, InsertConversation, Conversation,
+  permissions, InsertPermission, Permission,
+  rolePermissions, InsertRolePermission, RolePermission,
+  sensitiveValidations, InsertSensitiveValidation, SensitiveValidation,
+  approvalRequests, InsertApprovalRequest, ApprovalRequest,
+  moduleConfigs, InsertModuleConfig, ModuleConfig,
+  adminAuditLog, InsertAdminAuditLog, AdminAuditLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -514,4 +520,326 @@ export async function getConversationByContextId(contextId: string): Promise<Con
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+
+// ============================================================================
+// ADMIN SYSTEM OPERATIONS
+// ============================================================================
+
+/**
+ * Check if a user has admin role
+ */
+export async function isUserAdmin(userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const result = await db.select()
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.role, "admin")))
+    .limit(1);
+
+  return result.length > 0;
+}
+
+/**
+ * Promote a user to admin role
+ */
+export async function promoteToAdmin(userId: number, promotedBy: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  // Verify the promoter is admin
+  const isPromoterAdmin = await isUserAdmin(promotedBy);
+  if (!isPromoterAdmin) return false;
+
+  await db.update(users)
+    .set({ role: "admin" })
+    .where(eq(users.id, userId));
+
+  // Log the action
+  await logAdminAction({
+    adminId: promotedBy,
+    action: "promote_to_admin",
+    resourceType: "user",
+    resourceId: userId,
+    changes: { role: "admin" }
+  });
+
+  return true;
+}
+
+/**
+ * Log admin actions for audit trail
+ */
+export async function logAdminAction(data: InsertAdminAuditLog): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.insert(adminAuditLog).values(data);
+}
+
+/**
+ * Get admin audit log
+ */
+export async function getAdminAuditLog(limit = 100): Promise<AdminAuditLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(adminAuditLog)
+    .orderBy(desc(adminAuditLog.createdAt))
+    .limit(limit);
+}
+
+// ============================================================================
+// MODULE CONFIGURATION OPERATIONS
+// ============================================================================
+
+/**
+ * Initialize the 10 Phoenix modules
+ */
+export async function initializeModuleConfigs(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const defaultModules = [
+    { moduleId: "logic_gate", moduleName: "Logic Gate", description: "Filtre de sécurité et validation des décisions" },
+    { moduleId: "memory_sync", moduleName: "Memory Sync", description: "Synchronisation des connaissances de référence" },
+    { moduleId: "arbitrage", moduleName: "Arbitrage", description: "Génération et sélection des hypothèses" },
+    { moduleId: "torment", moduleName: "Torment", description: "Calcul du score de tourment et incertitude" },
+    { moduleId: "security", moduleName: "Security", description: "Vérification des axiomes de sécurité" },
+    { moduleId: "memory_rag", moduleName: "Memory RAG", description: "Recherche et récupération de mémoires" },
+    { moduleId: "error_detection", moduleName: "Error Detection", description: "Détection des contradictions et hallucinations" },
+    { moduleId: "initiative", moduleName: "Initiative", description: "Évaluation des actions à suggérer ou exécuter" },
+    { moduleId: "tool_gateway", moduleName: "Tool Gateway", description: "Gestion des permissions et signatures d'outils" },
+    { moduleId: "sleep_consolidation", moduleName: "Sleep Consolidation", description: "Consolidation nocturne des mémoires" }
+  ];
+
+  for (const module of defaultModules) {
+    const existing = await db.select()
+      .from(moduleConfigs)
+      .where(eq(moduleConfigs.moduleId, module.moduleId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      await db.insert(moduleConfigs).values({
+        ...module,
+        isEnabled: true,
+        config: {}
+      });
+    }
+  }
+}
+
+/**
+ * Get all module configurations
+ */
+export async function getModuleConfigs(): Promise<ModuleConfig[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(moduleConfigs)
+    .orderBy(moduleConfigs.moduleId);
+}
+
+/**
+ * Update module configuration (Admin only)
+ */
+export async function updateModuleConfig(
+  moduleId: string,
+  updates: Partial<InsertModuleConfig>,
+  adminId: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  // Verify admin
+  const isAdmin = await isUserAdmin(adminId);
+  if (!isAdmin) return false;
+
+  await db.update(moduleConfigs)
+    .set({ ...updates, updatedBy: adminId })
+    .where(eq(moduleConfigs.moduleId, moduleId));
+
+  // Log the action
+  await logAdminAction({
+    adminId,
+    action: "update_module_config",
+    resourceType: "module",
+    resourceId: 0,
+    changes: { moduleId, ...updates }
+  });
+
+  return true;
+}
+
+// ============================================================================
+// SENSITIVE VALIDATION OPERATIONS
+// ============================================================================
+
+/**
+ * Initialize the 16 axioms as sensitive validations
+ */
+export async function initializeSensitiveValidations(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const axioms = [
+    // Niveau 0 - Critiques
+    { axiomId: "H0-INTEGRITE", axiomName: "Intégrité humaine", severity: "critical" as const, description: "Refuser toute action visant à nuire", requiresApproval: true },
+    { axiomId: "H0-TRANSPARENCE", axiomName: "Transparence", severity: "critical" as const, description: "Montrer le raisonnement et les incertitudes", requiresApproval: true },
+    { axiomId: "H0-VERITE", axiomName: "Vérité", severity: "critical" as const, description: "Ne jamais affirmer sans preuve", requiresApproval: true },
+    { axiomId: "H0-LIMITE", axiomName: "Limite", severity: "critical" as const, description: "Reconnaître les limites de compétence", requiresApproval: true },
+    // Niveau 1 - Haute priorité
+    { axiomId: "H1-COHERENCE", axiomName: "Cohérence", severity: "high" as const, description: "Maintenir la cohérence des réponses", requiresApproval: true },
+    { axiomId: "H1-PRECISION", axiomName: "Précision", severity: "high" as const, description: "Fournir des informations précises", requiresApproval: false },
+    { axiomId: "H1-PERTINENCE", axiomName: "Pertinence", severity: "high" as const, description: "Répondre de manière pertinente", requiresApproval: false },
+    { axiomId: "H1-CLARTE", axiomName: "Clarté", severity: "high" as const, description: "Communiquer clairement", requiresApproval: false },
+    // Niveau 2 - Moyenne priorité
+    { axiomId: "H2-EFFICACITE", axiomName: "Efficacité", severity: "medium" as const, description: "Optimiser les ressources", requiresApproval: false },
+    { axiomId: "H2-ADAPTABILITE", axiomName: "Adaptabilité", severity: "medium" as const, description: "S'adapter au contexte", requiresApproval: false },
+    { axiomId: "H2-APPRENTISSAGE", axiomName: "Apprentissage", severity: "medium" as const, description: "Apprendre des interactions", requiresApproval: false },
+    { axiomId: "H2-COLLABORATION", axiomName: "Collaboration", severity: "medium" as const, description: "Collaborer efficacement", requiresApproval: false },
+    // Niveau 3 - Basse priorité
+    { axiomId: "H3-CREATIVITE", axiomName: "Créativité", severity: "low" as const, description: "Proposer des solutions créatives", requiresApproval: false },
+    { axiomId: "H3-EMPATHIE", axiomName: "Empathie", severity: "low" as const, description: "Comprendre les besoins utilisateur", requiresApproval: false },
+    { axiomId: "H3-PROACTIVITE", axiomName: "Proactivité", severity: "low" as const, description: "Anticiper les besoins", requiresApproval: false },
+    { axiomId: "H3-EVOLUTION", axiomName: "Évolution", severity: "low" as const, description: "Évoluer continuellement", requiresApproval: false }
+  ];
+
+  for (const axiom of axioms) {
+    const existing = await db.select()
+      .from(sensitiveValidations)
+      .where(eq(sensitiveValidations.axiomId, axiom.axiomId))
+      .limit(1);
+
+    if (existing.length === 0) {
+      await db.insert(sensitiveValidations).values(axiom);
+    }
+  }
+}
+
+/**
+ * Get all sensitive validations
+ */
+export async function getSensitiveValidations(): Promise<SensitiveValidation[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(sensitiveValidations)
+    .orderBy(sensitiveValidations.severity);
+}
+
+/**
+ * Update sensitive validation settings (Admin only)
+ */
+export async function updateSensitiveValidation(
+  axiomId: string,
+  updates: Partial<InsertSensitiveValidation>,
+  adminId: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const isAdmin = await isUserAdmin(adminId);
+  if (!isAdmin) return false;
+
+  await db.update(sensitiveValidations)
+    .set(updates)
+    .where(eq(sensitiveValidations.axiomId, axiomId));
+
+  await logAdminAction({
+    adminId,
+    action: "update_sensitive_validation",
+    resourceType: "axiom",
+    resourceId: 0,
+    changes: { axiomId, ...updates }
+  });
+
+  return true;
+}
+
+// ============================================================================
+// APPROVAL REQUEST OPERATIONS
+// ============================================================================
+
+/**
+ * Create an approval request for a sensitive operation
+ */
+export async function createApprovalRequest(data: InsertApprovalRequest): Promise<ApprovalRequest | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(approvalRequests).values({
+    ...data,
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours expiry
+  });
+  const id = Number(result[0].insertId);
+  return { ...data, id, createdAt: new Date() } as ApprovalRequest;
+}
+
+/**
+ * Get pending approval requests
+ */
+export async function getPendingApprovals(): Promise<ApprovalRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(approvalRequests)
+    .where(eq(approvalRequests.status, "pending"))
+    .orderBy(desc(approvalRequests.createdAt));
+}
+
+/**
+ * Approve or reject an approval request (Admin only)
+ */
+export async function processApprovalRequest(
+  requestId: number,
+  approved: boolean,
+  adminId: number,
+  reason?: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const isAdmin = await isUserAdmin(adminId);
+  if (!isAdmin) return false;
+
+  const status = approved ? "approved" : "rejected";
+
+  await db.update(approvalRequests)
+    .set({
+      status,
+      approvedBy: adminId,
+      reason,
+      approvedAt: new Date()
+    })
+    .where(eq(approvalRequests.id, requestId));
+
+  await logAdminAction({
+    adminId,
+    action: approved ? "approve_request" : "reject_request",
+    resourceType: "approval_request",
+    resourceId: requestId,
+    changes: { status, reason }
+  });
+
+  return true;
+}
+
+/**
+ * Get approval history
+ */
+export async function getApprovalHistory(limit = 50): Promise<ApprovalRequest[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(approvalRequests)
+    .orderBy(desc(approvalRequests.createdAt))
+    .limit(limit);
 }

@@ -35,7 +35,21 @@ import {
   getAuditLog,
   createConversation,
   getConversationsByUser,
-  getConversationByContextId
+  getConversationByContextId,
+  isUserAdmin,
+  promoteToAdmin,
+  logAdminAction,
+  getAdminAuditLog,
+  initializeModuleConfigs,
+  getModuleConfigs,
+  updateModuleConfig,
+  initializeSensitiveValidations,
+  getSensitiveValidations,
+  updateSensitiveValidation,
+  createApprovalRequest,
+  getPendingApprovals,
+  processApprovalRequest,
+  getApprovalHistory
 } from "./db";
 
 export const appRouter = router({
@@ -932,6 +946,231 @@ export const appRouter = router({
     checkAvailability: protectedProcedure.query(async () => {
       const available = await checkTTSAvailability();
       return { available };
+    }),
+  }),
+
+  // ============================================================================
+  // ADMIN - Administrative endpoints (Admin role required)
+  // ============================================================================
+  
+  admin: router({
+    /**
+     * Check if current user is admin
+     */
+    isAdmin: protectedProcedure.query(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      return { isAdmin, role: ctx.user.role };
+    }),
+
+    /**
+     * Get admin dashboard data
+     */
+    dashboard: protectedProcedure.query(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+
+      const [modules, validations, pendingApprovals, auditLog] = await Promise.all([
+        getModuleConfigs(),
+        getSensitiveValidations(),
+        getPendingApprovals(),
+        getAdminAuditLog(20)
+      ]);
+
+      return {
+        modules,
+        validations,
+        pendingApprovals,
+        recentAuditLog: auditLog
+      };
+    }),
+
+    /**
+     * Initialize admin system (modules and validations)
+     */
+    initialize: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required");
+      }
+
+      await initializeModuleConfigs();
+      await initializeSensitiveValidations();
+
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: "initialize_admin_system",
+        resourceType: "system",
+        resourceId: 0,
+        changes: { initialized: true }
+      });
+
+      return { success: true };
+    }),
+
+    // Module configuration endpoints
+    modules: router({
+      /**
+       * Get all module configurations
+       */
+      list: protectedProcedure.query(async ({ ctx }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        return getModuleConfigs();
+      }),
+
+      /**
+       * Update a module configuration
+       */
+      update: protectedProcedure
+        .input(z.object({
+          moduleId: z.string(),
+          isEnabled: z.boolean().optional(),
+          config: z.record(z.string(), z.unknown()).optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const success = await updateModuleConfig(
+            input.moduleId,
+            { isEnabled: input.isEnabled, config: input.config },
+            ctx.user.id
+          );
+          if (!success) {
+            throw new Error("Failed to update module or admin access required");
+          }
+          return { success: true };
+        }),
+    }),
+
+    // Sensitive validation endpoints
+    validations: router({
+      /**
+       * Get all sensitive validations (16 axioms)
+       */
+      list: protectedProcedure.query(async ({ ctx }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        return getSensitiveValidations();
+      }),
+
+      /**
+       * Update a sensitive validation setting
+       */
+      update: protectedProcedure
+        .input(z.object({
+          axiomId: z.string(),
+          requiresApproval: z.boolean().optional(),
+          severity: z.enum(["low", "medium", "high", "critical"]).optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const success = await updateSensitiveValidation(
+            input.axiomId,
+            { requiresApproval: input.requiresApproval, severity: input.severity },
+            ctx.user.id
+          );
+          if (!success) {
+            throw new Error("Failed to update validation or admin access required");
+          }
+          return { success: true };
+        }),
+    }),
+
+    // Approval request endpoints
+    approvals: router({
+      /**
+       * Get pending approval requests
+       */
+      pending: protectedProcedure.query(async ({ ctx }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required");
+        }
+        return getPendingApprovals();
+      }),
+
+      /**
+       * Get approval history
+       */
+      history: protectedProcedure
+        .input(z.object({ limit: z.number().optional().default(50) }))
+        .query(async ({ ctx, input }) => {
+          const isAdmin = await isUserAdmin(ctx.user.id);
+          if (!isAdmin) {
+            throw new Error("Admin access required");
+          }
+          return getApprovalHistory(input.limit);
+        }),
+
+      /**
+       * Approve or reject a request
+       */
+      process: protectedProcedure
+        .input(z.object({
+          requestId: z.number(),
+          approved: z.boolean(),
+          reason: z.string().optional()
+        }))
+        .mutation(async ({ ctx, input }) => {
+          const success = await processApprovalRequest(
+            input.requestId,
+            input.approved,
+            ctx.user.id,
+            input.reason
+          );
+          if (!success) {
+            throw new Error("Failed to process approval or admin access required");
+          }
+          return { success: true };
+        }),
+    }),
+
+    // Audit log endpoints
+    audit: router({
+      /**
+       * Get admin audit log
+       */
+      list: protectedProcedure
+        .input(z.object({ limit: z.number().optional().default(100) }))
+        .query(async ({ ctx, input }) => {
+          const isAdmin = await isUserAdmin(ctx.user.id);
+          if (!isAdmin) {
+            throw new Error("Admin access required");
+          }
+          return getAdminAuditLog(input.limit);
+        }),
+
+      /**
+       * Get full audit log (all events)
+       */
+      full: protectedProcedure
+        .input(z.object({ limit: z.number().optional().default(100) }))
+        .query(async ({ ctx, input }) => {
+          const isAdmin = await isUserAdmin(ctx.user.id);
+          if (!isAdmin) {
+            throw new Error("Admin access required");
+          }
+          return getAuditLog(ctx.user.id, input.limit);
+        }),
+    }),
+
+    // User management endpoints
+    users: router({
+      /**
+       * Promote a user to admin
+       */
+      promoteToAdmin: protectedProcedure
+        .input(z.object({ userId: z.number() }))
+        .mutation(async ({ ctx, input }) => {
+          const success = await promoteToAdmin(input.userId, ctx.user.id);
+          if (!success) {
+            throw new Error("Failed to promote user or admin access required");
+          }
+          return { success: true };
+        }),
     }),
   }),
 });

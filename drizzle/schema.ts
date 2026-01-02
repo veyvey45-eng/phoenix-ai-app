@@ -253,3 +253,107 @@ export const conversations = mysqlTable("conversations", {
 
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
+
+
+// ============================================================================
+// ADMIN SYSTEM - Roles, Permissions, and Sensitive Approvals
+// ============================================================================
+
+export const permissions = mysqlTable("permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 128 }).notNull().unique(),
+  description: text("description"),
+  category: mysqlEnum("category", [
+    "axiom_validation",
+    "module_config",
+    "audit_access",
+    "user_management",
+    "system_config"
+  ]).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = typeof permissions.$inferInsert;
+
+export const rolePermissions = mysqlTable("rolePermissions", {
+  id: int("id").autoincrement().primaryKey(),
+  role: mysqlEnum("role", ["admin", "user", "viewer"]).notNull(),
+  permissionId: int("permissionId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = typeof rolePermissions.$inferInsert;
+
+/**
+ * SENSITIVE VALIDATIONS - Approvals required for critical axiom validations
+ */
+export const sensitiveValidations = mysqlTable("sensitiveValidations", {
+  id: int("id").autoincrement().primaryKey(),
+  axiomId: varchar("axiomId", { length: 64 }).notNull(),
+  axiomName: varchar("axiomName", { length: 255 }).notNull(),
+  severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).notNull(),
+  description: text("description"),
+  requiresApproval: boolean("requiresApproval").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SensitiveValidation = typeof sensitiveValidations.$inferSelect;
+export type InsertSensitiveValidation = typeof sensitiveValidations.$inferInsert;
+
+/**
+ * APPROVAL REQUESTS - Track pending approvals for sensitive operations
+ */
+export const approvalRequests = mysqlTable("approvalRequests", {
+  id: int("id").autoincrement().primaryKey(),
+  validationId: int("validationId").notNull(),
+  decisionId: int("decisionId"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "expired"]).default("pending").notNull(),
+  requestedBy: int("requestedBy").notNull(),
+  approvedBy: int("approvedBy"),
+  reason: text("reason"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  approvedAt: timestamp("approvedAt"),
+  expiresAt: timestamp("expiresAt"),
+});
+
+export type ApprovalRequest = typeof approvalRequests.$inferSelect;
+export type InsertApprovalRequest = typeof approvalRequests.$inferInsert;
+
+/**
+ * MODULE CONFIGURATION - Admin-controlled settings for the 10 Phoenix modules
+ */
+export const moduleConfigs = mysqlTable("moduleConfigs", {
+  id: int("id").autoincrement().primaryKey(),
+  moduleId: varchar("moduleId", { length: 64 }).notNull().unique(),
+  moduleName: varchar("moduleName", { length: 128 }).notNull(),
+  description: text("description"),
+  isEnabled: boolean("isEnabled").default(true).notNull(),
+  config: json("config").$type<Record<string, unknown>>(),
+  createdBy: int("createdBy"),
+  updatedBy: int("updatedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ModuleConfig = typeof moduleConfigs.$inferSelect;
+export type InsertModuleConfig = typeof moduleConfigs.$inferInsert;
+
+/**
+ * ADMIN AUDIT LOG - Enhanced audit trail for admin actions
+ */
+export const adminAuditLog = mysqlTable("adminAuditLog", {
+  id: int("id").autoincrement().primaryKey(),
+  adminId: int("adminId").notNull(),
+  action: varchar("action", { length: 128 }).notNull(),
+  resourceType: varchar("resourceType", { length: 64 }).notNull(),
+  resourceId: int("resourceId"),
+  changes: json("changes").$type<Record<string, unknown>>(),
+  ipAddress: varchar("ipAddress", { length: 45 }),
+  userAgent: text("userAgent"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
+export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;
