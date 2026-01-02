@@ -13,6 +13,7 @@ import { getMemorySyncModule } from './phoenix/memorySync';
 import { getArbitrator } from './phoenix/arbitrage';
 import { getActionEngine } from './phoenix/actionEngine';
 import { getReporter } from './phoenix/reporter';
+import { getRenaissance } from './phoenix/renaissance';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1661,6 +1662,111 @@ export const appRouter = router({
         const reporter = getReporter();
         return reporter.getIntegrityTrend(input?.days || 30);
       }),
+  }),
+
+  /**
+   * Module 06: Renaissance - Auto-correction & Résilience
+   */
+  renaissance: router({
+    /**
+     * Get system health report
+     */
+    getHealthReport: protectedProcedure.query(async () => {
+      const renaissance = getRenaissance();
+      return renaissance.monitorHealth();
+    }),
+
+    /**
+     * Get Renaissance stats
+     */
+    getStats: protectedProcedure.query(async () => {
+      const renaissance = getRenaissance();
+      return renaissance.getStats();
+    }),
+
+    /**
+     * Get all errors
+     */
+    getErrors: protectedProcedure
+      .input(z.object({ includeResolved: z.boolean().optional() }).optional())
+      .query(async ({ input }) => {
+        const renaissance = getRenaissance();
+        return renaissance.getErrors(input?.includeResolved || false);
+      }),
+
+    /**
+     * Get Renaissance cycles history
+     */
+    getCycles: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        const renaissance = getRenaissance();
+        return renaissance.getRenaissanceCycles(input?.limit || 20);
+      }),
+
+    /**
+     * Report an error (for system use)
+     */
+    reportError: protectedProcedure
+      .input(z.object({
+        module: z.string(),
+        severity: z.enum(['minor', 'moderate', 'severe', 'critical']),
+        priority: z.enum(['H0', 'H1', 'H2', 'H3']),
+        message: z.string(),
+        context: z.record(z.string(), z.unknown()).optional()
+      }))
+      .mutation(async ({ input }) => {
+        const renaissance = getRenaissance();
+        return renaissance.reportError(input);
+      }),
+
+    /**
+     * Resolve an error manually (Admin only)
+     */
+    resolveError: protectedProcedure
+      .input(z.object({ errorId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to resolve errors");
+        }
+        const renaissance = getRenaissance();
+        return renaissance.resolveError(input.errorId, ctx.user.id);
+      }),
+
+    /**
+     * Admin validate to unlock system
+     */
+    adminValidate: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to validate Renaissance");
+      }
+      const renaissance = getRenaissance();
+      return renaissance.adminValidate(ctx.user.id);
+    }),
+
+    /**
+     * Force Renaissance (Admin only)
+     */
+    forceRenaissance: protectedProcedure
+      .input(z.object({ reason: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to force Renaissance");
+        }
+        const renaissance = getRenaissance();
+        return renaissance.forceRenaissance(ctx.user.id, input.reason);
+      }),
+
+    /**
+     * Check if system is locked
+     */
+    isLocked: protectedProcedure.query(async () => {
+      const renaissance = getRenaissance();
+      return renaissance.isLocked();
+    }),
   }),
 });
 

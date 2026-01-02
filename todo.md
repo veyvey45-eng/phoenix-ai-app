@@ -255,3 +255,16 @@
 - [x] Ajouter les métriques de tourment et conflits
 - [x] Créer la génération de rapports quotidiens/hebdomadaires
 - [x] Ajouter l'interface de reporting au tableau de bord Admin
+
+
+## Phase 20: Module 06 - Auto-Correction & Renaissance
+
+### Implémentation du Module Renaissance
+- [x] Créer le module renaissance.ts avec détection d'erreurs
+- [x] Implémenter le seuil de défaillance (3 erreurs avant réinitialisation)
+- [x] Ajouter l'auto-correction pour erreurs mineures (H2/H3)
+- [x] Implémenter le protocole Renaissance (réinitialisation complète)
+- [x] Intégrer les notifications Admin pour chaque cycle Renaissance
+- [x] Ajouter la limite de 3 réinitialisations sans validation Admin
+- [x] Créer l'interface Renaissance dans le tableau de bord Admin
+- [x] Écrire les tests unitaires (237 tests passent)

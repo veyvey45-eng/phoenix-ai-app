@@ -28,6 +28,9 @@ import {
   AlertOctagon,
   Globe,
   BarChart3,
+  Flame,
+  Heart,
+  Zap,
   TrendingUp,
   TrendingDown,
   Play,
@@ -223,13 +226,14 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="modules">Modules (10)</TabsTrigger>
             <TabsTrigger value="validations">Axiomes (16)</TabsTrigger>
             <TabsTrigger value="arbitrage">Arbitrage</TabsTrigger>
             <TabsTrigger value="actions">Actions Web</TabsTrigger>
             <TabsTrigger value="reports">Rapports</TabsTrigger>
+            <TabsTrigger value="renaissance">Renaissance</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -458,6 +462,11 @@ export default function AdminDashboard() {
           {/* Reports Tab */}
           <TabsContent value="reports">
             <ReporterPanel />
+          </TabsContent>
+
+          {/* Renaissance Tab */}
+          <TabsContent value="renaissance">
+            <RenaissancePanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -1732,6 +1741,343 @@ function ReporterPanel() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * Renaissance Panel - Module 06: Auto-Correction & Résilience
+ */
+function RenaissancePanel() {
+  const utils = trpc.useUtils();
+  const { data: healthReport } = trpc.renaissance.getHealthReport.useQuery();
+  const { data: stats } = trpc.renaissance.getStats.useQuery();
+  const { data: errors } = trpc.renaissance.getErrors.useQuery({ includeResolved: false });
+  const { data: cycles } = trpc.renaissance.getCycles.useQuery({ limit: 10 });
+
+  const adminValidate = trpc.renaissance.adminValidate.useMutation({
+    onSuccess: () => {
+      utils.renaissance.getHealthReport.invalidate();
+      utils.renaissance.getStats.invalidate();
+    }
+  });
+
+  const forceRenaissance = trpc.renaissance.forceRenaissance.useMutation({
+    onSuccess: () => {
+      utils.renaissance.getHealthReport.invalidate();
+      utils.renaissance.getStats.invalidate();
+      utils.renaissance.getCycles.invalidate();
+    }
+  });
+
+  const resolveError = trpc.renaissance.resolveError.useMutation({
+    onSuccess: () => {
+      utils.renaissance.getErrors.invalidate();
+      utils.renaissance.getStats.invalidate();
+    }
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'bg-green-500';
+      case 'degraded': return 'bg-yellow-500';
+      case 'critical': return 'bg-red-500';
+      case 'recovering': return 'bg-blue-500';
+      case 'locked': return 'bg-purple-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'Sain';
+      case 'degraded': return 'Dégradé';
+      case 'critical': return 'Critique';
+      case 'recovering': return 'Récupération';
+      case 'locked': return 'Verrouillé';
+      default: return status;
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'H0': return 'bg-red-500';
+      case 'H1': return 'bg-orange-500';
+      case 'H2': return 'bg-yellow-500';
+      case 'H3': return 'bg-blue-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* System Health Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">État du Système</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className={`w-3 h-3 rounded-full ${getStatusColor(healthReport?.status || 'healthy')}`} />
+                  <span className="text-2xl font-bold">{getStatusLabel(healthReport?.status || 'healthy')}</span>
+                </div>
+              </div>
+              <Heart className={`w-8 h-8 ${healthReport?.status === 'healthy' ? 'text-green-500' : 'text-red-500'}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Erreurs Non Résolues</p>
+                <p className="text-2xl font-bold">{stats?.unresolvedErrors || 0}</p>
+              </div>
+              <AlertTriangle className={`w-8 h-8 ${(stats?.unresolvedErrors || 0) > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Cycles Renaissance</p>
+                <p className="text-2xl font-bold">{stats?.renaissanceCycles || 0}</p>
+              </div>
+              <Flame className="w-8 h-8 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Échecs Consécutifs</p>
+                <p className="text-2xl font-bold">{stats?.consecutiveFailures || 0}</p>
+              </div>
+              <Zap className={`w-8 h-8 ${(stats?.consecutiveFailures || 0) > 2 ? 'text-red-500' : 'text-muted-foreground'}`} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* System Lock Warning */}
+      {stats?.systemLocked && (
+        <Card className="border-purple-500 bg-purple-500/10">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Lock className="w-8 h-8 text-purple-500" />
+                <div>
+                  <h3 className="font-bold text-lg">Système Verrouillé</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Le système a atteint la limite de 3 cycles Renaissance sans validation Admin.
+                    Validation requise pour déverrouiller.
+                  </p>
+                </div>
+              </div>
+              <Button 
+                onClick={() => adminValidate.mutate()}
+                disabled={adminValidate.isPending}
+                className="bg-purple-500 hover:bg-purple-600"
+              >
+                {adminValidate.isPending ? (
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Unlock className="w-4 h-4 mr-2" />
+                )}
+                Valider & Déverrouiller
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Module Health */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="w-5 h-5" />
+              Santé des Modules
+            </CardTitle>
+            <CardDescription>État de chaque module Phoenix</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              <div className="space-y-2">
+                {healthReport?.moduleHealth && Object.entries(healthReport.moduleHealth).map(([name, health]: [string, any]) => (
+                  <div key={name} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        health.status === 'operational' ? 'bg-green-500' :
+                        health.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`} />
+                      <span className="font-medium">{name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={health.status === 'operational' ? 'default' : 'destructive'}>
+                        {health.status === 'operational' ? 'Opérationnel' :
+                         health.status === 'degraded' ? 'Dégradé' : 'Échec'}
+                      </Badge>
+                      {health.errorCount > 0 && (
+                        <Badge variant="outline">{health.errorCount} erreurs</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Active Errors */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertOctagon className="w-5 h-5" />
+              Erreurs Actives
+            </CardTitle>
+            <CardDescription>Erreurs nécessitant une attention</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              {errors && errors.length > 0 ? (
+                <div className="space-y-3">
+                  {errors.map((error: any) => (
+                    <div key={error.id} className="p-3 rounded-lg border bg-card">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge className={getPriorityColor(error.priority)}>{error.priority}</Badge>
+                          <span className="font-medium">{error.module}</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resolveError.mutate({ errorId: error.id })}
+                          disabled={resolveError.isPending}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Résoudre
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-2">{error.message}</p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span>Sévérité: {error.severity}</span>
+                        <span>{new Date(error.timestamp).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                  <p>Aucune erreur active</p>
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Renaissance Cycles History */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Flame className="w-5 h-5" />
+                Historique des Cycles Renaissance
+              </CardTitle>
+              <CardDescription>Réinitialisations système passées</CardDescription>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const reason = prompt("Raison de la Renaissance forcée:");
+                if (reason) {
+                  forceRenaissance.mutate({ reason });
+                }
+              }}
+              disabled={forceRenaissance.isPending}
+            >
+              {forceRenaissance.isPending ? (
+                <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Flame className="w-4 h-4 mr-2" />
+              )}
+              Forcer Renaissance
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {cycles && cycles.length > 0 ? (
+              <div className="space-y-3">
+                {cycles.map((cycle: any) => (
+                  <div key={cycle.id} className="p-4 rounded-lg border bg-card">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={cycle.status === 'completed' ? 'default' : 
+                                         cycle.status === 'failed' ? 'destructive' : 'secondary'}>
+                            {cycle.status === 'completed' ? 'Complété' :
+                             cycle.status === 'failed' ? 'Échoué' :
+                             cycle.status === 'blocked' ? 'Bloqué' : 'En cours'}
+                          </Badge>
+                          {cycle.adminValidated && (
+                            <Badge variant="outline" className="text-green-500 border-green-500">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Validé Admin
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="font-medium mt-2">{cycle.reason}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {cycle.id}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Erreurs nettoyées: </span>
+                        <span className="font-medium">{cycle.errorsCleared}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Modules réinitialisés: </span>
+                        <span className="font-medium">{cycle.modulesReset?.length || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Déclenché: </span>
+                        <span className="font-medium">{new Date(cycle.triggeredAt).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    {cycle.modulesReset && cycle.modulesReset.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {cycle.modulesReset.map((module: string, idx: number) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
+                            {module}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Flame className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucun cycle Renaissance enregistré</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
     </div>
   );
 }
