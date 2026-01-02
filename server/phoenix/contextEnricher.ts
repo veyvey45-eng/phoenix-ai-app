@@ -5,7 +5,7 @@
 import { webSearchIntegration, SearchResponse } from './webSearch';
 import { weatherApi } from './weatherApi';
 import { cryptoApi } from './cryptoApi';
-import { newsApi } from './newsApi';
+import { newsApiFree } from './newsApiFree';
 
 interface EnrichmentResult {
   needsInternet: boolean;
@@ -124,11 +124,11 @@ class ContextEnricher {
       }
 
       if (analysis.category === 'news') {
-        const newsResponse = await newsApi.getNews(query, 'fr', 'fr');
+        const newsResponse = await newsApiFree.getNews(query, 'fr', 'fr');
         return {
           needsInternet: true,
           category: 'news',
-          enrichedContext: newsApi.formatForContext(newsResponse)
+          enrichedContext: newsApiFree.formatForContext(newsResponse)
         };
       }
 
