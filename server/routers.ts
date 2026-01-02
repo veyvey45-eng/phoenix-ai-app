@@ -10,6 +10,7 @@ import { getSleepModule } from './phoenix/sleepModule';
 import { getToolsEngine, ToolCall } from './phoenix/tools';
 import { getFileProcessor } from './phoenix/fileProcessor';
 import { getMemorySyncModule } from './phoenix/memorySync';
+import { getArbitrator } from './phoenix/arbitrage';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1321,6 +1322,107 @@ export const appRouter = router({
       const memorySync = getMemorySyncModule();
       return memorySync.getStats();
     }),
+  }),
+
+  // ============================================================================
+  // ARBITRAGE - Conflict Resolution (Module 03)
+  // ============================================================================
+  
+  arbitrage: router({
+    /**
+     * Get arbitration statistics
+     */
+    stats: protectedProcedure.query(async () => {
+      const arbitrator = getArbitrator();
+      return arbitrator.getStats();
+    }),
+
+    /**
+     * Get decision log
+     */
+    decisionLog: protectedProcedure
+      .input(z.object({ limit: z.number().optional().default(50) }))
+      .query(async ({ input }) => {
+        const arbitrator = getArbitrator();
+        const log = arbitrator.getDecisionLog();
+        return log.slice(-input.limit);
+      }),
+
+    /**
+     * Get axiom definitions
+     */
+    axioms: protectedProcedure.query(async () => {
+      const arbitrator = getArbitrator();
+      return arbitrator.getAxioms();
+    }),
+
+    /**
+     * Get priority weights
+     */
+    priorityWeights: protectedProcedure.query(async () => {
+      const arbitrator = getArbitrator();
+      return arbitrator.getPriorityWeights();
+    }),
+
+    /**
+     * Admin override for a blocked conflict
+     */
+    override: protectedProcedure
+      .input(z.object({
+        conflictId: z.string(),
+        selectedOptionId: z.string(),
+        justification: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required for override");
+        }
+        const arbitrator = getArbitrator();
+        return arbitrator.adminOverride(
+          input.conflictId,
+          ctx.user.id,
+          input.selectedOptionId,
+          input.justification
+        );
+      }),
+
+    /**
+     * Initiate rollback (Renaissance protocol)
+     */
+    rollback: protectedProcedure
+      .input(z.object({
+        conflictId: z.string(),
+        reason: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required for rollback");
+        }
+        const arbitrator = getArbitrator();
+        return arbitrator.initiateRollback(
+          input.conflictId,
+          input.reason,
+          ctx.user.id
+        );
+      }),
+
+    /**
+     * Evaluate an action against axioms
+     */
+    evaluate: protectedProcedure
+      .input(z.object({
+        action: z.string(),
+        context: z.record(z.string(), z.any()).optional()
+      }))
+      .query(async ({ ctx, input }) => {
+        const arbitrator = getArbitrator();
+        return arbitrator.evaluateAction(input.action, {
+          userId: ctx.user.id,
+          ...input.context
+        });
+      }),
   }),
 });
 

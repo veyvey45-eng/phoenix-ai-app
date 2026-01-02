@@ -7,6 +7,7 @@
 
 import { createHmac, randomUUID } from "crypto";
 import { invokeLLM } from "../_core/llm";
+import { getArbitrator, ConflictOption, ArbitrationResult } from "./arbitrage";
 
 // ============================================================================
 // TYPES
@@ -64,6 +65,7 @@ export interface PhoenixDecision {
   tormentBefore: number;
   tormentAfter: number;
   actionRequest?: ActionRequestData;
+  arbitrationResult?: ArbitrationResult;
 }
 
 export interface ActionRequestData {
@@ -867,6 +869,51 @@ export class PhoenixOrchestrator {
       activeIssues: [...context.activeIssues, ...newIssues]
     };
     const tormentAfter = this.torment.compute(updatedContext);
+
+    // 5.5. ARBITRAGE: Vérifier les conflits potentiels entre hypothèses
+    let arbitrationResult: ArbitrationResult | undefined;
+    if (hypotheses.length > 1) {
+      const arbitrator = getArbitrator();
+      const conflictOptions: ConflictOption[] = hypotheses.map(h => ({
+        id: h.id,
+        description: h.content.substring(0, 100),
+        action: h.content,
+        axiomViolations: [],
+        riskScore: 1 - h.confidence,
+        confidence: h.confidence
+      }));
+      
+      // Évaluer chaque option contre les axiomes
+      for (const option of conflictOptions) {
+        const evaluation = arbitrator.evaluateAction(option.action, { userId: context.userId });
+        option.axiomViolations = evaluation.violations;
+        option.riskScore = evaluation.riskScore;
+      }
+      
+      // Résoudre le conflit si des violations sont détectées
+      const hasViolations = conflictOptions.some(o => o.axiomViolations.length > 0);
+      if (hasViolations) {
+        arbitrationResult = await arbitrator.resolveConflict(conflictOptions, context.userId, context.contextId);
+        
+        // Si bloqué par H0, retourner une décision de blocage
+        if (arbitrationResult.status === 'blocked') {
+          return {
+            hypotheses,
+            chosen: {
+              id: 'blocked',
+              content: `⚠️ Action bloquée par l'arbitrage Phoenix: ${arbitrationResult.blockedReason}`,
+              confidence: 0,
+              reasoning: 'Conflit H0 détecté - approbation Admin requise'
+            },
+            rationale: arbitrationResult.blockedReason || 'Conflit critique détecté',
+            tormentBefore,
+            tormentAfter: 1.0, // Maximum torment due to conflict
+            actionRequest: undefined,
+            arbitrationResult
+          };
+        }
+      }
+    }
 
     // 6. AGIR: Déterminer si une action est nécessaire
     let actionRequest: ActionRequestData | undefined;

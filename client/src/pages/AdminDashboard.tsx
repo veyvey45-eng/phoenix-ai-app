@@ -22,7 +22,10 @@ import {
   BookOpen,
   Upload,
   Database,
-  Search
+  Search,
+  Scale,
+  Undo2,
+  AlertOctagon
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -212,10 +215,11 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="modules">Modules (10)</TabsTrigger>
             <TabsTrigger value="validations">Axiomes (16)</TabsTrigger>
+            <TabsTrigger value="arbitrage">Arbitrage</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -429,6 +433,11 @@ export default function AdminDashboard() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Arbitrage Tab */}
+          <TabsContent value="arbitrage">
+            <ArbitragePanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -778,6 +787,340 @@ function MemorySyncPanel() {
                 </div>
               ))}
             </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Arbitrage Panel Component
+function ArbitragePanel() {
+  const [overrideForm, setOverrideForm] = useState({
+    conflictId: "",
+    selectedOptionId: "",
+    justification: ""
+  });
+  const [rollbackForm, setRollbackForm] = useState({
+    conflictId: "",
+    reason: ""
+  });
+  const [evaluateAction, setEvaluateAction] = useState("");
+
+  // Queries
+  const { data: stats, refetch: refetchStats } = trpc.arbitrage.stats.useQuery();
+  const { data: decisionLog, refetch: refetchLog } = trpc.arbitrage.decisionLog.useQuery({ limit: 50 });
+  const { data: axioms } = trpc.arbitrage.axioms.useQuery();
+  const { data: priorityWeights } = trpc.arbitrage.priorityWeights.useQuery();
+  const { data: evaluation } = trpc.arbitrage.evaluate.useQuery(
+    { action: evaluateAction },
+    { enabled: evaluateAction.length > 3 }
+  );
+
+  // Mutations
+  const overrideMutation = trpc.arbitrage.override.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      refetchStats();
+      refetchLog();
+      setOverrideForm({ conflictId: "", selectedOptionId: "", justification: "" });
+    },
+    onError: (e) => toast.error(e.message)
+  });
+
+  const rollbackMutation = trpc.arbitrage.rollback.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      refetchStats();
+      refetchLog();
+      setRollbackForm({ conflictId: "", reason: "" });
+    },
+    onError: (e) => toast.error(e.message)
+  });
+
+  const priorityColors: Record<string, string> = {
+    H0: "bg-red-500",
+    H1: "bg-orange-500",
+    H2: "bg-yellow-500",
+    H3: "bg-green-500"
+  };
+
+  const priorityLabels: Record<string, string> = {
+    H0: "Critique",
+    H1: "Haute",
+    H2: "Moyenne",
+    H3: "Basse"
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Conflits Total
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.totalConflicts || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Résolus
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-500">
+              {stats?.resolvedConflicts || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Bloqués
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-500">
+              {stats?.blockedConflicts || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              En Attente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-500">
+              {stats?.pendingApprovals || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Rollbacks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-500">
+              {stats?.rollbacks || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Axioms Reference */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Scale className="w-5 h-5" />
+              16 Axiomes de Référence
+            </CardTitle>
+            <CardDescription>
+              Hiérarchie des axiomes utilisés pour l'arbitrage
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              <div className="space-y-2">
+                {axioms && Object.entries(axioms).map(([id, axiom]: [string, any]) => (
+                  <div key={id} className="p-2 border rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className={priorityColors[axiom.priority]}>
+                        {axiom.priority}
+                      </Badge>
+                      <span className="font-medium text-sm">{id}: {axiom.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      Poids: {priorityWeights?.[axiom.priority as keyof typeof priorityWeights] || 0}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Action Evaluator */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertOctagon className="w-5 h-5" />
+              Évaluateur d'Actions
+            </CardTitle>
+            <CardDescription>
+              Testez une action contre les 16 axiomes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Décrivez l'action à évaluer..."
+                value={evaluateAction}
+                onChange={(e) => setEvaluateAction(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              {evaluation && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={evaluation.canProceed ? "default" : "destructive"}>
+                      {evaluation.canProceed ? "Peut procéder" : "Bloqué"}
+                    </Badge>
+                    <span className="text-sm">
+                      Score de risque: {(evaluation.riskScore * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  {evaluation.violations.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Violations détectées:</p>
+                      {evaluation.violations.map((v: any, i: number) => (
+                        <div key={i} className="p-2 bg-red-500/10 rounded text-sm">
+                          <Badge className={priorityColors[v.priority]} variant="outline">
+                            {v.priority}
+                          </Badge>
+                          <span className="ml-2">{v.axiomName}: {v.description}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Admin Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Override */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Unlock className="w-5 h-5" />
+              Override Admin
+            </CardTitle>
+            <CardDescription>
+              Passer outre un conflit bloqué (réservé Admin)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="ID du conflit (ARB-...)"
+                value={overrideForm.conflictId}
+                onChange={(e) => setOverrideForm({ ...overrideForm, conflictId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <input
+                type="text"
+                placeholder="ID de l'option sélectionnée"
+                value={overrideForm.selectedOptionId}
+                onChange={(e) => setOverrideForm({ ...overrideForm, selectedOptionId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <textarea
+                placeholder="Justification de l'override..."
+                value={overrideForm.justification}
+                onChange={(e) => setOverrideForm({ ...overrideForm, justification: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background min-h-[80px]"
+              />
+              <Button
+                onClick={() => overrideMutation.mutate(overrideForm)}
+                disabled={!overrideForm.conflictId || !overrideForm.justification || overrideMutation.isPending}
+                className="w-full"
+              >
+                {overrideMutation.isPending ? "Traitement..." : "Appliquer Override"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Rollback */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Undo2 className="w-5 h-5" />
+              Protocole Renaissance (Rollback)
+            </CardTitle>
+            <CardDescription>
+              Retour à l'état stable précédent
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="ID du conflit (ARB-...)"
+                value={rollbackForm.conflictId}
+                onChange={(e) => setRollbackForm({ ...rollbackForm, conflictId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <textarea
+                placeholder="Raison du rollback..."
+                value={rollbackForm.reason}
+                onChange={(e) => setRollbackForm({ ...rollbackForm, reason: e.target.value })}
+                className="w-full px-3 py-2 border rounded-md bg-background min-h-[80px]"
+              />
+              <Button
+                variant="destructive"
+                onClick={() => rollbackMutation.mutate(rollbackForm)}
+                disabled={!rollbackForm.conflictId || !rollbackForm.reason || rollbackMutation.isPending}
+                className="w-full"
+              >
+                {rollbackMutation.isPending ? "Traitement..." : "Initier Rollback"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Decision Log */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Journal des Décisions d'Arbitrage
+          </CardTitle>
+          <CardDescription>
+            Historique des conflits et résolutions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {decisionLog && decisionLog.length > 0 ? (
+              <div className="space-y-2">
+                {decisionLog.map((entry: any, idx: number) => (
+                  <div key={idx} className="p-3 border rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Badge className={priorityColors[entry.priority]}>
+                          {entry.priority}
+                        </Badge>
+                        <span className="font-medium text-sm">{entry.action}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{entry.reason}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Aucune décision d'arbitrage enregistrée
+              </p>
+            )}
           </ScrollArea>
         </CardContent>
       </Card>
