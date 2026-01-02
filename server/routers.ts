@@ -15,6 +15,7 @@ import { getActionEngine } from './phoenix/actionEngine';
 import { getReporter } from './phoenix/reporter';
 import { getRenaissance } from './phoenix/renaissance';
 import { getCommunication } from './phoenix/communication';
+import { getOptimizer } from './phoenix/optimizer';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1946,6 +1947,238 @@ export const appRouter = router({
       const cleared = comms.clearExpiredNotifications();
       return { cleared };
     }),
+  }),
+
+  // ==================== Module 08: Optimizer ====================
+  optimizer: router({
+    /**
+     * Allocate resources for a task
+     */
+    allocateTask: protectedProcedure
+      .input(z.object({
+        priority: z.enum(['H0', 'H1', 'H2', 'H3']),
+        description: z.string(),
+        estimatedDuration: z.number().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const optimizer = getOptimizer();
+        const result = optimizer.allocatePower(
+          input.priority,
+          input.description,
+          input.estimatedDuration,
+          input.metadata
+        );
+        
+        await logAdminAction({
+          adminId: ctx.user.id,
+          action: 'task_allocated',
+          resourceType: 'optimizer',
+          resourceId: 0,
+          changes: {
+            taskId: result.task.id,
+            priority: input.priority,
+            allocation: result.allocation
+          }
+        });
+        
+        return result;
+      }),
+
+    /**
+     * Complete a task
+     */
+    completeTask: protectedProcedure
+      .input(z.object({
+        taskId: z.string(),
+        success: z.boolean().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const optimizer = getOptimizer();
+        const task = optimizer.completeTask(input.taskId, input.success ?? true);
+        
+        if (task) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'task_completed',
+            resourceType: 'optimizer',
+            resourceId: 0,
+            changes: {
+              taskId: input.taskId,
+              success: input.success ?? true,
+              duration: task.actualDuration
+            }
+          });
+        }
+        
+        return { task };
+      }),
+
+    /**
+     * Cancel a task
+     */
+    cancelTask: protectedProcedure
+      .input(z.object({ taskId: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to cancel tasks");
+        }
+        
+        const optimizer = getOptimizer();
+        const cancelled = optimizer.cancelTask(input.taskId);
+        
+        if (cancelled) {
+          await logAdminAction({
+            adminId: ctx.user.id,
+            action: 'task_cancelled',
+            resourceType: 'optimizer',
+            resourceId: 0,
+            changes: { taskId: input.taskId }
+          });
+        }
+        
+        return { cancelled };
+      }),
+
+    /**
+     * Get resource metrics
+     */
+    getResourceMetrics: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return optimizer.getResourceMetrics();
+    }),
+
+    /**
+     * Get efficiency metrics
+     */
+    getEfficiencyMetrics: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return optimizer.getEfficiencyMetrics();
+    }),
+
+    /**
+     * Get optimization stats by priority
+     */
+    getOptimizationStats: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return optimizer.getOptimizationStats();
+    }),
+
+    /**
+     * Get queued tasks
+     */
+    getQueuedTasks: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return optimizer.getQueuedTasks();
+    }),
+
+    /**
+     * Get running tasks
+     */
+    getRunningTasks: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return optimizer.getRunningTasks();
+    }),
+
+    /**
+     * Get recent completed tasks
+     */
+    getRecentCompletedTasks: protectedProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input }) => {
+        const optimizer = getOptimizer();
+        return optimizer.getRecentCompletedTasks(input.limit);
+      }),
+
+    /**
+     * Set resource limit (admin only)
+     */
+    setResourceLimit: protectedProcedure
+      .input(z.object({ limit: z.number().min(0.1).max(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const isAdmin = await isUserAdmin(ctx.user.id);
+        if (!isAdmin) {
+          throw new Error("Admin access required to set resource limit");
+        }
+        
+        const optimizer = getOptimizer();
+        optimizer.setResourceLimit(input.limit);
+        
+        await logAdminAction({
+          adminId: ctx.user.id,
+          action: 'resource_limit_changed',
+          resourceType: 'optimizer',
+          resourceId: 0,
+          changes: { limit: input.limit }
+        });
+        
+        return { limit: optimizer.getResourceLimit() };
+      }),
+
+    /**
+     * Get current resource limit
+     */
+    getResourceLimit: protectedProcedure.query(async () => {
+      const optimizer = getOptimizer();
+      return { limit: optimizer.getResourceLimit() };
+    }),
+
+    /**
+     * Force process queue (admin only)
+     */
+    forceProcessQueue: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to force process queue");
+      }
+      
+      const optimizer = getOptimizer();
+      const processed = optimizer.forceProcessQueue();
+      
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: 'force_process_queue',
+        resourceType: 'optimizer',
+        resourceId: 0,
+        changes: { processed }
+      });
+      
+      return { processed };
+    }),
+
+    /**
+     * Clear all queues (admin only)
+     */
+    clearQueues: protectedProcedure.mutation(async ({ ctx }) => {
+      const isAdmin = await isUserAdmin(ctx.user.id);
+      if (!isAdmin) {
+        throw new Error("Admin access required to clear queues");
+      }
+      
+      const optimizer = getOptimizer();
+      const cleared = optimizer.clearQueues();
+      
+      await logAdminAction({
+        adminId: ctx.user.id,
+        action: 'clear_queues',
+        resourceType: 'optimizer',
+        resourceId: 0,
+        changes: { cleared }
+      });
+      
+      return { cleared };
+    }),
+
+    /**
+     * Get load history for charts
+     */
+    getLoadHistory: protectedProcedure
+      .input(z.object({ samples: z.number().optional() }))
+      .query(async ({ input }) => {
+        const optimizer = getOptimizer();
+        return optimizer.getLoadHistory(input.samples);
+      }),
   }),
 });
 

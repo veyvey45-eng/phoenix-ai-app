@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,7 +39,11 @@ import {
   Play,
   Square,
   FileBarChart,
-  Bell
+  Bell,
+  Gauge,
+  ListOrdered,
+  Timer,
+  Cpu
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -238,6 +242,7 @@ export default function AdminDashboard() {
             <TabsTrigger value="reports">Rapports</TabsTrigger>
             <TabsTrigger value="renaissance">Renaissance</TabsTrigger>
             <TabsTrigger value="comms">Communication</TabsTrigger>
+            <TabsTrigger value="optimizer">Optimisation</TabsTrigger>
             <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
@@ -476,6 +481,11 @@ export default function AdminDashboard() {
           {/* Communication Tab */}
           <TabsContent value="comms">
             <CommunicationPanel />
+          </TabsContent>
+
+          {/* Optimizer Tab */}
+          <TabsContent value="optimizer">
+            <OptimizerPanel />
           </TabsContent>
 
           {/* Memory Sync Tab */}
@@ -2466,6 +2476,526 @@ function CommunicationPanel() {
               <div className="text-center py-8 text-muted-foreground">
                 <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Aucun message dans l'historique</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+// ==================== Module 08: Optimizer Panel ====================
+function OptimizerPanel() {
+  const [resourceLimit, setResourceLimit] = useState(0.85);
+  const [newTaskPriority, setNewTaskPriority] = useState<'H0' | 'H1' | 'H2' | 'H3'>('H2');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
+
+  // Queries
+  const { data: resourceMetrics, refetch: refetchMetrics } = trpc.optimizer.getResourceMetrics.useQuery();
+  const { data: efficiencyMetrics, refetch: refetchEfficiency } = trpc.optimizer.getEfficiencyMetrics.useQuery();
+  const { data: optimizationStats, refetch: refetchStats } = trpc.optimizer.getOptimizationStats.useQuery();
+  const { data: queuedTasks, refetch: refetchQueued } = trpc.optimizer.getQueuedTasks.useQuery();
+  const { data: runningTasks, refetch: refetchRunning } = trpc.optimizer.getRunningTasks.useQuery();
+  const { data: recentTasks, refetch: refetchRecent } = trpc.optimizer.getRecentCompletedTasks.useQuery({ limit: 20 });
+  const { data: loadHistory } = trpc.optimizer.getLoadHistory.useQuery({ samples: 50 });
+  const { data: currentLimit } = trpc.optimizer.getResourceLimit.useQuery();
+
+  // Mutations
+  const allocateTask = trpc.optimizer.allocateTask.useMutation({
+    onSuccess: () => {
+      toast.success("Tâche allouée avec succès");
+      refetchAll();
+      setNewTaskDescription('');
+    },
+    onError: (err) => toast.error(err.message)
+  });
+
+  const cancelTask = trpc.optimizer.cancelTask.useMutation({
+    onSuccess: () => {
+      toast.success("Tâche annulée");
+      refetchAll();
+    },
+    onError: (err) => toast.error(err.message)
+  });
+
+  const setLimit = trpc.optimizer.setResourceLimit.useMutation({
+    onSuccess: () => {
+      toast.success("Limite de ressources mise à jour");
+      refetchAll();
+    },
+    onError: (err) => toast.error(err.message)
+  });
+
+  const forceProcess = trpc.optimizer.forceProcessQueue.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.processed} tâches traitées`);
+      refetchAll();
+    },
+    onError: (err) => toast.error(err.message)
+  });
+
+  const clearQueues = trpc.optimizer.clearQueues.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.cleared} tâches supprimées des files d'attente`);
+      refetchAll();
+    },
+    onError: (err) => toast.error(err.message)
+  });
+
+  const refetchAll = () => {
+    refetchMetrics();
+    refetchEfficiency();
+    refetchStats();
+    refetchQueued();
+    refetchRunning();
+    refetchRecent();
+  };
+
+  useEffect(() => {
+    if (currentLimit) {
+      setResourceLimit(currentLimit.limit);
+    }
+  }, [currentLimit]);
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'H0': return 'bg-red-500/20 text-red-500 border-red-500/50';
+      case 'H1': return 'bg-orange-500/20 text-orange-500 border-orange-500/50';
+      case 'H2': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50';
+      case 'H3': return 'bg-green-500/20 text-green-500 border-green-500/50';
+      default: return 'bg-gray-500/20 text-gray-500 border-gray-500/50';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'running': return 'bg-blue-500/20 text-blue-500';
+      case 'completed': return 'bg-green-500/20 text-green-500';
+      case 'failed': return 'bg-red-500/20 text-red-500';
+      case 'cancelled': return 'bg-gray-500/20 text-gray-500';
+      case 'queued': return 'bg-yellow-500/20 text-yellow-500';
+      default: return 'bg-gray-500/20 text-gray-500';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Resource Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Charge Actuelle</p>
+                <p className="text-2xl font-bold">
+                  {resourceMetrics ? `${(resourceMetrics.currentLoad * 100).toFixed(1)}%` : '0%'}
+                </p>
+              </div>
+              <Gauge className={`w-8 h-8 ${
+                resourceMetrics && resourceMetrics.currentLoad > 0.85 
+                  ? 'text-red-500' 
+                  : resourceMetrics && resourceMetrics.currentLoad > 0.6 
+                    ? 'text-yellow-500' 
+                    : 'text-green-500'
+              }`} />
+            </div>
+            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all ${
+                  resourceMetrics && resourceMetrics.currentLoad > 0.85 
+                    ? 'bg-red-500' 
+                    : resourceMetrics && resourceMetrics.currentLoad > 0.6 
+                      ? 'bg-yellow-500' 
+                      : 'bg-green-500'
+                }`}
+                style={{ width: `${(resourceMetrics?.currentLoad || 0) * 100}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Performance</p>
+                <p className="text-2xl font-bold">
+                  {efficiencyMetrics ? `${efficiencyMetrics.performanceIndex}/100` : '0/100'}
+                </p>
+              </div>
+              <Activity className="w-8 h-8 text-primary" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Débit: {efficiencyMetrics?.throughput.toFixed(2) || 0} tâches/min
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">File d'Attente</p>
+                <p className="text-2xl font-bold">{queuedTasks?.length || 0}</p>
+              </div>
+              <ListOrdered className="w-8 h-8 text-yellow-500" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Temps moyen: {efficiencyMetrics?.queueWaitTime.toFixed(1) || 0}s
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">En Cours</p>
+                <p className="text-2xl font-bold">{runningTasks?.length || 0}</p>
+              </div>
+              <Cpu className="w-8 h-8 text-blue-500" />
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Traitées: {resourceMetrics?.totalTasksProcessed || 0}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Efficiency Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Métriques d'Efficacité
+          </CardTitle>
+          <CardDescription>Performance et optimisation du système</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Efficacité Ressources</p>
+              <p className="text-xl font-bold">
+                {efficiencyMetrics ? `${(efficiencyMetrics.resourceEfficiency * 100).toFixed(1)}%` : '0%'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Réduction Tourment</p>
+              <p className="text-xl font-bold">
+                {efficiencyMetrics ? `${(efficiencyMetrics.tormentReduction * 100).toFixed(1)}%` : '0%'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Conformité Priorité</p>
+              <p className="text-xl font-bold">
+                {efficiencyMetrics ? `${(efficiencyMetrics.priorityCompliance * 100).toFixed(1)}%` : '0%'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <p className="text-sm text-muted-foreground">Latence Moyenne</p>
+              <p className="text-xl font-bold">
+                {efficiencyMetrics ? `${efficiencyMetrics.averageLatency.toFixed(2)}s` : '0s'}
+              </p>
+            </div>
+          </div>
+
+          {/* Load History Chart (simplified) */}
+          {loadHistory && loadHistory.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-medium mb-2">Historique de Charge</p>
+              <div className="h-20 flex items-end gap-0.5">
+                {loadHistory.map((load: number, idx: number) => (
+                  <div
+                    key={idx}
+                    className={`flex-1 rounded-t transition-all ${
+                      load > 0.85 ? 'bg-red-500' : load > 0.6 ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}
+                    style={{ height: `${load * 100}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Priority Statistics */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scale className="w-5 h-5" />
+            Statistiques par Priorité
+          </CardTitle>
+          <CardDescription>Répartition des tâches selon les niveaux H0-H3</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(['H0', 'H1', 'H2', 'H3'] as const).map((priority) => {
+              const stats = optimizationStats?.byPriority[priority];
+              return (
+                <div key={priority} className={`p-4 rounded-lg border ${getPriorityColor(priority)}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge className={getPriorityColor(priority)}>{priority}</Badge>
+                    <span className="text-xs">
+                      {priority === 'H0' ? 'Critique' : priority === 'H1' ? 'Haute' : priority === 'H2' ? 'Normale' : 'Basse'}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>En attente:</span>
+                      <span className="font-medium">{stats?.queued || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>En cours:</span>
+                      <span className="font-medium">{stats?.running || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Terminées:</span>
+                      <span className="font-medium">{stats?.completed || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Échouées:</span>
+                      <span className="font-medium">{stats?.failed || 0}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Attente moy.:</span>
+                      <span>{stats?.averageWaitTime.toFixed(1) || 0}s</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Resource Limit Control */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="w-5 h-5" />
+            Configuration des Ressources
+          </CardTitle>
+          <CardDescription>Ajuster la limite de ressources et gérer les files d'attente</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium">Limite de Ressources</label>
+              <div className="flex items-center gap-2 mt-1">
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={resourceLimit * 100}
+                  onChange={(e) => setResourceLimit(parseInt(e.target.value) / 100)}
+                  className="flex-1"
+                />
+                <span className="text-sm font-medium w-16">{(resourceLimit * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+            <Button
+              onClick={() => setLimit.mutate({ limit: resourceLimit })}
+              disabled={setLimit.isPending}
+            >
+              Appliquer
+            </Button>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => forceProcess.mutate()}
+              disabled={forceProcess.isPending}
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Forcer le Traitement
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirm("Êtes-vous sûr de vouloir vider toutes les files d'attente ?")) {
+                  clearQueues.mutate();
+                }
+              }}
+              disabled={clearQueues.isPending}
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              Vider les Files
+            </Button>
+            <Button variant="outline" onClick={refetchAll}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Actualiser
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Test Task Allocation */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            Tester l'Allocation
+          </CardTitle>
+          <CardDescription>Créer une tâche de test pour vérifier le système d'allocation</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4">
+            <select
+              value={newTaskPriority}
+              onChange={(e) => setNewTaskPriority(e.target.value as any)}
+              className="px-3 py-2 rounded-md border bg-background"
+            >
+              <option value="H0">H0 - Critique</option>
+              <option value="H1">H1 - Haute</option>
+              <option value="H2">H2 - Normale</option>
+              <option value="H3">H3 - Basse</option>
+            </select>
+            <input
+              type="text"
+              value={newTaskDescription}
+              onChange={(e) => setNewTaskDescription(e.target.value)}
+              placeholder="Description de la tâche..."
+              className="flex-1 px-3 py-2 rounded-md border bg-background"
+            />
+            <Button
+              onClick={() => allocateTask.mutate({
+                priority: newTaskPriority,
+                description: newTaskDescription || 'Tâche de test',
+                estimatedDuration: 30
+              })}
+              disabled={allocateTask.isPending}
+            >
+              Allouer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Running Tasks */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="w-5 h-5" />
+            Tâches en Cours ({runningTasks?.length || 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[200px]">
+            {runningTasks && runningTasks.length > 0 ? (
+              <div className="space-y-2">
+                {runningTasks.map((task: any) => (
+                  <div key={task.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3">
+                      <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                      <div>
+                        <p className="text-sm font-medium">{task.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Démarré: {new Date(task.startedAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => cancelTask.mutate({ taskId: task.id })}
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Cpu className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucune tâche en cours</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Queued Tasks */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ListOrdered className="w-5 h-5" />
+            File d'Attente ({queuedTasks?.length || 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[200px]">
+            {queuedTasks && queuedTasks.length > 0 ? (
+              <div className="space-y-2">
+                {queuedTasks.map((task: any) => (
+                  <div key={task.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3">
+                      <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                      <div>
+                        <p className="text-sm font-medium">{task.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Créé: {new Date(task.createdAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => cancelTask.mutate({ taskId: task.id })}
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <ListOrdered className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>File d'attente vide</p>
+              </div>
+            )}
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      {/* Recent Completed Tasks */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Timer className="w-5 h-5" />
+            Tâches Récentes
+          </CardTitle>
+          <CardDescription>Dernières tâches traitées</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[300px]">
+            {recentTasks && recentTasks.length > 0 ? (
+              <div className="space-y-2">
+                {recentTasks.map((task: any) => (
+                  <div key={task.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex items-center gap-3">
+                      <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                      <Badge className={getStatusColor(task.status)}>{task.status}</Badge>
+                      <div>
+                        <p className="text-sm font-medium">{task.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Durée: {task.actualDuration?.toFixed(2) || 0}s
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(task.completedAt).toLocaleTimeString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Timer className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Aucune tâche récente</p>
               </div>
             )}
           </ScrollArea>
