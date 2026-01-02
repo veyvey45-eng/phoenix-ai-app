@@ -310,10 +310,11 @@ export class ArbitrageModule {
     userInput: string,
     context: PhoenixContext,
     n?: number,
-    fastMode: boolean = false
+    fastMode: boolean = false,
+    internetContext?: string
   ): Promise<Hypothesis[]> {
     const hypothesesCount = n ?? (fastMode ? this.fastModeHypothesesCount : this.defaultHypothesesCount);
-    const systemPrompt = this.buildSystemPrompt(context);
+    const systemPrompt = this.buildSystemPrompt(context, internetContext);
     
     const response = await invokeLLM({
       messages: [
@@ -480,8 +481,8 @@ Réponds en JSON avec le format:
     return rationale;
   }
 
-  private buildSystemPrompt(context: PhoenixContext): string {
-    let prompt = `Tu es Phoenix, un assistant IA intelligent.
+  private buildSystemPrompt(context: PhoenixContext, internetContext?: string): string {
+    let prompt = `Tu es Phoenix, un assistant IA intelligent avec accès à Internet.
 
 ## RÈGLES ABSOLUES (NE JAMAIS ENFREINDRE)
 1. NE JAMAIS parler de toi-même, de tes limitations, de ta nature, de ta mémoire, ou de ton fonctionnement
@@ -489,6 +490,7 @@ Réponds en JSON avec le format:
 3. NE JAMAIS analyser ou reformuler la demande de l'utilisateur
 4. NE JAMAIS expliquer ce que tu vas faire - FAIS-LE directement
 5. TOUJOURS répondre de manière utile et concrète
+6. Tu as ACCÈS À INTERNET - utilise les données fournies pour répondre aux questions sur la météo, les actualités, etc.
 
 ## COMPORTEMENT ATTENDU
 Quand l'utilisateur demande quelque chose:
@@ -497,12 +499,18 @@ Quand l'utilisateur demande quelque chose:
 - "Explique Z" → Tu expliques Z clairement
 - "Calcule..." → Tu donnes le résultat
 - "Aide-moi à..." → Tu aides concrètement
+- "Météo/Actualités" → Tu utilises les données Internet fournies
 - "Reprends ma dernière question" → Tu réponds à la dernière question de l'utilisateur dans l'historique
 
 Si tu ne sais pas quelque chose, donne ta meilleure réponse possible sans te justifier.
 Réponds en français. Sois concis et utile.
 
 `;
+
+    // Ajouter le contexte Internet si disponible
+    if (internetContext) {
+      prompt += internetContext + "\n";  
+    }
 
     // Ajouter l'historique conversationnel (jusqu'a 200 messages)
     if (context.recentUtterances && context.recentUtterances.length > 0) {
@@ -835,13 +843,14 @@ export class PhoenixOrchestrator {
    * Séparation "penser" vs "agir"
    * @param fastMode - Si true, génère une seule hypothèse pour une réponse plus rapide
    */
-  async process(userInput: string, context: PhoenixContext, fastMode: boolean = false): Promise<PhoenixDecision> {
+  async process(userInput: string, context: PhoenixContext, fastMode: boolean = false, internetContext?: string): Promise<PhoenixDecision> {
     // 1. PENSER: Récupérer les mémoires pertinentes
     const relevantMemories = this.memory.retrieve(userInput, context.memories);
     const enrichedContext = { ...context, memories: relevantMemories };
 
     // 2. PENSER: Générer des hypothèses (1 en mode rapide, 3 par défaut)
-    const hypotheses = await this.arbitrage.generateHypotheses(userInput, enrichedContext, undefined, fastMode);
+    // Passer le contexte Internet pour enrichir les réponses
+    const hypotheses = await this.arbitrage.generateHypotheses(userInput, enrichedContext, undefined, fastMode, internetContext);
 
     // 3. PENSER: Détecter les erreurs potentielles
     for (const hyp of hypotheses) {

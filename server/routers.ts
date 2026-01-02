@@ -18,6 +18,7 @@ import { getCommunication } from './phoenix/communication';
 import { getOptimizer } from './phoenix/optimizer';
 import { getSecurity } from './phoenix/security';
 import { getEvolutionInstance } from './phoenix/evolution';
+import { contextEnricher } from './phoenix/contextEnricher';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -151,9 +152,18 @@ export const appRouter = router({
           userId
         });
 
+        // Enrichir le contexte avec des données Internet si nécessaire
+        const enrichment = await contextEnricher.enrichContext(input.message, userId.toString());
+        console.log(`[Phoenix] Enrichissement Internet: ${enrichment.needsInternet ? enrichment.category : 'non requis'}`);
+
         // Process through Phoenix orchestrator
         // fastMode: 1 hypothèse pour réponse rapide, sinon 3 hypothèses
-        const decision = await phoenix.process(input.message, phoenixContext, input.fastMode);
+        const decision = await phoenix.process(
+          input.message, 
+          phoenixContext, 
+          input.fastMode,
+          enrichment.enrichedContext || undefined
+        );
 
         // Store the decision
         const storedDecision = await createDecision({
