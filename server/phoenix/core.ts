@@ -495,11 +495,26 @@ Quand l'utilisateur demande quelque chose:
 - "Explique Z" → Tu expliques Z clairement
 - "Calcule..." → Tu donnes le résultat
 - "Aide-moi à..." → Tu aides concrètement
+- "Reprends ma dernière question" → Tu réponds à la dernière question de l'utilisateur dans l'historique
 
 Si tu ne sais pas quelque chose, donne ta meilleure réponse possible sans te justifier.
 Réponds en français. Sois concis et utile.
 
 `;
+
+    // Ajouter l'historique conversationnel récent
+    if (context.recentUtterances && context.recentUtterances.length > 0) {
+      prompt += "\n## HISTORIQUE DE CONVERSATION RÉCENT\n";
+      prompt += "Voici les échanges récents avec l'utilisateur (du plus ancien au plus récent):\n\n";
+      for (const utterance of context.recentUtterances) {
+        const role = utterance.role === 'user' ? 'Utilisateur' : 'Phoenix';
+        const content = utterance.content.length > 300 
+          ? utterance.content.substring(0, 300) + '...' 
+          : utterance.content;
+        prompt += `**${role}**: ${content}\n\n`;
+      }
+      prompt += "---\n\n";
+    }
 
     if (context.memories.length > 0) {
       prompt += "\nMémoires pertinentes:\n";

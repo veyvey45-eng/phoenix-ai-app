@@ -131,11 +131,15 @@ export async function getRecentUtterances(userId: number, limit = 20): Promise<U
   const db = await getDb();
   if (!db) return [];
 
-  return db.select()
+  // Récupérer les messages les plus récents, puis les inverser pour avoir l'ordre chronologique
+  const results = await db.select()
     .from(utterances)
     .where(eq(utterances.userId, userId))
     .orderBy(desc(utterances.createdAt))
     .limit(limit);
+  
+  // Inverser pour avoir l'ordre chronologique (ancien vers récent)
+  return results.reverse();
 }
 
 // ============================================================================

@@ -179,3 +179,12 @@
 - [x] Tests pour Tool Gateway (24 tests)
 - [x] Tests pour TTS serveur (17 tests)
 - [x] Tous les tests passent (96 tests au total)
+
+
+## Phase 14: Correction Mémoire Conversationnelle
+
+### Bug: Phoenix ne peut pas reprendre la dernière question
+- [x] Analyser pourquoi l'historique n'est pas accessible au LLM
+- [x] Vérifier la persistance des messages en base de données
+- [x] S'assurer que l'historique est passé dans le contexte du prompt
+- [x] Tester la commande "reprends ma dernière question" (7 tests ajoutés)
