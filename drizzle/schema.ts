@@ -225,7 +225,12 @@ export const auditLog = mysqlTable("auditLog", {
     "file_uploaded",
     "file_deleted",
     "demo_started",
-    "export_generated"
+    "export_generated",
+    "document_uploaded",
+    "document_approved",
+    "document_rejected",
+    "document_indexed",
+    "concepts_extracted"
   ]).notNull(),
   entityType: varchar("entityType", { length: 64 }).notNull(),
   entityId: int("entityId").notNull(),
@@ -357,3 +362,95 @@ export const adminAuditLog = mysqlTable("adminAuditLog", {
 
 export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
 export type InsertAdminAuditLog = typeof adminAuditLog.$inferInsert;
+
+
+// ============================================================================
+// MODULE 02: MEMORY SYNC - Document Knowledge Base
+// ============================================================================
+
+/**
+ * Reference Documents - PDF and other documents indexed for Phoenix
+ * Organized by priority hierarchy (H0-H3)
+ */
+export const referenceDocuments = mysqlTable("reference_documents", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  fileName: varchar("fileName", { length: 255 }).notNull(),
+  fileUrl: text("fileUrl").notNull(),
+  fileSize: int("fileSize"), // in bytes
+  mimeType: varchar("mimeType", { length: 100 }).default("application/pdf"),
+  priority: mysqlEnum("priority", ["H0", "H1", "H2", "H3"]).default("H2").notNull(),
+  category: varchar("category", { length: 100 }), // e.g., "theory", "architecture", "ethics"
+  tags: json("tags").$type<string[]>(),
+  isIndexed: boolean("isIndexed").default(false),
+  indexedAt: timestamp("indexedAt"),
+  uploadedBy: int("uploadedBy").notNull(),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected", "archived"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReferenceDocument = typeof referenceDocuments.$inferSelect;
+export type InsertReferenceDocument = typeof referenceDocuments.$inferInsert;
+
+/**
+ * Document Chunks - Extracted and indexed content from documents
+ * Used for RAG (Retrieval Augmented Generation)
+ */
+export const documentChunks = mysqlTable("document_chunks", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull(),
+  chunkIndex: int("chunkIndex").notNull(), // Order within document
+  content: text("content").notNull(),
+  pageNumber: int("pageNumber"),
+  sectionTitle: varchar("sectionTitle", { length: 255 }),
+  priority: mysqlEnum("priority", ["H0", "H1", "H2", "H3"]).default("H2").notNull(), // Inherited from document
+  embedding: json("embedding").$type<number[]>(), // Vector embedding for similarity search
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DocumentChunk = typeof documentChunks.$inferSelect;
+export type InsertDocumentChunk = typeof documentChunks.$inferInsert;
+
+/**
+ * Document Access Log - Track when documents are consulted
+ */
+export const documentAccessLog = mysqlTable("document_access_log", {
+  id: int("id").autoincrement().primaryKey(),
+  documentId: int("documentId").notNull(),
+  chunkId: int("chunkId"),
+  accessType: mysqlEnum("accessType", ["view", "search", "rag_query", "download"]).notNull(),
+  query: text("query"), // The query that triggered this access
+  relevanceScore: float("relevanceScore"), // How relevant was this document to the query
+  userId: int("userId"),
+  contextId: varchar("contextId", { length: 64 }), // Link to conversation context
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DocumentAccessLog = typeof documentAccessLog.$inferSelect;
+export type InsertDocumentAccessLog = typeof documentAccessLog.$inferInsert;
+
+/**
+ * Knowledge Concepts - Extracted key concepts from documents
+ * Used for building the knowledge graph
+ */
+export const knowledgeConcepts = mysqlTable("knowledge_concepts", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  definition: text("definition"),
+  priority: mysqlEnum("priority", ["H0", "H1", "H2", "H3"]).default("H2").notNull(),
+  sourceDocumentId: int("sourceDocumentId"),
+  sourceChunkId: int("sourceChunkId"),
+  relatedConcepts: json("relatedConcepts").$type<number[]>(), // IDs of related concepts
+  tags: json("tags").$type<string[]>(),
+  confidence: float("confidence").default(1.0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type KnowledgeConcept = typeof knowledgeConcepts.$inferSelect;
+export type InsertKnowledgeConcept = typeof knowledgeConcepts.$inferInsert;

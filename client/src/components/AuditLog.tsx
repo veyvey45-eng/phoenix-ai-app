@@ -17,7 +17,9 @@ import {
   FileUp,
   Trash2,
   Sparkles,
-  Download
+  Download,
+  FileText,
+  BookOpen
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +49,12 @@ type EventType =
   | "file_uploaded"
   | "file_deleted"
   | "demo_started"
-  | "export_generated";
+  | "export_generated"
+  | "document_uploaded"
+  | "document_approved"
+  | "document_rejected"
+  | "document_indexed"
+  | "concepts_extracted";
 
 interface AuditEntry {
   id: number;
@@ -85,7 +92,12 @@ const eventConfig: Record<EventType, { icon: typeof MessageSquare; color: string
   file_uploaded: { icon: FileUp, color: "text-blue-500", label: "Fichier uploadé" },
   file_deleted: { icon: Trash2, color: "text-red-400", label: "Fichier supprimé" },
   demo_started: { icon: Sparkles, color: "text-pink-400", label: "Démo lancée" },
-  export_generated: { icon: Download, color: "text-green-500", label: "Export généré" }
+  export_generated: { icon: Download, color: "text-green-500", label: "Export généré" },
+  document_uploaded: { icon: FileText, color: "text-blue-400", label: "Document uploadé" },
+  document_approved: { icon: CheckCircle, color: "text-green-500", label: "Document approuvé" },
+  document_rejected: { icon: XCircle, color: "text-red-500", label: "Document rejeté" },
+  document_indexed: { icon: Database, color: "text-purple-400", label: "Document indexé" },
+  concepts_extracted: { icon: BookOpen, color: "text-cyan-400", label: "Concepts extraits" }
 };
 
 export function AuditLog({ entries, maxHeight = "400px" }: AuditLogProps) {

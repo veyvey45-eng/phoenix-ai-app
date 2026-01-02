@@ -778,6 +778,19 @@ export async function createApprovalRequest(data: InsertApprovalRequest): Promis
     expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours expiry
   });
   const id = Number(result[0].insertId);
+  
+  // Send notification to owner for pending approval
+  try {
+    const { notifyOwner } = await import('./_core/notification');
+    await notifyOwner({
+      title: `🔔 Approbation requise - Phoenix`,
+      content: `Une nouvelle demande d'approbation (ID: ${id}) nécessite votre attention.\n\nValidation ID: ${data.validationId}\nDemandeur ID: ${data.requestedBy}\n\nConnectez-vous au tableau de bord Admin pour approuver ou rejeter cette demande.`
+    });
+    console.log(`[Notification] Approval request ${id} notification sent to owner`);
+  } catch (error) {
+    console.warn('[Notification] Failed to notify owner of approval request:', error);
+  }
+  
   return { ...data, id, createdAt: new Date() } as ApprovalRequest;
 }
 

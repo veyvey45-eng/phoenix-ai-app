@@ -9,6 +9,7 @@ import { getMemoryStore } from './phoenix/vectraMemory';
 import { getSleepModule } from './phoenix/sleepModule';
 import { getToolsEngine, ToolCall } from './phoenix/tools';
 import { getFileProcessor } from './phoenix/fileProcessor';
+import { getMemorySyncModule } from './phoenix/memorySync';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -1171,6 +1172,154 @@ export const appRouter = router({
           }
           return { success: true };
         }),
+    }),
+  }),
+
+  // ============================================================================
+  // MEMORY SYNC - Document Knowledge Base (Module 02)
+  // ============================================================================
+  
+  memorySync: router({
+    /**
+     * Upload a new reference document
+     */
+    upload: protectedProcedure
+      .input(z.object({
+        title: z.string(),
+        description: z.string().optional(),
+        fileName: z.string(),
+        fileUrl: z.string(),
+        fileSize: z.number().optional(),
+        mimeType: z.string().optional(),
+        priority: z.enum(["H0", "H1", "H2", "H3"]),
+        category: z.string().optional(),
+        tags: z.array(z.string()).optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        const documentId = await memorySync.uploadDocument({
+          ...input,
+          uploadedBy: ctx.user.id
+        });
+        
+        if (!documentId) {
+          throw new Error("Failed to upload document");
+        }
+
+        await logAuditEvent({
+          eventType: "document_uploaded",
+          entityType: "reference_document",
+          entityId: documentId,
+          details: { title: input.title, priority: input.priority },
+          userId: ctx.user.id
+        });
+
+        return { documentId };
+      }),
+
+    /**
+     * Approve a document (admin only)
+     */
+    approve: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        const success = await memorySync.approveDocument(input.documentId, ctx.user.id);
+        if (!success) {
+          throw new Error("Failed to approve document or admin access required");
+        }
+        return { success: true };
+      }),
+
+    /**
+     * Reject a document (admin only)
+     */
+    reject: protectedProcedure
+      .input(z.object({ 
+        documentId: z.number(),
+        reason: z.string().optional()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        const success = await memorySync.rejectDocument(input.documentId, ctx.user.id, input.reason);
+        if (!success) {
+          throw new Error("Failed to reject document or admin access required");
+        }
+        return { success: true };
+      }),
+
+    /**
+     * Index a document (admin only)
+     */
+    index: protectedProcedure
+      .input(z.object({ 
+        documentId: z.number(),
+        content: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        const success = await memorySync.indexDocument(input.documentId, input.content, ctx.user.id);
+        if (!success) {
+          throw new Error("Failed to index document or admin access required");
+        }
+        return { success: true };
+      }),
+
+    /**
+     * Extract concepts from a document (admin only)
+     */
+    extractConcepts: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        const count = await memorySync.extractConcepts(input.documentId, ctx.user.id);
+        return { conceptsExtracted: count };
+      }),
+
+    /**
+     * Search documents
+     */
+    search: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        priorities: z.array(z.enum(["H0", "H1", "H2", "H3"])).optional(),
+        categories: z.array(z.string()).optional(),
+        limit: z.number().optional().default(10)
+      }))
+      .query(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        return memorySync.search({
+          ...input,
+          userId: ctx.user.id
+        });
+      }),
+
+    /**
+     * Get context for Phoenix decisions
+     */
+    getContext: protectedProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const memorySync = getMemorySyncModule();
+        return memorySync.getContextForDecision(input.query, ctx.user.id);
+      }),
+
+    /**
+     * Get all documents
+     */
+    list: protectedProcedure
+      .input(z.object({ status: z.string().optional() }))
+      .query(async ({ input }) => {
+        const memorySync = getMemorySyncModule();
+        return memorySync.getDocuments(input.status);
+      }),
+
+    /**
+     * Get document statistics
+     */
+    stats: protectedProcedure.query(async () => {
+      const memorySync = getMemorySyncModule();
+      return memorySync.getStats();
     }),
   }),
 });

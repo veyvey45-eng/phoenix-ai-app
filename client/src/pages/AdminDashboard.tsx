@@ -18,7 +18,11 @@ import {
   Activity,
   Lock,
   Unlock,
-  RefreshCw
+  RefreshCw,
+  BookOpen,
+  Upload,
+  Database,
+  Search
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -208,10 +212,11 @@ export default function AdminDashboard() {
 
         {/* Main Content Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="modules">Modules (10)</TabsTrigger>
             <TabsTrigger value="validations">Axiomes (16)</TabsTrigger>
+            <TabsTrigger value="memory">Memory Sync</TabsTrigger>
             <TabsTrigger value="audit">Journal d'Audit</TabsTrigger>
           </TabsList>
 
@@ -426,6 +431,11 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          {/* Memory Sync Tab */}
+          <TabsContent value="memory">
+            <MemorySyncPanel />
+          </TabsContent>
+
           {/* Audit Tab */}
           <TabsContent value="audit">
             <Card>
@@ -479,5 +489,298 @@ export default function AdminDashboard() {
         </Tabs>
       </div>
     </DashboardLayout>
+  );
+}
+
+// Memory Sync Panel Component
+function MemorySyncPanel() {
+  const [uploadForm, setUploadForm] = useState({
+    title: "",
+    description: "",
+    priority: "H2" as "H0" | "H1" | "H2" | "H3",
+    category: "",
+    tags: ""
+  });
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Queries
+  const { data: documents, refetch: refetchDocs } = trpc.memorySync.list.useQuery({});
+  const { data: pendingDocs, refetch: refetchPending } = trpc.memorySync.list.useQuery({ status: "pending" });
+  const { data: stats } = trpc.memorySync.stats.useQuery();
+  const { data: searchResults } = trpc.memorySync.search.useQuery(
+    { query: searchQuery, limit: 10 },
+    { enabled: searchQuery.length > 2 }
+  );
+
+  // Mutations
+  const approveMutation = trpc.memorySync.approve.useMutation({
+    onSuccess: () => {
+      toast.success("Document approuvé");
+      refetchDocs();
+      refetchPending();
+    },
+    onError: (e) => toast.error(e.message)
+  });
+
+  const rejectMutation = trpc.memorySync.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Document rejeté");
+      refetchDocs();
+      refetchPending();
+    },
+    onError: (e) => toast.error(e.message)
+  });
+
+  const extractConceptsMutation = trpc.memorySync.extractConcepts.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.conceptsExtracted} concepts extraits`);
+      refetchDocs();
+    },
+    onError: (e) => toast.error(e.message)
+  });
+
+  const priorityColors: Record<string, string> = {
+    H0: "bg-red-500",
+    H1: "bg-orange-500",
+    H2: "bg-yellow-500",
+    H3: "bg-green-500"
+  };
+
+  const priorityLabels: Record<string, string> = {
+    H0: "Critique",
+    H1: "Haute",
+    H2: "Moyenne",
+    H3: "Basse"
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Documents Total
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.totalDocuments || 0}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              En Attente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-500">
+              {stats?.byStatus?.pending || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Chunks Indexés
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-500">
+              {stats?.totalChunks || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Concepts Extraits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-cyan-500">
+              {stats?.totalConcepts || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Pending Documents */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Documents en Attente d'Approbation
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-[300px]">
+              {pendingDocs?.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Aucun document en attente
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {pendingDocs?.map((doc: any) => (
+                    <div key={doc.id} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className={priorityColors[doc.priority]}>
+                            {priorityLabels[doc.priority]}
+                          </Badge>
+                          <span className="font-medium">{doc.title}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-500"
+                            onClick={() => approveMutation.mutate({ documentId: doc.id })}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-500"
+                            onClick={() => rejectMutation.mutate({ documentId: doc.id })}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      {doc.description && (
+                        <p className="text-sm text-muted-foreground">{doc.description}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {doc.fileName} - {doc.category || "Sans catégorie"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+
+        {/* Search Documents */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="w-5 h-5" />
+              Recherche dans la Base de Connaissances
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="Rechercher dans les documents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+              />
+              <ScrollArea className="h-[250px]">
+                {searchResults && searchResults.length > 0 ? (
+                  <div className="space-y-2">
+                    {searchResults.map((result: any, idx: number) => (
+                      <div key={idx} className="p-3 border rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge className={priorityColors[result.priority]}>
+                            {result.priority}
+                          </Badge>
+                          <span className="font-medium text-sm">{result.title}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Score: {(result.relevanceScore * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {result.content}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : searchQuery.length > 2 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Aucun résultat trouvé
+                  </p>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    Entrez au moins 3 caractères pour rechercher
+                  </p>
+                )}
+              </ScrollArea>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* All Documents */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Tous les Documents
+          </CardTitle>
+          <CardDescription>
+            Documents de référence indexés par priorité (H0-H3)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-2">
+              {documents?.map((doc: any) => (
+                <div key={doc.id} className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge className={priorityColors[doc.priority]}>
+                        {priorityLabels[doc.priority]}
+                      </Badge>
+                      <span className="font-medium">{doc.title}</span>
+                      <Badge variant={doc.status === "approved" ? "default" : "secondary"}>
+                        {doc.status}
+                      </Badge>
+                      {doc.isIndexed && (
+                        <Badge variant="outline" className="text-purple-500">
+                          <Database className="w-3 h-3 mr-1" />
+                          Indexé
+                        </Badge>
+                      )}
+                    </div>
+                    {doc.status === "approved" && !doc.isIndexed && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => extractConceptsMutation.mutate({ documentId: doc.id })}
+                      >
+                        <BookOpen className="w-4 h-4 mr-1" />
+                        Extraire Concepts
+                      </Button>
+                    )}
+                  </div>
+                  {doc.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{doc.description}</p>
+                  )}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>{doc.fileName}</span>
+                    <span>{doc.category || "Sans catégorie"}</span>
+                    {doc.tags && doc.tags.length > 0 && (
+                      <div className="flex gap-1">
+                        {doc.tags.map((tag: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
