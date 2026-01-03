@@ -21,11 +21,14 @@ export async function* streamChatResponse(
   try {
     // Use Groq for faster streaming when available
     const apiKey = process.env.GROG_API_KEY;
+    console.log('[StreamingChat] Groq API key available:', !!apiKey);
     
     if (apiKey) {
+      console.log('[StreamingChat] Using Groq API');
       yield* streamWithGroq(messages, options);
     } else {
       // Fallback to Google AI Studio
+      console.log('[StreamingChat] Using Google AI fallback');
       yield* streamWithGoogleAI(messages, options);
     }
   } catch (error) {
@@ -42,6 +45,7 @@ async function* streamWithGroq(
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
+    console.log('[StreamingChat] Groq: Sending request to API');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -57,8 +61,11 @@ async function* streamWithGroq(
       })
     });
 
+    console.log('[StreamingChat] Groq: Response status:', response.status);
     if (!response.ok) {
-      throw new Error(`Groq API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('[StreamingChat] Groq error response:', errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     if (!response.body) {
@@ -119,7 +126,15 @@ async function* streamWithGroq(
     }
   } catch (error) {
     console.error('[StreamingChat] Groq streaming error:', error);
-    throw error;
+    // Try fallback to Google AI
+    console.log('[StreamingChat] Groq failed, trying Google AI fallback');
+    try {
+      yield* streamWithGoogleAI(messages, options);
+    } catch (fallbackError) {
+      console.error('[StreamingChat] Google AI fallback also failed:', fallbackError);
+      // Last resort: yield an error message
+      yield 'Désolé, je n\'arrive pas à générer une réponse en ce moment. Les services sont surchargés. Veuillez réessayer dans quelques instants.';
+    }
   }
 }
 
@@ -133,6 +148,7 @@ async function* streamWithGoogleAI(
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
+    console.log('[StreamingChat] Google AI: Invoking LLM');
     const response = await invokeLLM({
       messages: messages.map(m => ({
         role: m.role as 'system' | 'user' | 'assistant',
@@ -140,12 +156,14 @@ async function* streamWithGoogleAI(
       }))
     });
 
+    console.log('[StreamingChat] Google AI: Got response');
     // Simulate streaming by yielding chunks
     let text = response.choices?.[0]?.message?.content || '';
     if (typeof text !== 'string') {
       text = JSON.stringify(text);
     }
 
+    console.log('[StreamingChat] Google AI: Streaming', text.length, 'characters');
     const chunkSize = 10; // Characters per chunk
     for (let i = 0; i < text.length; i += chunkSize) {
       yield text.slice(i, i + chunkSize);

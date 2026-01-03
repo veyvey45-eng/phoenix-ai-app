@@ -16,7 +16,9 @@ import { eq } from 'drizzle-orm';
  */
 export async function streamChatEndpoint(req: Request, res: Response) {
   try {
-    const { message, contextId, fast } = req.query;
+    const { message, contextId } = req.query;
+    // Force fast mode to avoid quota issues with 3 hypotheses
+    const fast = true;
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
 
     if (!message || typeof message !== 'string') {
@@ -174,6 +176,7 @@ You have real-time internet access through [DONNEES ENRICHIES]. Use it without h
 export async function fastStreamChatEndpoint(req: Request, res: Response) {
   try {
     const { message, contextId } = req.query;
+    // Fast mode is always enabled to avoid quota issues
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
 
     if (!message || typeof message !== 'string') {
