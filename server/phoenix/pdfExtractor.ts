@@ -3,6 +3,8 @@
  * Extracts text content from PDF files for Phoenix to analyze
  */
 
+import { PDFParse } from 'pdf-parse';
+
 export interface ExtractedPDFContent {
   text: string;
   pages: number;
@@ -20,54 +22,41 @@ export interface ExtractedPDFContent {
 
 /**
  * Extract text content from a PDF buffer
- * Uses a simple text extraction strategy for common PDFs
+ * Uses pdf-parse v2 library for robust extraction
  */
 export async function extractPDFText(buffer: Buffer): Promise<ExtractedPDFContent> {
   try {
-    // Convert buffer to string to search for text patterns
+    // Validate PDF signature
     const bufferStr = buffer.toString('latin1');
-    
-    // Basic validation - check for PDF signature
     if (!bufferStr.startsWith('%PDF')) {
       throw new Error('Invalid PDF file: missing PDF signature');
     }
 
-    // Extract text between BT (Begin Text) and ET (End Text) operators
-    const textPattern = /BT([\s\S]*?)ET/g;
+    // Parse PDF using pdf-parse v2
+    const parser = new PDFParse({ data: buffer });
+    const textResult = await parser.getText();
+    
+    // Extract text from all pages
     const pageTexts: string[] = [];
     let extractedText = '';
-    let match;
-
-    while ((match = textPattern.exec(bufferStr)) !== null) {
-      const textContent = match[1];
-      
-      // Extract text from Tj and TJ operators
-      const textOperators = /\((.*?)\)\s*T[jJ]/g;
-      let pageText = '';
-      let textMatch;
-      
-      while ((textMatch = textOperators.exec(textContent)) !== null) {
-        const text = textMatch[1];
-        // Unescape PDF string escapes
-        const unescaped = text
-          .replace(/\\n/g, '\n')
-          .replace(/\\r/g, '\r')
-          .replace(/\\t/g, '\t')
-          .replace(/\\\(/g, '(')
-          .replace(/\\\)/g, ')')
-          .replace(/\\\\/g, '\\');
-        pageText += unescaped + ' ';
+    
+    if (textResult.pages && textResult.pages.length > 0) {
+      for (const page of textResult.pages) {
+        const pageText = page.text || '';
+        
+        if (pageText.trim()) {
+          pageTexts.push(pageText.trim());
+          extractedText += pageText + '\n\n';
+        }
       }
-      
-      if (pageText.trim()) {
-        pageTexts.push(pageText.trim());
-        extractedText += pageText + '\n\n';
-      }
+    } else if (textResult.text) {
+      // Fallback: use the text property directly
+      extractedText = textResult.text;
+      pageTexts.push(textResult.text);
     }
 
-    // If no text found with operators, try alternative extraction
+    // If still no text, try basic extraction as fallback
     if (extractedText.trim().length === 0) {
-      // Try to extract any readable text from the buffer
       const readableText = bufferStr
         .replace(/[^\x20-\x7E\n\r]/g, ' ')
         .split('\n')
@@ -80,52 +69,25 @@ export async function extractPDFText(buffer: Buffer): Promise<ExtractedPDFConten
       }
     }
 
-    // Extract metadata from PDF info dictionary
-    const infoPattern = /\/Info\s+(\d+)\s+0\s+R/;
-    const infoMatch = bufferStr.match(infoPattern);
-    
+    // Extract metadata
     const metadata: ExtractedPDFContent['metadata'] = {};
-
-    if (infoMatch) {
-      const infoObjNum = infoMatch[1];
-      const infoPattern2 = new RegExp(`${infoObjNum}\\s+0\\s+obj([\\s\\S]*?)endobj`);
-      const infoObj = bufferStr.match(infoPattern2);
-      
-      if (infoObj) {
-        const infoContent = infoObj[1];
-        
-        // Extract metadata fields
-        const titleMatch = infoContent.match(/\/Title\s*\((.*?)\)/);
-        if (titleMatch && titleMatch[1]) {
-          metadata.title = titleMatch[1];
-        }
-        
-        const authorMatch = infoContent.match(/\/Author\s*\((.*?)\)/);
-        if (authorMatch && authorMatch[1]) {
-          metadata.author = authorMatch[1];
-        }
-        
-        const subjectMatch = infoContent.match(/\/Subject\s*\((.*?)\)/);
-        if (subjectMatch && subjectMatch[1]) {
-          metadata.subject = subjectMatch[1];
-        }
-        
-        const creatorMatch = infoContent.match(/\/Creator\s*\((.*?)\)/);
-        if (creatorMatch && creatorMatch[1]) {
-          metadata.creator = creatorMatch[1];
-        }
-        
-        const producerMatch = infoContent.match(/\/Producer\s*\((.*?)\)/);
-        if (producerMatch && producerMatch[1]) {
-          metadata.producer = producerMatch[1];
-        }
+    
+    // Get metadata from parser if available
+    try {
+      const infoResult = await parser.getInfo();
+      if (infoResult && typeof infoResult === 'object') {
+        const info = infoResult as any;
+        if (info.title) metadata.title = info.title;
+        if (info.author) metadata.author = info.author;
+        if (info.subject) metadata.subject = info.subject;
+        if (info.creator) metadata.creator = info.creator;
+        if (info.producer) metadata.producer = info.producer;
       }
+    } catch (e) {
+      // Metadata extraction failed, continue without it
     }
 
-    // Estimate page count from page tree
-    const pagesPattern = /\/Count\s+(\d+)/;
-    const pagesMatch = bufferStr.match(pagesPattern);
-    const pageCount = pagesMatch ? parseInt(pagesMatch[1], 10) : pageTexts.length || 1;
+    const pageCount = pageTexts.length || 1;
 
     return {
       text: extractedText.trim(),
