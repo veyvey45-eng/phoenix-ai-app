@@ -85,15 +85,14 @@ export default function Dashboard() {
     // Ensure conversation exists and get its ID
     const conversationIdFromEnsure = await ensureConversation();
 
-    // Add user message
+    // Add user message immediately
     const userMessage: Message = {
       id: generateId(),
       role: "user",
       content: userContent,
       timestamp: new Date()
     };
-    setMessages(prev => [...prev, userMessage]);
-
+    
     // Add placeholder for assistant message
     const assistantMessageId = generateId();
     const assistantMessage: Message = {
@@ -102,9 +101,14 @@ export default function Dashboard() {
       content: "",
       timestamp: new Date()
     };
-    setMessages(prev => [...prev, assistantMessage]);
+    
+    // Add both messages at once to prevent race conditions
+    setMessages(prev => [...prev, userMessage, assistantMessage]);
 
     setIsLoading(true);
+    
+    // Don't reload from database while sending
+    const originalMessages = [userMessage, assistantMessage];
 
     try {
       const params = new URLSearchParams({
@@ -156,11 +160,11 @@ export default function Dashboard() {
 
       // Save messages to database - use final conversationId
       const finalConversationId = conversationIdFromEnsure;
-      console.log('Saving messages for conversation:', finalConversationId);
+      console.log('[Dashboard] Saving messages for conversation:', finalConversationId);
       if (finalConversationId) {
         try {
           // Save user message
-          console.log('Saving user message...');
+          console.log('[Dashboard] Saving user message...');
           const userRes = await fetch('/api/save-message', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -170,10 +174,11 @@ export default function Dashboard() {
               content: userContent
             })
           });
-          console.log('User message response:', await userRes.json());
+          const userResData = await userRes.json();
+          console.log('[Dashboard] User message response:', userResData);
 
           // Save assistant message
-          console.log('Saving assistant message...');
+          console.log('[Dashboard] Saving assistant message...');
           const assistantRes = await fetch('/api/save-message', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -183,12 +188,13 @@ export default function Dashboard() {
               content: fullContent
             })
           });
-          console.log('Assistant message response:', await assistantRes.json());
+          const assistantResData = await assistantRes.json();
+          console.log('[Dashboard] Assistant message response:', assistantResData);
         } catch (error) {
-          console.error('Failed to save messages:', error);
+          console.error('[Dashboard] Failed to save messages:', error);
         }
       } else {
-        console.log('No conversation ID to save messages');
+        console.log('[Dashboard] No conversation ID to save messages');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -207,6 +213,12 @@ export default function Dashboard() {
 
   // Load messages when conversation changes
   useEffect(() => {
+    // Only load messages from database if we have local messages already
+    // This prevents clearing messages that were just sent
+    if (messages.length > 0) {
+      return;
+    }
+    
     if (getConversationQuery.data?.messages) {
       const loadedMessages: Message[] = getConversationQuery.data.messages.map(msg => ({
         id: generateId(),
@@ -219,7 +231,7 @@ export default function Dashboard() {
       // If conversation is selected but no messages, show empty
       setMessages([]);
     }
-  }, [getConversationQuery.data, conversationId, getConversationQuery.isLoading]);
+  }, [getConversationQuery.data, conversationId, getConversationQuery.isLoading, messages.length]);
 
   // Handle conversation selection
   const handleSelectConversation = useCallback((convId: number, convContextId: string) => {
