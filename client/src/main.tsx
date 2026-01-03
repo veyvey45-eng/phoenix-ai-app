@@ -33,10 +33,7 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
-    // Only log if mutation has no error handler
-    if (!event.mutation.options.onError) {
-      console.error("[API Mutation Error]", error);
-    }
+    // Silently handle mutation errors - they are handled by individual mutation handlers
   }
 });
 
