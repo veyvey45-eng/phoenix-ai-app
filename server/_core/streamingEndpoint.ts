@@ -210,12 +210,19 @@ ${fileContent}
       res.end();
     } catch (error) {
       console.error('[StreamingEndpoint] Error during streaming:', error);
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Streaming error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Streaming error' })}`+`\n\n`);
       res.end();
     }
   } catch (error) {
     console.error('[StreamingEndpoint] Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Headers might already be sent, so check before trying to set status
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    } else {
+      // Headers already sent, send error via SSE
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Internal server error' })}`+`\n\n`);
+      res.end();
+    }
   }
 }
 
@@ -342,11 +349,18 @@ ${fileContent}
       res.end();
     } catch (error) {
       console.error('[FastStreamingEndpoint] Error during streaming:', error);
-      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Streaming error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Streaming error' })}`+`\n\n`);
       res.end();
     }
   } catch (error) {
     console.error('[FastStreamingEndpoint] Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Headers might already be sent, so check before trying to set status
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    } else {
+      // Headers already sent, send error via SSE
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Internal server error' })}`+`\n\n`);
+      res.end();
+    }
   }
 }
