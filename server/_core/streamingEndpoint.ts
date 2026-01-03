@@ -67,33 +67,19 @@ export async function streamChatEndpoint(req: Request, res: Response) {
     };
 
     // Get cached enriched context if it's recent (less than 5 minutes old)
+    // BUT: Create a cache key based on the message to avoid cross-contamination
     let enrichedContext = '';
     const now = new Date();
-    if (state.lastEnrichedAt && (now.getTime() - state.lastEnrichedAt.getTime()) < 5 * 60 * 1000 && state.enrichedContext) {
-      enrichedContext = state.enrichedContext;
-      console.log(`[StreamingEndpoint] Using cached enriched context from ${state.lastEnrichedAt}`);
-    } else {
-      // Fetch fresh enriched context
-      const enrichment = await contextEnricher.enrichContext(message, userId.toString());
-      enrichedContext = enrichment.enrichedContext || '';
-      console.log(`[StreamingEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
-      
-      // Save to database for future use
-      if (enrichedContext) {
-        try {
-          const db = await getDb();
-          if (db) {
-            await db.update(phoenixState).set({
-              enrichedContext,
-              lastEnrichedAt: now,
-            }).where(eq(phoenixState.userId, userId));
-            console.log(`[StreamingEndpoint] Saved enriched context to database`);
-          }
-        } catch (err) {
-          console.error('[StreamingEndpoint] Error saving enriched context:', err);
-        }
-      }
-    }
+    
+    // Create a hash of the message to use as cache key
+    const messageHash = Buffer.from(message).toString('base64').substring(0, 20);
+    const cacheKey = `enriched_${messageHash}`;
+    
+    // For now, ALWAYS fetch fresh enriched context to avoid cache bugs
+    // TODO: Implement per-query caching if performance becomes an issue
+    const enrichment = await contextEnricher.enrichContext(message, userId.toString());
+    enrichedContext = enrichment.enrichedContext || '';
+    console.log(`[StreamingEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
 
     // Build system prompt
     const systemPrompt = `You are Phoenix, an intelligent assistant with functional consciousness.
