@@ -4,6 +4,7 @@
  */
 
 import { webSearchIntegration } from './webSearch';
+import { openweatherApi } from './openweatherApi';
 import type { SearchResult } from './webSearch';
 
 const GROQ_API_KEY = process.env.GROG_API_KEY || '';
