@@ -22,6 +22,7 @@ import { getOptimizer } from './phoenix/optimizer';
 import { getSecurity } from './phoenix/security';
 import { getEvolutionInstance } from './phoenix/evolution';
 import { contextEnricher } from './phoenix/contextEnricher';
+import { processPhoenixQuery } from './phoenix/phoenixSimple';
 import { streamingRouter } from './routers/streamingRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
@@ -179,14 +180,37 @@ export const appRouter = router({
         }
         const messageWithDocuments = input.message + documentContext;
 
-        // Process through Phoenix orchestrator
-        // fastMode: 1 hypothèse pour réponse rapide, sinon 3 hypothèses
-        const decision = await phoenix.process(
-          messageWithDocuments, 
-          phoenixContext, 
-          input.fastMode,
-          enrichment.enrichedContext || undefined
+        // Process through Phoenix Simple (100% fonctionnel)
+        const conversationHistory = recentUtterances.map(u => ({
+          role: u.role as 'user' | 'assistant',
+          content: u.content
+        }));
+        
+        const phoenixResponse = await processPhoenixQuery(
+          messageWithDocuments,
+          conversationHistory
         );
+        
+        const decision = {
+          hypotheses: [{
+            id: 'hyp_1',
+            content: phoenixResponse.content,
+            confidence: phoenixResponse.confidence,
+            reasoning: 'Phoenix Simple',
+            sources: phoenixResponse.sources || []
+          }],
+          chosen: {
+            id: 'hyp_1',
+            content: phoenixResponse.content,
+            confidence: phoenixResponse.confidence,
+            reasoning: 'Phoenix Simple',
+            sources: phoenixResponse.sources || []
+          },
+          rationale: 'Traite par Phoenix Simple',
+          tormentBefore: state.tormentScore,
+          tormentAfter: state.tormentScore,
+          actionRequest: null
+        };
 
         // Store the decision
         const storedDecision = await createDecision({
