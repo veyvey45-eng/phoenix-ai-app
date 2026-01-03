@@ -48,6 +48,7 @@ export default function Dashboard() {
   const conversationMutation = trpc.conversations.create.useMutation();
 
   const saveMessageMutation = trpc.conversations.saveMessage.useMutation();
+  const analyzeFileMutation = trpc.files.analyze.useMutation();
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -418,7 +419,28 @@ export default function Dashboard() {
                           content: file.extractedText
                         });
                         setShowFileUpload(false);
-                        toast.success(`${file.originalName} ajouté à la question`);
+                        toast.success(`${file.originalName} uploadé. Analyse en cours...`);
+                        analyzeFileMutation.mutate(
+                          { fileId: file.id, fileName: file.originalName },
+                          {
+                            onSuccess: (result) => {
+                              if (result.success && result.analysis) {
+                                const analysisMessage: Message = {
+                                  id: generateId(),
+                                  role: 'assistant',
+                                  content: `**Analyse de ${result.fileName}:**\n\n${result.analysis}`,
+                                  timestamp: new Date()
+                                };
+                                setMessages(prev => [...prev, analysisMessage]);
+                                toast.success('Analyse complétée');
+                              }
+                            },
+                            onError: (error) => {
+                              console.error('Erreur analyse:', error);
+                              toast.error('Erreur lors de l\'analyse');
+                            }
+                          }
+                        );
                       } else {
                         toast.error(`Impossible d'extraire le contenu de ${file.originalName}`);
                       }

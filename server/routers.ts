@@ -833,6 +833,46 @@ export const appRouter = router({
 
         return { success: true };
       }),
+
+    /**
+     * Analyze a PDF file automatically
+     */
+    analyze: protectedProcedure
+      .input(z.object({ 
+        fileId: z.string(),
+        fileName: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const processor = getFileProcessor();
+        const file = processor.getFile(input.fileId);
+        
+        if (!file || file.userId !== ctx.user.id) {
+          throw new Error('Fichier non trouve');
+        }
+
+        if (!file.extractedText) {
+          throw new Error('Contenu du fichier non disponible');
+        }
+
+        const analysisPrompt = `Analyse ce document et donne un resume: ${input.fileName}. Contenu: ${file.extractedText.substring(0, 5000)}`;
+
+        try {
+          const result = await processPhoenixQuery(
+            analysisPrompt,
+            [],
+            [file.extractedText.substring(0, 5000)]
+          );
+
+          return {
+            success: true,
+            analysis: result.content || 'Analyse completee',
+            fileName: input.fileName
+          };
+        } catch (error) {
+          console.error('[Files.analyze] Error:', error);
+          throw new Error('Erreur lors de l\'analyse');
+        }
+      }),
   }),
 
   vectraMemory: router({
