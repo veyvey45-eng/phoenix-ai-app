@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, MessageSquare } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { ConversationsList } from "@/components/ConversationsList";
+import { FileUpload } from "@/components/FileUpload";
 import { toast } from "sonner";
 
 // Generate UUID
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [contextId, setContextId] = useState<string>(() => generateId());
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [showConversations, setShowConversations] = useState(false);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Queries
@@ -358,7 +360,20 @@ export default function Dashboard() {
             </ScrollArea>
 
             {/* Input area */}
-            <div className="border-t border-border p-4 bg-background/50">
+            <div className="border-t border-border p-4 bg-background/50 space-y-2">
+              {showFileUpload && (
+                <div className="border border-dashed border-green-600 rounded-lg p-3 bg-green-600/5">
+                  <FileUpload
+                    maxFiles={1}
+                    onFileUploaded={(file) => {
+                      const fileInfo = `[FILE_ID:${file.id}]`;
+                      setInput(prev => prev ? `${prev}\n${fileInfo}` : fileInfo);
+                      setShowFileUpload(false);
+                      toast.success(`${file.originalName} ajouté à la question`);
+                    }}
+                  />
+                </div>
+              )}
               <div className="flex gap-2">
                 <Textarea
                   value={input}
@@ -370,21 +385,32 @@ export default function Dashboard() {
                     }
                   }}
                   placeholder="Posez une question à Phoenix..."
-                  className="min-h-12 resize-none"
+                  className="min-h-12 resize-none flex-1"
                   disabled={isLoading}
                 />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={isLoading || !input.trim()}
-                  size="icon"
-                  className="h-12 w-12"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => setShowFileUpload(!showFileUpload)}
+                    variant="outline"
+                    size="sm"
+                    title="Ajouter un PDF ou document"
+                    className="h-full"
+                  >
+                    📎
+                  </Button>
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={isLoading || !input.trim()}
+                    size="icon"
+                    className="h-12 w-12"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
