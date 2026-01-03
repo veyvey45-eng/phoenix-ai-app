@@ -62,6 +62,55 @@ async function startServer() {
       res.status(500).json({ error: 'Failed to save message' });
     }
   });
+  // Document analysis endpoint
+  app.post("/api/analyze-document", async (req, res) => {
+    try {
+      const { fileId } = req.body;
+      const user = (req as any).user;
+      
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      if (!fileId) {
+        return res.status(400).json({ error: 'Missing fileId' });
+      }
+      
+      const { getFileProcessor } = await import('../phoenix/fileProcessor');
+      const { processPhoenixQuery } = await import('../phoenix/phoenixSimple');
+      
+      const processor = getFileProcessor();
+      const file = processor.getFile(fileId);
+      
+      if (!file || file.userId !== user.id) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      if (!file.extractedText) {
+        return res.status(400).json({ error: 'No text content to analyze' });
+      }
+      
+      // Prepare analysis prompt
+      const analysisPrompt = `Veuillez analyser le document suivant et fournir une analyse complete et structuree:\n\n--- DOCUMENT: ${file.originalName} ---\n${file.extractedText}\n--- FIN DU DOCUMENT ---\n\nFournissez:\n1. Un resume executif (2-3 paragraphes)\n2. Les points cles identifies\n3. Les insights importants\n4. Les recommandations (le cas echeant)`;
+      
+      // Process through Phoenix
+      const analysis = await processPhoenixQuery(analysisPrompt, [{
+        role: 'user' as const,
+        content: analysisPrompt
+      }]);
+      
+      res.json({
+        success: true,
+        fileId,
+        fileName: file.originalName,
+        analysis: typeof analysis === 'string' ? analysis : JSON.stringify(analysis)
+      });
+    } catch (error) {
+      console.error('Error analyzing document:', error);
+      res.status(500).json({ error: 'Failed to analyze document' });
+    }
+  });
+
   // File retrieval endpoint for client-side file content loading
   app.get("/api/files/:fileId", async (req, res) => {
     try {
