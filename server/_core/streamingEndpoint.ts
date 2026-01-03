@@ -21,6 +21,12 @@ export async function streamChatEndpoint(req: Request, res: Response) {
       ? req.body 
       : req.query;
     
+    console.log('[StreamingEndpoint] Received fileContent:', {
+      hasFileContent: !!fileContent,
+      fileContentLength: fileContent ? (typeof fileContent === 'string' ? fileContent.length : 0) : 0,
+      messageLength: message ? message.length : 0
+    });
+    
     // Force fast mode to avoid quota issues with 3 hypotheses
     const fast = true;
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users

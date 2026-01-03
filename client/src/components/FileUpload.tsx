@@ -360,7 +360,9 @@ export function FileUpload({
             >
               <Card 
                 className="p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => void selectFile(file)}
+                onClick={async () => {
+                  await selectFile(file);
+                }}
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-md bg-primary/10">
