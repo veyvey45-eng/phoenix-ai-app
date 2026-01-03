@@ -22,7 +22,7 @@ export interface ExtractedPDFContent {
 
 /**
  * Extract text content from a PDF buffer
- * Uses pdf-parse v2 library for robust extraction
+ * Uses pdf-parse library for robust extraction
  */
 export async function extractPDFText(buffer: Buffer): Promise<ExtractedPDFContent> {
   try {
@@ -34,28 +34,13 @@ export async function extractPDFText(buffer: Buffer): Promise<ExtractedPDFConten
 
     // Parse PDF using pdf-parse v2
     const parser = new PDFParse({ data: buffer });
-    const textResult = await parser.getText();
+    const result = await parser.getText();
     
     // Extract text from all pages
     const pageTexts: string[] = [];
-    let extractedText = '';
+    let extractedText = result.text || '';
     
-    if (textResult.pages && textResult.pages.length > 0) {
-      for (const page of textResult.pages) {
-        const pageText = page.text || '';
-        
-        if (pageText.trim()) {
-          pageTexts.push(pageText.trim());
-          extractedText += pageText + '\n\n';
-        }
-      }
-    } else if (textResult.text) {
-      // Fallback: use the text property directly
-      extractedText = textResult.text;
-      pageTexts.push(textResult.text);
-    }
-
-    // If still no text, try basic extraction as fallback
+    // If no text extracted, try basic extraction as fallback
     if (extractedText.trim().length === 0) {
       const readableText = bufferStr
         .replace(/[^\x20-\x7E\n\r]/g, ' ')
@@ -65,29 +50,21 @@ export async function extractPDFText(buffer: Buffer): Promise<ExtractedPDFConten
       
       if (readableText.trim().length > 0) {
         extractedText = readableText;
-        pageTexts.push(readableText);
       }
+    }
+
+    // Split text into pages (approximate)
+    if (extractedText.trim().length > 0) {
+      pageTexts.push(extractedText.trim());
     }
 
     // Extract metadata
     const metadata: ExtractedPDFContent['metadata'] = {};
     
-    // Get metadata from parser if available
-    try {
-      const infoResult = await parser.getInfo();
-      if (infoResult && typeof infoResult === 'object') {
-        const info = infoResult as any;
-        if (info.title) metadata.title = info.title;
-        if (info.author) metadata.author = info.author;
-        if (info.subject) metadata.subject = info.subject;
-        if (info.creator) metadata.creator = info.creator;
-        if (info.producer) metadata.producer = info.producer;
-      }
-    } catch (e) {
-      // Metadata extraction failed, continue without it
-    }
+    // Metadata extraction not available in getText() result
+    // Would need to call getInfo() separately if needed
 
-    const pageCount = pageTexts.length || 1;
+    const pageCount = result.pages?.length || pageTexts.length || 1;
 
     return {
       text: extractedText.trim(),

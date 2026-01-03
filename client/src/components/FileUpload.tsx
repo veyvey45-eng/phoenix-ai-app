@@ -169,8 +169,8 @@ export function FileUpload({
         // Recharger depuis la base de données pour obtenir le contenu extrait
         await refetchFiles();
         
-        // Sélectionner automatiquement le fichier (refetchFiles met à jour persistedFiles)
-        selectFile(uploadedFile);
+        // Sélectionner automatiquement le fichier avec le contenu complet
+        await selectFile(uploadedFile);
         
         toast.success(`${file.name} uploadé avec succès`);
       } catch (error) {
@@ -210,10 +210,22 @@ export function FileUpload({
     }
   };
 
-  const selectFile = (file: UploadedFile) => {
-    // Appeler le callback avec le fichier
-    // Le contenu extractedText devrait être disponible si le fichier a été traité
-    onFileSelected?.(file);
+  const selectFile = async (file: UploadedFile) => {
+    // Charger le contenu complet du fichier depuis le serveur
+    try {
+      const fullContent = await loadFileContent(file.id);
+      if (fullContent) {
+        onFileSelected?.({
+          ...file,
+          extractedText: fullContent
+        });
+      } else {
+        onFileSelected?.(file);
+      }
+    } catch (error) {
+      console.error('Error loading file content:', error);
+      onFileSelected?.(file);
+    }
   };
   
   const loadFileContent = async (fileId: string) => {
@@ -340,7 +352,7 @@ export function FileUpload({
             >
               <Card 
                 className="p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => selectFile(file)}
+                onClick={() => void selectFile(file)}
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-md bg-primary/10">
