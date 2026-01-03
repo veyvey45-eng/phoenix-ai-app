@@ -100,6 +100,8 @@ export const EUROPEAN_CITIES: EuropeanCity[] = [
 
   // LUXEMBOURG
   { name: "Luxembourg City", country: "Luxembourg", countryCode: "LU", latitude: 49.6116, longitude: 6.1319, region: "Luxembourg" },
+  { name: "Luxembourg Ville", country: "Luxembourg", countryCode: "LU", latitude: 49.6116, longitude: 6.1319, region: "Luxembourg" },
+  { name: "Luxembourg", country: "Luxembourg", countryCode: "LU", latitude: 49.6116, longitude: 6.1319, region: "Luxembourg" },
   { name: "Esch-sur-Alzette", country: "Luxembourg", countryCode: "LU", latitude: 49.5328, longitude: 5.9750, region: "Luxembourg" },
   { name: "Differdange", country: "Luxembourg", countryCode: "LU", latitude: 49.5225, longitude: 5.8931, region: "Luxembourg" },
   { name: "Dudelange", country: "Luxembourg", countryCode: "LU", latitude: 49.4800, longitude: 6.1500, region: "Luxembourg" },
