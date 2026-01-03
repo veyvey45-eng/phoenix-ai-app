@@ -180,6 +180,13 @@ export const appRouter = router({
         }
         const messageWithDocuments = input.message + documentContext;
 
+        // Ajouter les données d'enrichissement Internet au message
+        let finalMessage = messageWithDocuments;
+        if (enrichment.needsInternet && enrichment.enrichedContext) {
+          finalMessage += `\n\n=== DONNÉES INTERNET ===\n${enrichment.enrichedContext}\n=== FIN DONNÉES ===`;
+          console.log(`[Phoenix] Données Internet ajoutées au message (catégorie: ${enrichment.category})`);
+        }
+
         // Process through Phoenix Simple (100% fonctionnel)
         const conversationHistory = recentUtterances.map(u => ({
           role: u.role as 'user' | 'assistant',
@@ -187,7 +194,7 @@ export const appRouter = router({
         }));
         
         const phoenixResponse = await processPhoenixQuery(
-          messageWithDocuments,
+          finalMessage,
           conversationHistory
         );
         
