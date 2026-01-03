@@ -231,9 +231,17 @@ export function FileUpload({
   const loadFileContent = async (fileId: string) => {
     // Charger le contenu complet du fichier depuis le serveur
     try {
-      const response = await fetch(`/api/files/${fileId}`);
+      // Récupérer le token d'authentification depuis le cookie de session
+      const response = await fetch(`/api/files/${fileId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // Inclure les cookies d'authentification
+      });
       if (!response.ok) {
-        throw new Error('Failed to load file');
+        console.warn(`Failed to load file: ${response.status} ${response.statusText}`);
+        return null;
       }
       const fullFile = await response.json();
       return fullFile.extractedText;
