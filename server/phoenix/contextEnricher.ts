@@ -81,7 +81,7 @@ class ContextEnricher {
         console.log(`[ContextEnricher] Requête crypto: ${symbols.join(', ')}`);
         
         try {
-          const prices = await cryptoApi.getPrices(symbols, 'usd');
+          const prices = await cryptoApi.getPrices(symbols, 'usd', query);
           const enrichedContext = prices.map(p => cryptoApi.formatForContext(p)).join('\n');
           
           console.log(`[ContextEnricher] Crypto enrichment successful for: ${symbols.join(', ')}`);
