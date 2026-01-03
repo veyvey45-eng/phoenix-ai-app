@@ -53,7 +53,21 @@ async function* streamWithGroq(
         messages,
         temperature: options?.temperature ?? 0.7,
         max_tokens: options?.maxTokens ?? 2048,
-        stream: true
+        stream: true,
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'web_search',
+            description: 'Search the web for real-time information',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'The search query' }
+              },
+              required: ['query']
+            }
+          }
+        }]
       })
     });
 
@@ -137,7 +151,21 @@ async function* streamWithGoogleAI(
       messages: messages.map(m => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content
-      }))
+      })),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for real-time information',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'The search query' }
+            },
+            required: ['query']
+          }
+        }
+      }]
     });
 
     // Simulate streaming by yielding chunks
