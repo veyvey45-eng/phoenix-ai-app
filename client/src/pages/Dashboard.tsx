@@ -10,7 +10,6 @@ import { Loader2, Send, MessageSquare } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { ConversationsList } from "@/components/ConversationsList";
 import { FileUpload } from "@/components/FileUpload";
-import { DocumentAnalysis } from "@/components/DocumentAnalysis";
 import { toast } from "sonner";
 
 // Generate UUID
@@ -39,8 +38,6 @@ export default function Dashboard() {
   const [showConversations, setShowConversations] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<{id: string; name: string; content: string} | null>(null);
-  const [documentAnalysis, setDocumentAnalysis] = useState<{fileName: string; analysis: string} | null>(null);
-  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Queries
@@ -80,33 +77,6 @@ export default function Dashboard() {
       });
     });
   }, [conversationId, conversationMutation]);
-
-  // Function to analyze document
-  const analyzeDocument = useCallback(async (fileId: string, fileName: string) => {
-    setIsAnalyzingDocument(true);
-    try {
-      const response = await fetch('/api/analyze-document', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setDocumentAnalysis({
-        fileName,
-        analysis: data.analysis
-      });
-    } catch (error) {
-      console.error('Document analysis error:', error);
-      toast.error('Erreur lors de l\'analyse du document');
-    } finally {
-      setIsAnalyzingDocument(false);
-    }
-  }, []);
 
   // Handle sending message
   const handleSendMessage = useCallback(async () => {
@@ -358,18 +328,6 @@ export default function Dashboard() {
 
           {/* Chat area */}
           <div className="flex-1 flex flex-col border border-border rounded-lg bg-card overflow-hidden">
-            {/* Document Analysis Section */}
-            {documentAnalysis && (
-              <div className="border-b border-border p-4 bg-green-500/5">
-                <DocumentAnalysis
-                  fileName={documentAnalysis.fileName}
-                  analysis={documentAnalysis.analysis}
-                  isLoading={isAnalyzingDocument}
-                  onClose={() => setDocumentAnalysis(null)}
-                />
-              </div>
-            )}
-            
             {/* Messages */}
             <ScrollArea ref={scrollRef} className="flex-1 p-4">
               <div className="space-y-4 max-w-2xl mx-auto">
@@ -421,9 +379,13 @@ export default function Dashboard() {
                     maxFiles={1}
                     onFileUploaded={(file) => {
                       if (file.extractedText) {
+                        setUploadedFile({
+                          id: file.id,
+                          name: file.originalName,
+                          content: file.extractedText
+                        });
                         setShowFileUpload(false);
-                        toast.success(`Analyse de ${file.originalName} en cours...`);
-                        analyzeDocument(file.id, file.originalName);
+                        toast.success(`${file.originalName} ajouté à la question`);
                       } else {
                         toast.error(`Impossible d'extraire le contenu de ${file.originalName}`);
                       }
