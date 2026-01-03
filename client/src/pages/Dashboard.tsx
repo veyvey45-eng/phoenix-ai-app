@@ -39,7 +39,7 @@ export default function Dashboard() {
 
   // Queries
   const phoenixState = trpc.phoenix.getState.useQuery(undefined, {
-    refetchInterval: 5000
+    enabled: false // Disable auto-refetch to prevent page refresh issues
   });
 
   const conversationMutation = trpc.conversations.create.useMutation();
@@ -110,6 +110,8 @@ export default function Dashboard() {
     // Don't reload from database while sending
     const originalMessages = [userMessage, assistantMessage];
 
+    let fullContent = ''; // Declare outside try-catch to use in save messages
+    
     try {
       const params = new URLSearchParams({
         message: userContent,
@@ -118,58 +120,79 @@ export default function Dashboard() {
       });
 
       console.log('[Dashboard] Sending message with conversationId:', conversationIdFromEnsure);
-      const response = await fetch(`/api/stream/chat?${params}`);
-      if (!response.ok) {
-        console.error('[Dashboard] Stream response error:', response.status);
-        throw new Error(`HTTP ${response.status}`);
-      }
+      
+      // Add timeout to fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      
+      try {
+        const response = await fetch(`/api/stream/chat?${params}`, {
+          signal: controller.signal
+        });
+        
+        if (!response.ok) {
+          console.error('[Dashboard] Stream response error:', response.status);
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        clearTimeout(timeoutId);
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        console.error('[Dashboard] No response body');
-        throw new Error('No response body');
-      }
+        const reader = response.body?.getReader();
+        if (!reader) {
+          console.error('[Dashboard] No response body');
+          throw new Error('No response body');
+        }
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullContent = '';
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        while (true) {
+          try {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
 
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.type === 'token') {
-                  fullContent += parsed.content;
-                  setMessages(prev =>
-                    prev.map(msg =>
-                      msg.id === assistantMessageId
-                        ? { ...msg, content: fullContent }
-                        : msg
-                    )
-                  );
-                } else if (parsed.type === 'error') {
-                  console.error('[Dashboard] Stream error:', parsed.message);
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.type === 'token') {
+                    fullContent += parsed.content;
+                    setMessages(prev =>
+                      prev.map(msg =>
+                        msg.id === assistantMessageId
+                          ? { ...msg, content: fullContent }
+                          : msg
+                      )
+                    );
+                  } else if (parsed.type === 'error') {
+                    console.error('[Dashboard] Stream error:', parsed.message);
+                  }
+                } catch (e) {
+                  console.error('[Dashboard] Failed to parse stream data:', e);
                 }
-              } catch (e) {
-                console.error('[Dashboard] Failed to parse stream data:', e);
               }
+            }
+          } catch (streamError) {
+            console.error('[Dashboard] Stream read error:', streamError);
+            if (streamError instanceof Error && streamError.name === 'AbortError') {
+              throw new Error('Request timeout - Phoenix took too long to respond');
+            }
+            throw streamError;
           }
         }
+      } finally {
+        clearTimeout(timeoutId);
       }
 
       // Save messages to database - use final conversationId
-      const finalConversationId = conversationIdFromEnsure;
+      const finalConversationId = conversationIdFromEnsure; // fullContent is already defined
       console.log('[Dashboard] Saving messages for conversation:', finalConversationId);
       if (finalConversationId) {
         try {
