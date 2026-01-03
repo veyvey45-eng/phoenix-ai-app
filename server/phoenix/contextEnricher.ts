@@ -83,17 +83,20 @@ class ContextEnricher {
           const prices = await cryptoApi.getPrices(symbols, 'usd');
           const enrichedContext = prices.map(p => cryptoApi.formatForContext(p)).join('\n');
           
+          console.log(`[ContextEnricher] Crypto enrichment successful for: ${symbols.join(', ')}`);
           return {
             needsInternet: true,
             category: 'crypto',
             enrichedContext
           };
         } catch (error) {
-          console.error('[ContextEnricher] Erreur crypto:', error);
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error('[ContextEnricher] Erreur crypto détaillée:', errorMsg);
+          // Return empty context so Groq doesn't see the error message
           return {
             needsInternet: true,
             category: 'crypto',
-            enrichedContext: '[Note: Données crypto indisponibles]'
+            enrichedContext: ''
           };
         }
       }

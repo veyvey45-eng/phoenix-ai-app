@@ -23,6 +23,25 @@ interface CryptoPriceResponse {
 const CACHE: Map<string, { data: CryptoPrice; time: number }> = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Fallback prices if API is unavailable
+const FALLBACK_PRICES: Record<string, number> = {
+  'ethereum': 3099.6,
+  'bitcoin': 89916,
+  'binancecoin': 612,
+  'ripple': 2.45,
+  'cardano': 0.98,
+  'solana': 198,
+  'polkadot': 7.85,
+  'dogecoin': 0.38,
+  'tether': 1.0,
+  'usd-coin': 1.0,
+  'litecoin': 95,
+  'chainlink': 28,
+  'uniswap': 8.5,
+  'matic-network': 0.45,
+  'avalanche-2': 35
+};
+
 class CryptoApiService {
   private baseUrl = 'https://api.coingecko.com/api/v3';
 
@@ -38,7 +57,13 @@ class CryptoApiService {
       const coinId = this.mapSymbolToCoinId(symbol);
       const url = `${this.baseUrl}/simple/price?ids=${coinId}&vs_currencies=${currency}&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`;
       
-      const response = await fetch(url);
+      // Add timeout to fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       
       const data = await response.json();
@@ -60,7 +85,28 @@ class CryptoApiService {
       CACHE.set(cacheKey, { data: crypto, time: Date.now() });
       return { crypto, source: 'CoinGecko (temps réel)', cached: false };
     } catch (error) {
-      console.error('[CryptoAPI] Erreur:', error);
+      console.error('[CryptoAPI] Erreur CoinGecko:', error);
+      
+      // Use fallback price if API fails
+      const coinId = this.mapSymbolToCoinId(symbol);
+      const fallbackPrice = FALLBACK_PRICES[coinId];
+      
+      if (fallbackPrice) {
+        const crypto: CryptoPrice = {
+          symbol: symbol.toUpperCase(),
+          name: this.getCryptoName(symbol),
+          price: fallbackPrice,
+          currency: currency.toUpperCase(),
+          change24h: 0,
+          marketCap: 0,
+          volume24h: 0,
+          timestamp: new Date()
+        };
+        
+        CACHE.set(cacheKey, { data: crypto, time: Date.now() });
+        return { crypto, source: 'Fallback (API indisponible)', cached: false };
+      }
+      
       throw error;
     }
   }
