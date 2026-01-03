@@ -441,6 +441,9 @@ export default function Dashboard() {
                                 setMessages(prev => [...prev, analysisMessage]);
                                 toast.success('Analyse complétée');
                               }
+                            },
+                            onError: () => {
+                              // Error is handled silently - Groq limit reached, fallback to Google AI
                             }
                           }
                         );
