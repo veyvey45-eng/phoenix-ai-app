@@ -6,6 +6,7 @@ import { openweatherApi } from './openweatherApi';
 import { cryptoApi } from './cryptoApi';
 import { newsApiFree } from './newsApiFree';
 import { webSearchIntegration } from './webSearch';
+import { findCity, searchCities, EUROPEAN_CITIES } from './europeanCities';
 
 interface EnrichmentResult {
   needsInternet: boolean;
@@ -105,6 +106,12 @@ class ContextEnricher {
       if (analysis.category === 'weather') {
         const city = this.extractCityFromQuery(query);
         console.log(`[ContextEnricher] Requête météo: ${city}`);
+        
+        // Obtenir les coordonnées GPS de la ville
+        const cityData = findCity(city);
+        if (cityData) {
+          console.log(`[ContextEnricher] Coordonnées GPS: ${cityData.latitude}, ${cityData.longitude}`);
+        }
         
         const isForecast = /demain|prévision|semaine|jours/i.test(query);
         
@@ -219,25 +226,43 @@ class ContextEnricher {
   }
 
   private extractCityFromQuery(query: string): string {
-    const knownCities = [
-      'luxembourg', 'paris', 'bruxelles', 'berlin', 'london', 'lyon', 'marseille',
-      'toulouse', 'nice', 'strasbourg', 'bordeaux', 'lille', 'nantes', 'rennes',
-      'rouen', 'dijon', 'grenoble', 'montpellier', 'cannes', 'monaco', 'genève',
-      'zurich', 'berne', 'lausanne', 'amsterdam', 'rotterdam', 'anvers', 'gand',
-      'liège', 'namur', 'charleroi', 'cologne', 'francfort', 'munich', 'hambourg',
-      'vienne', 'prague', 'budapest', 'varsovie', 'cracovie', 'bucarest', 'sofia',
-      'belgrade', 'athènes', 'istanbul', 'ankara', 'madrid', 'barcelone', 'valence',
-      'séville', 'lisbonne', 'porto', 'rome', 'milan', 'venise', 'florence', 'naples',
-      'dublin', 'belfast', 'édimbourg', 'glasgow', 'manchester', 'liverpool',
-      'birmingham', 'bristol', 'oxford', 'cambridge', 'york', 'bath'
-    ];
+    const queryLower = query.toLowerCase();
     
-    for (const city of knownCities) {
-      if (query.toLowerCase().includes(city)) {
-        return city.charAt(0).toUpperCase() + city.slice(1);
+    // Cherche d'abord les villes exactes dans la base de données
+    for (const city of EUROPEAN_CITIES) {
+      if (queryLower.includes(city.name.toLowerCase())) {
+        console.log(`[ContextEnricher] Ville trouvée: ${city.name} (${city.country})`);
+        return city.name;
       }
     }
+    
+    // Cherche ensuite par pattern (ex: 'à Paris', 'de Berlin')
+    const cityPatterns = [
+      /(?:à|de|en|dans)\s+([A-Za-zÀ-ÿ\s]+?)(?:\s+(?:ville|métropole|région|pays))?(?:[,.]|$)/i,
+      /(?:météo|température|temps)\s+(?:à|de|en|dans)?\s+([A-Za-zÀ-ÿ\s]+?)(?:[,.]|$)/i,
+      /([A-Za-zÀ-ÿ]+)\s+(?:ville|métropole|région|pays)/i
+    ];
+    
+    for (const pattern of cityPatterns) {
+      const match = queryLower.match(pattern);
+      if (match && match[1]) {
+        const potentialCity = match[1].trim();
+        const foundCity = findCity(potentialCity);
+        if (foundCity) {
+          console.log(`[ContextEnricher] Ville trouvée par pattern: ${foundCity.name}`);
+          return foundCity.name;
+        }
+      }
+    }
+    
+    // Recherche approximative
+    const searchResults = searchCities(queryLower);
+    if (searchResults.length > 0) {
+      console.log(`[ContextEnricher] Ville trouvée par recherche: ${searchResults[0].name}`);
+      return searchResults[0].name;
+    }
 
+    console.log('[ContextEnricher] Aucune ville trouvée, utilisation de Luxembourg par défaut');
     return 'Luxembourg';
   }
 

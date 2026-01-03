@@ -1,7 +1,10 @@
 /**
  * OpenWeatherMap API Module - Données météo réelles en temps réel
  * Remplace la simulation précédente avec des données réelles
+ * Support des coordonnées GPS pour une précision maximale
  */
+
+import { findCity } from './europeanCities';
 
 interface WeatherData {
   location: string;
@@ -41,7 +44,7 @@ class OpenWeatherMapService {
   }
 
   /**
-   * Get current weather for a city
+   * Get current weather for a city (by name or coordinates)
    */
   async getCurrentWeather(city: string): Promise<WeatherData> {
     try {
@@ -49,12 +52,25 @@ class OpenWeatherMapService {
         return this.getSimulatedWeather(city);
       }
 
-      const response = await fetch(
-        `${this.baseUrl}/weather?q=${encodeURIComponent(city)}&units=metric&lang=fr&appid=${this.apiKey}`
-      );
+      // Try to get GPS coordinates for exact location
+      const cityData = findCity(city);
+      let url: string;
+      
+      if (cityData) {
+        // Use GPS coordinates for maximum precision
+        console.log(`[OpenWeatherMap] Using GPS coordinates for ${city}: ${cityData.latitude}, ${cityData.longitude}`);
+        url = `${this.baseUrl}/weather?lat=${cityData.latitude}&lon=${cityData.longitude}&units=metric&lang=fr&appid=${this.apiKey}`;
+      } else {
+        // Fallback to city name search
+        console.log(`[OpenWeatherMap] Using city name search for ${city}`);
+        url = `${this.baseUrl}/weather?q=${encodeURIComponent(city)}&units=metric&lang=fr&appid=${this.apiKey}`;
+      }
+
+      const response = await fetch(url);
 
       if (!response.ok) {
-        console.warn(`[OpenWeatherMap] Failed to fetch weather for ${city}:`, response.status);
+        const errorText = await response.text().catch(() => '');
+        console.warn(`[OpenWeatherMap] Failed to fetch weather for ${city}:`, response.status, errorText);
         return this.getSimulatedWeather(city);
       }
 
@@ -79,7 +95,7 @@ class OpenWeatherMapService {
   }
 
   /**
-   * Get weather forecast for a city
+   * Get weather forecast for a city (by name or coordinates)
    */
   async getForecast(city: string, days: number = 5): Promise<WeatherForecast> {
     try {
@@ -87,12 +103,25 @@ class OpenWeatherMapService {
         return this.getSimulatedForecast(city, days);
       }
 
-      const response = await fetch(
-        `${this.baseUrl}/forecast?q=${encodeURIComponent(city)}&units=metric&lang=fr&appid=${this.apiKey}`
-      );
+      // Try to get GPS coordinates for exact location
+      const cityData = findCity(city);
+      let url: string;
+      
+      if (cityData) {
+        // Use GPS coordinates for maximum precision
+        console.log(`[OpenWeatherMap] Using GPS coordinates for forecast ${city}: ${cityData.latitude}, ${cityData.longitude}`);
+        url = `${this.baseUrl}/forecast?lat=${cityData.latitude}&lon=${cityData.longitude}&units=metric&lang=fr&appid=${this.apiKey}`;
+      } else {
+        // Fallback to city name search
+        console.log(`[OpenWeatherMap] Using city name search for forecast ${city}`);
+        url = `${this.baseUrl}/forecast?q=${encodeURIComponent(city)}&units=metric&lang=fr&appid=${this.apiKey}`;
+      }
+
+      const response = await fetch(url);
 
       if (!response.ok) {
-        console.warn(`[OpenWeatherMap] Failed to fetch forecast for ${city}:`, response.status);
+        const errorText = await response.text().catch(() => '');
+        console.warn(`[OpenWeatherMap] Failed to fetch forecast for ${city}:`, response.status, errorText);
         return this.getSimulatedForecast(city, days);
       }
 
