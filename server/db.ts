@@ -1,5 +1,6 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { randomUUID } from "crypto";
 import { 
   InsertUser, users,
   utterances, InsertUtterance, Utterance,
@@ -408,6 +409,8 @@ export async function getOrCreatePhoenixState(userId: number): Promise<PhoenixSt
       userId,
       tormentScore: 0,
       activeHypotheses: [],
+      enrichedContext: null,
+      lastEnrichedAt: null,
       identityVersion: 1,
       lastConsolidation: null,
       openIssuesCount: 0,
@@ -443,6 +446,8 @@ export async function getOrCreatePhoenixState(userId: number): Promise<PhoenixSt
     userId,
     tormentScore: 0,
     activeHypotheses: [],
+    enrichedContext: null,
+    lastEnrichedAt: null,
     identityVersion: 1,
     lastConsolidation: null,
     openIssuesCount: 0,
@@ -855,4 +860,97 @@ export async function getApprovalHistory(limit = 50): Promise<ApprovalRequest[]>
     .from(approvalRequests)
     .orderBy(desc(approvalRequests.createdAt))
     .limit(limit);
+}
+
+export async function updateConversation(
+  conversationId: number, 
+  data: Partial<Conversation>
+): Promise<Conversation | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const updateData: Record<string, any> = {};
+  if (data.title !== undefined) updateData.title = data.title;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  updateData.updatedAt = new Date();
+
+  await db.update(conversations)
+    .set(updateData)
+    .where(eq(conversations.id, conversationId));
+
+  return getConversationById(conversationId);
+}
+
+export async function getConversationById(conversationId: number): Promise<Conversation | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select()
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function deleteConversation(conversationId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  try {
+    // Delete all utterances in this conversation first
+    await db.delete(utterances)
+      .where(eq(utterances.contextId, (await getConversationById(conversationId))?.contextId || ''));
+    
+    // Then delete the conversation
+    await db.delete(conversations)
+      .where(eq(conversations.id, conversationId));
+    
+    return true;
+  } catch (error) {
+    console.error('[Database] Error deleting conversation:', error);
+    return false;
+  }
+}
+
+export async function getConversationMessages(contextId: string, limit = 100): Promise<Utterance[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select()
+    .from(utterances)
+    .where(eq(utterances.contextId, contextId))
+    .orderBy(utterances.createdAt)
+    .limit(limit);
+}
+
+export async function saveConversationMessage(
+  contextId: string,
+  role: 'user' | 'assistant' | 'system',
+  content: string,
+  userId: number
+): Promise<Utterance | undefined> {
+  return createUtterance({
+    role,
+    content,
+    contextId,
+    userId,
+    confidence: 1.0
+  });
+}
+
+export async function getOrCreateConversationForUser(
+  userId: number,
+  title?: string
+): Promise<Conversation | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const contextId = randomUUID();
+  return createConversation({
+    userId,
+    title: title || `Conversation ${new Date().toLocaleString('fr-FR')}`,
+    contextId,
+    isActive: true
+  });
 }

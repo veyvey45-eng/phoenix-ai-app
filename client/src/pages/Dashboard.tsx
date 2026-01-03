@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { 
   Brain, 
   Activity, 
@@ -27,6 +28,8 @@ import {
   FileUp
 } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect } from "react";
+import { ConversationsList } from "@/components/ConversationsList";
 
 
 interface Message {
@@ -51,12 +54,14 @@ interface Message {
 export default function Dashboard() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [contextId] = useState(() => crypto.randomUUID());
+  const [contextId, setContextId] = useState<string>(() => crypto.randomUUID());
+  const [conversationId, setConversationId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("chat");
   const [fastMode, setFastMode] = useState(() => {
     const saved = localStorage.getItem('phoenix-fast-mode');
     return saved ? JSON.parse(saved) : false;
   });
+  const [showConversations, setShowConversations] = useState(false);
 
   // Queries
   const phoenixState = trpc.phoenix.getState.useQuery(undefined, {
@@ -65,8 +70,32 @@ export default function Dashboard() {
   
   const auditLog = trpc.audit.list.useQuery({ limit: 50 });
   const criteria = trpc.criteria.list.useQuery();
+  const conversationMutation = trpc.conversations.create.useMutation({
+    onSuccess: (conversation) => {
+      if (conversation) {
+        setConversationId(conversation.id);
+        setContextId(conversation.contextId);
+        setMessages([]);
+      }
+    }
+  });
+  const saveMessageMutation = trpc.conversations.saveMessage.useMutation();
+
+  // Auto-create conversation on first message
+  const ensureConversation = useCallback(async () => {
+    if (!conversationId) {
+      conversationMutation.mutate({});
+      return new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }, [conversationId, conversationMutation]);
 
   const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
+    // Ensure conversation exists first
+    if (!conversationId) {
+      await ensureConversation();
+      return; // Will be called again after conversation is created
+    }
+    const finalConversationId = conversationId;
     // Check if message contains file references and retrieve content
     let finalContent = content;
     const fileIdMatches = content.match(/\[FILE_ID:([^\]]+)\]/g) || [];
@@ -159,6 +188,24 @@ export default function Dashboard() {
         }
       }
 
+      // Save messages to database if conversation exists
+      if (finalConversationId) {
+        try {
+          await saveMessageMutation.mutateAsync({
+            conversationId: finalConversationId,
+            role: 'user',
+            content: finalContent
+          });
+          await saveMessageMutation.mutateAsync({
+            conversationId: finalConversationId,
+            role: 'assistant',
+            content: fullContent
+          });
+        } catch (err) {
+          console.error('Error saving messages:', err);
+        }
+      }
+
       // Refresh Phoenix state after streaming completes
       phoenixState.refetch();
       auditLog.refetch();
@@ -170,7 +217,7 @@ export default function Dashboard() {
       // Remove the placeholder message on error
       setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
     }
-  }, [contextId, fastMode, phoenixState, auditLog]);
+  }, [contextId, fastMode, phoenixState, auditLog, conversationId, saveMessageMutation, ensureConversation]);
 
   const resolveIssueMutation = trpc.issues.resolve.useMutation({
     onSuccess: () => {
@@ -194,12 +241,48 @@ export default function Dashboard() {
     deferIssueMutation.mutate({ issueId });
   }, [deferIssueMutation]);
 
+  const handleSelectConversation = useCallback((convId: number, convContextId: string) => {
+    setConversationId(convId);
+    setContextId(convContextId);
+    setMessages([]);
+    setShowConversations(false);
+  }, []);
+
   const state = phoenixState.data;
   const lastHypotheses = messages.filter(m => m.role === "assistant" && m.hypotheses).slice(-1)[0]?.hypotheses || [];
+
+  // Load conversation messages when conversation changes
+  const conversationQuery = trpc.conversations.get.useQuery(
+    { conversationId: conversationId || 0 },
+    { enabled: !!conversationId }
+  );
+
+  useEffect(() => {
+    if (conversationQuery.data?.messages) {
+      const loadedMessages = conversationQuery.data.messages.map((msg: any) => ({
+        id: msg.id.toString(),
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.createdAt)
+      }));
+      setMessages(loadedMessages);
+    }
+  }, [conversationQuery.data?.messages]);
 
   return (
     <DashboardLayout>
       <div className="h-full flex">
+        {/* Conversations sidebar */}
+        {showConversations && (
+          <div className="w-64 border-r border-border flex flex-col bg-muted/30">
+            <ConversationsList
+              onSelectConversation={handleSelectConversation}
+              onCreateNew={() => {
+                conversationMutation.mutate({});
+              }}
+            />
+          </div>
+        )}
         {/* Main content area */}
         <div className="flex-1 flex flex-col">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -228,6 +311,15 @@ export default function Dashboard() {
               </TabsList>
               
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowConversations(!showConversations)}
+                  className="gap-2"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  {showConversations ? 'Masquer' : 'Conversations'}
+                </Button>
                 <DemoMode 
                   onRunDemo={(scenario) => {
                     toast.info(`Démo: ${scenario.title}`, {

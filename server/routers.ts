@@ -64,7 +64,13 @@ import {
   createApprovalRequest,
   getPendingApprovals,
   processApprovalRequest,
-  getApprovalHistory
+  getApprovalHistory,
+  updateConversation,
+  getConversationById,
+  deleteConversation,
+  getConversationMessages,
+  saveConversationMessage,
+  getOrCreateConversationForUser
 } from "./db";
 
 export const appRouter = router({
@@ -2897,6 +2903,92 @@ export const appRouter = router({
         serper: serperApi.isAvailable()
       };
     })
+  }),
+
+  // ============================================================================
+  // CONVERSATIONS - Persistent conversation history
+  // ============================================================================
+  conversations: router({
+    /**
+     * List all conversations for the current user
+     */
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getConversationsByUser(ctx.user.id);
+    }),
+
+    /**
+     * Get a specific conversation with its messages
+     */
+    get: protectedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const conversation = await getConversationById(input.conversationId);
+        if (!conversation || conversation.userId !== ctx.user.id) {
+          throw new Error('Conversation not found or access denied');
+        }
+        const messages = await getConversationMessages(conversation.contextId);
+        return { conversation, messages };
+      }),
+
+    /**
+     * Create a new conversation
+     */
+    create: protectedProcedure
+      .input(z.object({ title: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        return getOrCreateConversationForUser(ctx.user.id, input.title);
+      }),
+
+    /**
+     * Update conversation title
+     */
+    updateTitle: protectedProcedure
+      .input(z.object({
+        conversationId: z.number(),
+        title: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const conversation = await getConversationById(input.conversationId);
+        if (!conversation || conversation.userId !== ctx.user.id) {
+          throw new Error('Conversation not found or access denied');
+        }
+        return updateConversation(input.conversationId, { title: input.title });
+      }),
+
+    /**
+     * Delete a conversation
+     */
+    delete: protectedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const conversation = await getConversationById(input.conversationId);
+        if (!conversation || conversation.userId !== ctx.user.id) {
+          throw new Error('Conversation not found or access denied');
+        }
+        return deleteConversation(input.conversationId);
+      }),
+
+    /**
+     * Save a message to a conversation
+     */
+    saveMessage: protectedProcedure
+      .input(z.object({
+        conversationId: z.number(),
+        role: z.enum(['user', 'assistant', 'system']),
+        content: z.string()
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const conversation = await getConversationById(input.conversationId);
+        if (!conversation || conversation.userId !== ctx.user.id) {
+          throw new Error('Conversation not found or access denied');
+        }
+        return saveConversationMessage(
+          conversation.contextId,
+          input.role,
+          input.content,
+          ctx.user.id
+        );
+      })
   }),
 });
 export type AppRouter = typeof appRouter;

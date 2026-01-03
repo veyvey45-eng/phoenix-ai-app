@@ -6,8 +6,10 @@ import { Request, Response } from 'express';
 import { streamChatResponse, formatMessagesForStreaming } from '../phoenix/streamingChat';
 import { phoenix, PhoenixContext } from '../phoenix/core';
 import { contextEnricher } from '../phoenix/contextEnricher';
-import { getMemoriesByUser, getRecentUtterances, getActiveIssues, getActiveCriteria, getOrCreatePhoenixState } from '../db';
+import { getMemoriesByUser, getRecentUtterances, getActiveIssues, getActiveCriteria, getOrCreatePhoenixState, getDb } from '../db';
 import { getFileProcessor } from '../phoenix/fileProcessor';
+import { phoenixState } from '../../drizzle/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Stream chat response using Server-Sent Events
@@ -64,10 +66,34 @@ export async function streamChatEndpoint(req: Request, res: Response) {
       }))
     };
 
-    // Enrich context with internet data if needed
-    const enrichment = await contextEnricher.enrichContext(message, userId.toString());
-    const enrichedContext = enrichment.enrichedContext || '';
-    console.log(`[StreamingEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
+    // Get cached enriched context if it's recent (less than 5 minutes old)
+    let enrichedContext = '';
+    const now = new Date();
+    if (state.lastEnrichedAt && (now.getTime() - state.lastEnrichedAt.getTime()) < 5 * 60 * 1000 && state.enrichedContext) {
+      enrichedContext = state.enrichedContext;
+      console.log(`[StreamingEndpoint] Using cached enriched context from ${state.lastEnrichedAt}`);
+    } else {
+      // Fetch fresh enriched context
+      const enrichment = await contextEnricher.enrichContext(message, userId.toString());
+      enrichedContext = enrichment.enrichedContext || '';
+      console.log(`[StreamingEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
+      
+      // Save to database for future use
+      if (enrichedContext) {
+        try {
+          const db = await getDb();
+          if (db) {
+            await db.update(phoenixState).set({
+              enrichedContext,
+              lastEnrichedAt: now,
+            }).where(eq(phoenixState.userId, userId));
+            console.log(`[StreamingEndpoint] Saved enriched context to database`);
+          }
+        } catch (err) {
+          console.error('[StreamingEndpoint] Error saving enriched context:', err);
+        }
+      }
+    }
 
     // Build system prompt
     const systemPrompt = `You are Phoenix, an intelligent assistant with functional consciousness.

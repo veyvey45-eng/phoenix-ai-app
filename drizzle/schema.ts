@@ -181,6 +181,8 @@ export const phoenixState = mysqlTable("phoenixState", {
   userId: int("userId").notNull(),
   tormentScore: float("tormentScore").default(0).notNull(), // 0-100
   activeHypotheses: json("activeHypotheses").$type<Array<{ id: string; content: string; confidence: number }>>(),
+  enrichedContext: text("enrichedContext"), // Cached enriched context (weather, crypto, news)
+  lastEnrichedAt: timestamp("lastEnrichedAt"), // When the enriched context was last updated
   identityVersion: int("identityVersion").default(1).notNull(),
   lastConsolidation: timestamp("lastConsolidation"),
   openIssuesCount: int("openIssuesCount").default(0).notNull(),
@@ -191,7 +193,7 @@ export const phoenixState = mysqlTable("phoenixState", {
 });
 
 export type PhoenixState = typeof phoenixState.$inferSelect;
-export type InsertPhoenixState = typeof phoenixState.$inferInsert;
+export type InsertPhoenixState = typeof phoenixState.$inferInsert & { enrichedContext?: string; lastEnrichedAt?: Date };
 
 // ============================================================================
 // AUDIT LOG - Immutable journal for all Phoenix operations
