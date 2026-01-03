@@ -1,59 +1,56 @@
 /**
- * Context Enricher - Module d'enrichissement de contexte avec accès Internet
+ * Context Enricher - Enrichit le contexte avec des données Internet
  */
 
-import { webSearchIntegration, SearchResponse } from './webSearch';
 import { openweatherApi } from './openweatherApi';
 import { cryptoApi } from './cryptoApi';
 import { newsApiFree } from './newsApiFree';
-import { serperApi } from './serperApi';
+import { webSearchIntegration } from './webSearch';
 
 interface EnrichmentResult {
   needsInternet: boolean;
   category: 'weather' | 'news' | 'facts' | 'search' | 'crypto' | 'none';
-  searchResults?: SearchResponse;
   enrichedContext: string;
 }
 
-const WEATHER_PATTERNS = [
-  /m[ée]t[ée]o/i,
-  /temps\s+(qu'il\s+fait|actuel|aujourd'hui|demain)/i,
-  /quel\s+temps/i,
-  /pr[ée]vision/i,
-  /temp[ée]rature/i,
-  /pleut|pleuvoir|pluie/i,
-  /neige|neiger/i,
-  /soleil|ensoleill[ée]/i,
-  /weather/i
-];
+interface SearchResponse {
+  results: Array<{
+    title: string;
+    snippet: string;
+    url: string;
+    source: string;
+  }>;
+}
 
-const NEWS_PATTERNS = [
-  /actualit[ée]s?/i,
-  /nouvelles/i,
-  /derni[èe]res?\s+infos?/i,
-  /news/i,
-  /r[ée]cent/i,
-  /cette\s+semaine/i
+const WEATHER_PATTERNS = [
+  /meteo|météo/i,
+  /temperature|température/i,
+  /temps/i,
+  /climat/i,
+  /celsius|fahrenheit|degre|degree/i,
+  /quel.*temps/i,
+  /froid|chaud|beau/i,
+  /temp.*a|temp.*à/i
 ];
 
 const CRYPTO_PATTERNS = [
-  /bitcoin|ethereum|btc|eth|crypto|bnb|xrp|ada|sol|dogecoin|doge|litecoin|ltc|chainlink|link|uniswap|uni|polygon|matic|avalanche|avax/i,
+  /bitcoin|btc|ethereum|eth|crypto|blockchain|web3/i,
   /prix.*crypto/i,
-  /price.*crypto/i,
   /cours.*bitcoin/i
 ];
 
+const NEWS_PATTERNS = [
+  /actualit|nouvelles|news|dernière|récent/i,
+  /qu'est-ce.*passé|qu'est.*arrivé/i
+];
+
 const FACTS_PATTERNS = [
-  /comment/i,
-  /pourquoi/i,
-  /qu'est-ce/i,
-  /d[ée]finition/i,
-  /explication/i
+  /qui|quoi|comment|pourquoi|définition|c'est quoi/i
 ];
 
 const SEARCH_PATTERNS = [
-  /cherche|recherche|trouve|google/i,
-  /qui|quel|o[ù]|quand/i
+  /cherche|recherche|google|internet|web|site/i,
+  /trouve.*info|donne.*info/i
 ];
 
 class ContextEnricher {
@@ -129,73 +126,89 @@ class ContextEnricher {
         return {
           needsInternet: true,
           category: 'news',
-          enrichedContext: newsApiFree.formatForContext(newsResponse)
+          enrichedContext: newsResponse.articles
+            .slice(0, 3)
+            .map(a => `📰 ${a.title}\n${a.description}\n🔗 ${a.url}`)
+            .join('\n\n')
         };
       }
 
-      const searchResults = await webSearchIntegration.search(query, {
-        userId,
-        maxResults: 5,
-        language: 'fr',
-        region: 'FR'
-      });
-
-      const enrichedContext = this.buildEnrichedContext(analysis.category, searchResults, query);
+      if (analysis.category === 'search') {
+        try {
+          const searchResponse = await webSearchIntegration.search(query);
+          return {
+            needsInternet: true,
+            category: 'search',
+            enrichedContext: this.buildEnrichedContext('search', searchResponse, query)
+          };
+        } catch (error) {
+          console.error('[ContextEnricher] Erreur recherche:', error);
+          return {
+            needsInternet: true,
+            category: 'search',
+            enrichedContext: '[Note: Recherche indisponible]'
+          };
+        }
+      }
 
       return {
-        needsInternet: true,
-        category: analysis.category,
-        searchResults,
-        enrichedContext
+        needsInternet: false,
+        category: 'none',
+        enrichedContext: ''
       };
     } catch (error) {
       console.error('[ContextEnricher] Erreur:', error);
       return {
-        needsInternet: true,
-        category: analysis.category,
-        enrichedContext: `[Note: Recherche indisponible pour "${query}"]`
+        needsInternet: false,
+        category: 'none',
+        enrichedContext: ''
       };
     }
   }
 
   private extractCryptoSymbols(query: string): string[] {
-    const symbols: Record<string, string> = {
-      'bitcoin': 'btc', 'ethereum': 'eth', 'bnb': 'bnb', 'xrp': 'xrp', 'ada': 'ada',
-      'solana': 'sol', 'dogecoin': 'doge', 'doge': 'doge', 'litecoin': 'ltc', 'ltc': 'ltc',
-      'chainlink': 'link', 'link': 'link', 'uniswap': 'uni', 'uni': 'uni',
-      'polygon': 'matic', 'matic': 'matic', 'avalanche': 'avax', 'avax': 'avax'
+    const symbols: string[] = [];
+    const cryptoMap: Record<string, string> = {
+      'bitcoin': 'BTC',
+      'btc': 'BTC',
+      'ethereum': 'ETH',
+      'eth': 'ETH',
+      'bnb': 'BNB',
+      'xrp': 'XRP',
+      'ripple': 'XRP',
+      'ada': 'ADA',
+      'cardano': 'ADA',
+      'sol': 'SOL',
+      'solana': 'SOL',
+      'dot': 'DOT',
+      'polkadot': 'DOT'
     };
 
-    const found: string[] = [];
-    const lowerQuery = query.toLowerCase();
-    
-    for (const [key, symbol] of Object.entries(symbols)) {
-      if (lowerQuery.includes(key)) found.push(symbol);
+    for (const [key, value] of Object.entries(cryptoMap)) {
+      if (query.toLowerCase().includes(key)) symbols.push(value);
     }
 
-    return found.length > 0 ? found : ['btc', 'eth'];
+    return symbols.length > 0 ? symbols : ['BTC'];
   }
 
   private extractCityFromQuery(query: string): string {
-    const patterns = [
-      /météo\s+(?:à|a|au|en|de|du)?\s*([A-Za-zà-ü\s-]+)/i,
-      /temps\s+(?:à|a|au|en|de|du)?\s*([A-Za-zà-ü\s-]+)/i,
-      /(?:à|a|au|en|de|du)\s+([A-Za-zà-ü\s-]+)\s*\??$/i
+    const knownCities = [
+      'luxembourg', 'paris', 'bruxelles', 'berlin', 'london', 'lyon', 'marseille',
+      'toulouse', 'nice', 'strasbourg', 'bordeaux', 'lille', 'nantes', 'rennes',
+      'rouen', 'dijon', 'grenoble', 'montpellier', 'cannes', 'monaco', 'genève',
+      'zurich', 'berne', 'lausanne', 'amsterdam', 'rotterdam', 'anvers', 'gand',
+      'liège', 'namur', 'charleroi', 'cologne', 'francfort', 'munich', 'hambourg',
+      'vienne', 'prague', 'budapest', 'varsovie', 'cracovie', 'bucarest', 'sofia',
+      'belgrade', 'athènes', 'istanbul', 'ankara', 'madrid', 'barcelone', 'valence',
+      'séville', 'lisbonne', 'porto', 'rome', 'milan', 'venise', 'florence', 'naples',
+      'dublin', 'belfast', 'édimbourg', 'glasgow', 'manchester', 'liverpool',
+      'birmingham', 'bristol', 'oxford', 'cambridge', 'york', 'bath'
     ];
-
-    for (const pattern of patterns) {
-      const match = query.match(pattern);
-      if (match && match[1]) {
-        const city = match[1].trim()
-          .replace(/\b(aujourd'hui|demain|cette|semaine|ce|soir|matin)\b/gi, '')
-          .trim();
-        if (city.length > 1) return city;
-      }
-    }
-
-    const knownCities = ['luxembourg', 'paris', 'bruxelles', 'berlin', 'london', 'lyon', 'marseille'];
+    
     for (const city of knownCities) {
-      if (query.toLowerCase().includes(city)) return city.charAt(0).toUpperCase() + city.slice(1);
+      if (query.toLowerCase().includes(city)) {
+        return city.charAt(0).toUpperCase() + city.slice(1);
+      }
     }
 
     return 'Luxembourg';

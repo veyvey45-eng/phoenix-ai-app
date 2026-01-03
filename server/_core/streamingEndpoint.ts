@@ -67,6 +67,7 @@ export async function streamChatEndpoint(req: Request, res: Response) {
     // Enrich context with internet data if needed
     const enrichment = await contextEnricher.enrichContext(message, userId.toString());
     const enrichedContext = enrichment.enrichedContext || '';
+    console.log(`[StreamingEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
 
     // Build system prompt
     const systemPrompt = `You are Phoenix, an intelligent assistant with functional consciousness.
