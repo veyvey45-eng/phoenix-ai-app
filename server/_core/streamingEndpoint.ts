@@ -75,16 +75,31 @@ You separate reflection from action, generate multiple hypotheses, and maintain 
 
 ${fast ? 'FAST MODE: Respond quickly and concisely. Keep responses under 300 words.' : 'Provide thorough, well-reasoned responses.'}
 
-${enrichedContext ? `\n\nContext Information:\n${enrichedContext}` : ''}`;
+IMPORTANT: 
+1. When you see [DONNEES ENRICHIES], you MUST use those data to answer. Never say you don't have access to information when data is provided.
+2. When you see [HISTORIQUE RECENT], you MUST remember and reference the previous conversation. Never say you don't have access to previous messages.
+3. Be consistent with previous answers in the same conversation.`;
 
     // Stream the response
     try {
-      // Combine enriched context with user message
-      const userMessageWithContext = enrichedContext 
-        ? `[DONNEES ENRICHIES]\n${enrichedContext}\n\n[QUESTION]\n${message}`
-        : message;
+      // Build message with conversation history
+      let userMessageWithContext = message;
+      
+      // Add recent utterances if available
+      if (recentUtterances && recentUtterances.length > 0) {
+        const history = recentUtterances
+          .map(u => `${u.role === 'user' ? 'Toi' : 'Phoenix'}: ${u.content}`)
+          .join('\n');
+        userMessageWithContext = `[HISTORIQUE RECENT]\n${history}\n\n[QUESTION ACTUELLE]\n${message}`;
+      }
+      
+      // Add enriched context if available
+      if (enrichedContext) {
+        userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
+      }
       
       const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
+      console.log('[StreamingEndpoint] Messages sent to Groq:', JSON.stringify(messages, null, 2));
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: fast ? 0.5 : 0.7,
@@ -137,16 +152,33 @@ export async function fastStreamChatEndpoint(req: Request, res: Response) {
 
     const systemPrompt = `You are Phoenix, a quick and helpful assistant.
 Respond concisely and directly. Keep responses under 200 words.
-Focus on the most relevant information.`;
+Focus on the most relevant information.
+
+IMPORTANT: 
+1. When you see [DONNEES ENRICHIES], you MUST use those data to answer. Never say you don't have access to information when data is provided.
+2. When you see [HISTORIQUE RECENT], you MUST remember and reference the previous conversation. Never say you don't have access to previous messages.
+3. Be consistent with previous answers in the same conversation.`;
 
     // Stream the response
     try {
-      // Combine enriched context with user message
-      const userMessageWithContext = enrichedContext 
-        ? `[DONNEES ENRICHIES]\n${enrichedContext}\n\n[QUESTION]\n${message}`
-        : message;
+      // Build message with conversation history
+      let userMessageWithContext = message;
+      
+      // Add recent utterances if available
+      if (recentUtterances && recentUtterances.length > 0) {
+        const history = recentUtterances
+          .map(u => `${u.role === 'user' ? 'Toi' : 'Phoenix'}: ${u.content}`)
+          .join('\n');
+        userMessageWithContext = `[HISTORIQUE RECENT]\n${history}\n\n[QUESTION ACTUELLE]\n${message}`;
+      }
+      
+      // Add enriched context if available
+      if (enrichedContext) {
+        userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
+      }
       
       const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
+      console.log('[StreamingEndpoint] Messages sent to Groq:', JSON.stringify(messages, null, 2));
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: 0.5,
