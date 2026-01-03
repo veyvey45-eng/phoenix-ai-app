@@ -34,9 +34,10 @@ const WEATHER_PATTERNS = [
 ];
 
 const CRYPTO_PATTERNS = [
-  /bitcoin|btc|ethereum|eth|crypto|blockchain|web3/i,
+  /bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|ripple|xrp|polkadot|dot|bnb|binance|avalanche|avax|litecoin|ltc|dogecoin|doge|shiba|shib|polygon|matic|uniswap|uni|aave|link|chainlink|cosmos|atom|tezos|xtz|monero|xmr|zcash|zec|crypto|blockchain|web3|altcoin/i,
   /prix.*crypto/i,
-  /cours.*bitcoin/i
+  /cours.*(bitcoin|ethereum|solana|cardano|ripple|polkadot|avalanche|litecoin|dogecoin)/i,
+  /quel.*prix.*crypto/i
 ];
 
 const NEWS_PATTERNS = [
@@ -184,7 +185,30 @@ class ContextEnricher {
       'sol': 'SOL',
       'solana': 'SOL',
       'dot': 'DOT',
-      'polkadot': 'DOT'
+      'polkadot': 'DOT',
+      'avalanche': 'AVAX',
+      'avax': 'AVAX',
+      'litecoin': 'LTC',
+      'ltc': 'LTC',
+      'dogecoin': 'DOGE',
+      'doge': 'DOGE',
+      'shiba': 'SHIB',
+      'shib': 'SHIB',
+      'polygon': 'MATIC',
+      'matic': 'MATIC',
+      'uniswap': 'UNI',
+      'uni': 'UNI',
+      'aave': 'AAVE',
+      'chainlink': 'LINK',
+      'link': 'LINK',
+      'cosmos': 'ATOM',
+      'atom': 'ATOM',
+      'tezos': 'XTZ',
+      'xtz': 'XTZ',
+      'monero': 'XMR',
+      'xmr': 'XMR',
+      'zcash': 'ZEC',
+      'zec': 'ZEC'
     };
 
     for (const [key, value] of Object.entries(cryptoMap)) {
