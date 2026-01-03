@@ -79,7 +79,12 @@ ${enrichedContext ? `\n\nContext Information:\n${enrichedContext}` : ''}`;
 
     // Stream the response
     try {
-      const messages = formatMessagesForStreaming(systemPrompt, message);
+      // Combine enriched context with user message
+      const userMessageWithContext = enrichedContext 
+        ? `[DONNEES ENRICHIES]\n${enrichedContext}\n\n[QUESTION]\n${message}`
+        : message;
+      
+      const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: fast ? 0.5 : 0.7,
@@ -122,6 +127,11 @@ export async function fastStreamChatEndpoint(req: Request, res: Response) {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
 
+    // Enrich context with internet data if needed
+    const enrichment = await contextEnricher.enrichContext(message, userId.toString());
+    const enrichedContext = enrichment.enrichedContext || '';
+    console.log(`[FastStreamEndpoint] Enrichment result:`, { category: enrichment.category, hasContext: !!enrichedContext, contextLength: enrichedContext.length });
+
     // Fast mode: minimal context
     const recentUtterances = await getRecentUtterances(userId, 3);
 
@@ -131,7 +141,12 @@ Focus on the most relevant information.`;
 
     // Stream the response
     try {
-      const messages = formatMessagesForStreaming(systemPrompt, message);
+      // Combine enriched context with user message
+      const userMessageWithContext = enrichedContext 
+        ? `[DONNEES ENRICHIES]\n${enrichedContext}\n\n[QUESTION]\n${message}`
+        : message;
+      
+      const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: 0.5,
