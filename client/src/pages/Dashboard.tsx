@@ -441,13 +441,6 @@ export default function Dashboard() {
                                 setMessages(prev => [...prev, analysisMessage]);
                                 toast.success('Analyse complétée');
                               }
-                            },
-                            onError: (error) => {
-                              console.error('Erreur analyse:', error);
-                              // Only show error if no message was added
-                              if (messages.length === 0 || !messages[messages.length - 1].content.includes('Analyse')) {
-                                toast.error('Erreur lors de l\'analyse');
-                              }
                             }
                           }
                         );
