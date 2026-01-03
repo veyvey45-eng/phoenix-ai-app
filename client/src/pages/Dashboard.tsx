@@ -66,33 +66,89 @@ export default function Dashboard() {
   const auditLog = trpc.audit.list.useQuery({ limit: 50 });
   const criteria = trpc.criteria.list.useQuery();
 
-  // Mutations
-  const chatMutation = trpc.phoenix.chat.useMutation({
-    onSuccess: (data) => {
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.response,
-        confidence: data.confidence,
-        hypotheses: data.hypotheses,
-        chosenHypothesisId: data.hypotheses.find(h => h.id === data.hypotheses[0]?.id)?.id,
-        tormentScore: data.tormentScore,
-        tormentChange: data.tormentChange,
-        reasoning: data.rationale,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      // Invalidate queries to refresh data
+  const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
+    // Add user message immediately
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    // Create placeholder for assistant message
+    const assistantMessageId = crypto.randomUUID();
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, assistantMessage]);
+
+    // Use streaming endpoint for real-time response
+    try {
+      const endpoint = useFastMode ?? fastMode ? '/api/stream/fast-chat' : '/api/stream/chat';
+      const params = new URLSearchParams({
+        message: content,
+        contextId
+      });
+
+      const response = await fetch(`${endpoint}?${params}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.type === 'token') {
+                fullContent += parsed.content;
+                // Update message in real-time
+                setMessages(prev =>
+                  prev.map(msg =>
+                    msg.id === assistantMessageId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  )
+                );
+              }
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+
+      // Refresh Phoenix state after streaming completes
       phoenixState.refetch();
       auditLog.refetch();
-    },
-    onError: (error) => {
-      toast.error("Erreur lors de la communication avec Phoenix", {
-        description: error.message
+    } catch (error) {
+      console.error('Streaming error:', error);
+      toast.error('Erreur lors du streaming', {
+        description: error instanceof Error ? error.message : 'Unknown error'
       });
+      // Remove the placeholder message on error
+      setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
     }
-  });
+  }, [contextId, fastMode, phoenixState, auditLog]);
 
   const resolveIssueMutation = trpc.issues.resolve.useMutation({
     onSuccess: () => {
@@ -107,24 +163,6 @@ export default function Dashboard() {
       phoenixState.refetch();
     }
   });
-
-  const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
-    // Add user message immediately
-    const userMessage: Message = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content,
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
-
-    // Send to Phoenix with fastMode option
-    await chatMutation.mutateAsync({
-      message: content,
-      contextId,
-      fastMode: useFastMode ?? fastMode
-    });
-  }, [chatMutation, contextId, fastMode]);
 
   const handleResolveIssue = useCallback((issueId: number, resolution: string) => {
     resolveIssueMutation.mutate({ issueId, resolution });
@@ -173,7 +211,6 @@ export default function Dashboard() {
                     toast.info(`Démo: ${scenario.title}`, {
                       description: "Lancement de la démonstration..."
                     });
-                    // Simuler les étapes de la démo
                     scenario.steps.forEach((step, idx) => {
                       setTimeout(() => {
                         if (step.type === 'user') {
@@ -184,7 +221,7 @@ export default function Dashboard() {
                       }, idx * 2000);
                     });
                   }}
-                  isRunning={chatMutation.isPending}
+                  isRunning={false}
                 />
                 <ExportPanel 
                   messages={messages.map(m => ({
@@ -206,7 +243,7 @@ export default function Dashboard() {
               <PhoenixChat
                 messages={messages}
                 onSendMessage={handleSendMessage}
-                isLoading={chatMutation.isPending}
+                isLoading={false}
                 currentTorment={state?.tormentScore || 0}
                 fastMode={fastMode}
                 onFastModeChange={(enabled) => {
@@ -301,64 +338,37 @@ export default function Dashboard() {
             <Separator />
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4">
-              <Card className="phoenix-card">
-                <CardContent className="p-3 text-center">
-                  <p className="text-2xl font-bold text-primary">
-                    {state?.totalDecisions || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Décisions</p>
-                </CardContent>
-              </Card>
-              <Card className="phoenix-card">
-                <CardContent className="p-3 text-center">
-                  <p className="text-2xl font-bold text-primary">
-                    {state?.totalUtterances || 0}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Énoncés</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Separator />
-
-            {/* Issues */}
-            <div>
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-orange-500" />
-                Issues Actives
-              </h3>
-              {state?.issueStats && (
-                <IssueStats {...state.issueStats} />
-              )}
-              <div className="mt-3">
-                <IssuesPanel
-                  issues={state?.activeIssues || []}
-                  onResolve={handleResolveIssue}
-                  onDefer={handleDeferIssue}
-                  isLoading={phoenixState.isLoading}
-                />
+            <div className="space-y-3">
+              <div className="text-sm">
+                <div className="text-muted-foreground mb-1">Issues Ouvertes</div>
+                <div className="text-2xl font-bold text-primary">{state?.openIssuesCount || 0}</div>
+              </div>
+              <div className="text-sm">
+                <div className="text-muted-foreground mb-1">Décisions</div>
+                <div className="text-2xl font-bold text-primary">{state?.totalDecisions || 0}</div>
+              </div>
+              <div className="text-sm">
+                <div className="text-muted-foreground mb-1">Utterances</div>
+                <div className="text-2xl font-bold text-primary">{state?.totalUtterances || 0}</div>
               </div>
             </div>
 
             <Separator />
 
-            {/* Recent Activity */}
-            <div>
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" />
-                Activité Récente
-              </h3>
-              <CompactAudit entries={auditLog.data || []} limit={5} />
-            </div>
-
-            {/* Identity Version */}
-            <div className="text-center text-xs text-muted-foreground">
-              <p>Version d'identité: {state?.identityVersion || 1}</p>
-              {state?.lastConsolidation && (
-                <p>Dernière consolidation: {new Date(state.lastConsolidation).toLocaleDateString("fr-FR")}</p>
-              )}
-            </div>
+            {/* Issues */}
+            {state?.activeIssues && state.activeIssues.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-3">Issues Actives</h3>
+                <div className="space-y-2">
+                  {state.activeIssues.slice(0, 3).map((issue) => (
+                    <div key={issue.id} className="text-xs p-2 bg-destructive/10 rounded border border-destructive/20">
+                      <div className="font-medium text-destructive">{issue.type}</div>
+                      <div className="text-muted-foreground mt-1">{issue.severity}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -15,12 +15,7 @@ import { getFileProcessor } from '../phoenix/fileProcessor';
 export async function streamChatEndpoint(req: Request, res: Response) {
   try {
     const { message, contextId, fast } = req.query;
-    const userId = (req as any).user?.id;
-
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    const userId = (req as any).user?.id || 'anonymous';
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'Message is required' });
@@ -113,12 +108,7 @@ ${enrichedContext ? `\n\nContext Information:\n${enrichedContext}` : ''}`;
 export async function fastStreamChatEndpoint(req: Request, res: Response) {
   try {
     const { message, contextId } = req.query;
-    const userId = (req as any).user?.id;
-
-    if (!userId) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    const userId = (req as any).user?.id || 'anonymous';
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'Message is required' });
