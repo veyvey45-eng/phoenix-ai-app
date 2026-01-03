@@ -22,6 +22,7 @@ import { getOptimizer } from './phoenix/optimizer';
 import { getSecurity } from './phoenix/security';
 import { getEvolutionInstance } from './phoenix/evolution';
 import { contextEnricher } from './phoenix/contextEnricher';
+import { streamingRouter } from './routers/streamingRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -2757,6 +2758,11 @@ export const appRouter = router({
        return { success: true };
     }),
   }),
+
+  // ============================================================================
+  // Streaming - Real-time responses with SSE
+  // ============================================================================
+  streaming: streamingRouter,
 
   // ============================================================================
   // REAL APIs - OpenWeatherMap, Groq, Serper
