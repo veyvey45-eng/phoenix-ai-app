@@ -444,7 +444,10 @@ export default function Dashboard() {
                             },
                             onError: (error) => {
                               console.error('Erreur analyse:', error);
-                              toast.error('Erreur lors de l\'analyse');
+                              // Only show error if no message was added
+                              if (messages.length === 0 || !messages[messages.length - 1].content.includes('Analyse')) {
+                                toast.error('Erreur lors de l\'analyse');
+                              }
                             }
                           }
                         );
