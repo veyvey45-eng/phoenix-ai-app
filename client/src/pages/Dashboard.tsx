@@ -268,7 +268,14 @@ export default function Dashboard() {
   // Query to get conversation messages
   const getConversationQuery = trpc.conversations.get.useQuery(
     { conversationId: conversationId || 0 },
-    { enabled: !!conversationId }
+    { 
+      enabled: !!conversationId,
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchOnReconnect: false
+    }
   );
 
   // Load messages when conversation changes

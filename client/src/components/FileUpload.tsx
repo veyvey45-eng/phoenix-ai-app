@@ -228,27 +228,31 @@ export function FileUpload({
     }
   };
   
-  const loadFileContent = async (fileId: string) => {
-    // Charger le contenu complet du fichier depuis le serveur
-    try {
-      // Récupérer le token d'authentification depuis le cookie de session
-      const response = await fetch(`/api/files/${fileId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include' // Inclure les cookies d'authentification
-      });
-      if (!response.ok) {
-        console.warn(`Failed to load file: ${response.status} ${response.statusText}`);
-        return null;
+  const loadFileContent = async (fileId: string, retries = 3): Promise<string | null> => {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(`/api/files/${fileId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) {
+          if (attempt === retries) return null;
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+          continue;
+        }
+        const fullFile = await response.json();
+        if (fullFile.extractedText) return fullFile.extractedText;
+        if (attempt === retries) return null;
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      } catch (error) {
+        if (attempt === retries) return null;
+        console.warn(`Attempt ${attempt} failed, retrying...`);
+        await new Promise(r => setTimeout(r, 1000 * attempt));
       }
-      const fullFile = await response.json();
-      return fullFile.extractedText;
-    } catch (error) {
-      console.error('Erreur lors du chargement du fichier:', error);
-      return null;
     }
+    return null;
   };
 
   const FileIcon = (mimeType: string) => {
