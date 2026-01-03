@@ -6,7 +6,7 @@
  */
 
 import { createHmac, randomUUID } from "crypto";
-import { invokeLLM } from "../_core/llm";
+import { callGroq } from "../_core/groqClient";
 import { getArbitrator, ConflictOption, ArbitrationResult } from "./arbitrage";
 
 // ============================================================================
@@ -316,7 +316,7 @@ export class ArbitrageModule {
     const hypothesesCount = n ?? (fastMode ? this.fastModeHypothesesCount : this.defaultHypothesesCount);
     const systemPrompt = this.buildSystemPrompt(context, internetContext);
     
-    const response = await invokeLLM({
+    const response = await callGroq({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Génère ${hypothesesCount} hypothèse${hypothesesCount > 1 ? 's distinctes' : ''} pour répondre à: "${userInput}"
