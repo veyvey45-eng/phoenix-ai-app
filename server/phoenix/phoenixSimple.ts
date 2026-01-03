@@ -140,9 +140,21 @@ ${MODULES.map((m, i) => `${i + 1}. ${m}`).join('\n')}
   }
 
   // Construire les messages pour Groq
+  let finalUserMessage = userMessage;
+  
+  // Si c'est une requête météo, ajouter les données DIRECTEMENT au message
+  if (isWeatherQuery && weatherData) {
+    finalUserMessage = `${userMessage}\n\n${weatherData}\n\nUtilise les données ci-dessus pour répondre.`;
+  }
+  
+  // Si c'est une requête de recherche, ajouter les résultats DIRECTEMENT au message
+  if (isSearchQuery && searchResults) {
+    finalUserMessage = `${userMessage}\n\n${searchResults}\n\nUtilise les résultats ci-dessus pour répondre.`;
+  }
+  
   const messages: ConversationMessage[] = [
     ...conversationHistory,
-    { role: 'user', content: userMessage }
+    { role: 'user', content: finalUserMessage }
   ];
 
   // Appeler Groq
