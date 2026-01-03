@@ -40,6 +40,39 @@ async function startServer() {
   // Streaming endpoints for real-time responses
   app.get("/api/stream/chat", streamChatEndpoint);
   app.get("/api/stream/fast-chat", fastStreamChatEndpoint);
+  // File retrieval endpoint for client-side file content loading
+  app.get("/api/files/:fileId", async (req, res) => {
+    try {
+      const { fileId } = req.params;
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const { getFileProcessor } = await import('../phoenix/fileProcessor');
+      const processor = getFileProcessor();
+      const file = processor.getFile(fileId);
+      
+      if (!file || file.userId !== user.id) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      res.json({
+        id: file.id,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        size: file.size,
+        extractedText: file.extractedText,
+        metadata: file.metadata,
+        storageUrl: file.storageUrl,
+        uploadedAt: file.uploadedAt
+      });
+    } catch (error) {
+      console.error('Error retrieving file:', error);
+      res.status(500).json({ error: 'Failed to retrieve file' });
+    }
+  });
+
   
   // tRPC API
   app.use(

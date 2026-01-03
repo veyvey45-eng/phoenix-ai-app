@@ -67,11 +67,33 @@ export default function Dashboard() {
   const criteria = trpc.criteria.list.useQuery();
 
   const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
+    // Check if message contains file references and retrieve content
+    let finalContent = content;
+    const fileIdMatches = content.match(/\[FILE_ID:([^\]]+)\]/g) || [];
+    
+    if (fileIdMatches.length > 0) {
+      for (const match of fileIdMatches) {
+        const fileId = match.replace(/\[FILE_ID:|\]/g, '');
+        try {
+          const fileResponse = await fetch(`/api/files/${fileId}`);
+          if (fileResponse.ok) {
+            const fileData = await fileResponse.json();
+            finalContent = finalContent.replace(
+              match,
+              `[FICHIER: ${fileData.originalName}]\n${fileData.extractedText || 'Contenu non extractible'}`
+            );
+          }
+        } catch (error) {
+          console.error(`Erreur fichier ${fileId}:`, error);
+        }
+      }
+    }
+    
     // Add user message immediately
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
-      content,
+      content: finalContent,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
@@ -90,7 +112,7 @@ export default function Dashboard() {
     try {
       const endpoint = useFastMode ?? fastMode ? '/api/stream/fast-chat' : '/api/stream/chat';
       const params = new URLSearchParams({
-        message: content,
+        message: finalContent,
         contextId
       });
 

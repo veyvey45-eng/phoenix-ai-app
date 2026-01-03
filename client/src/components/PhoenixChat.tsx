@@ -424,7 +424,8 @@ export function PhoenixChat({
                 <FileUpload 
                   compact 
                   onFileUploaded={(file) => {
-                    const fileInfo = `[Fichier: ${file.originalName}]`;
+                    // Pass file ID so Phoenix can retrieve the full content
+                    const fileInfo = `[FILE_ID:${file.id}]`;
                     setInput(prev => prev ? `${prev}\n${fileInfo}` : fileInfo);
                   }}
                 />
