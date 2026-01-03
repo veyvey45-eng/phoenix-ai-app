@@ -8,15 +8,15 @@ import { phoenix, PhoenixContext } from '../phoenix/core';
 import { contextEnricher } from '../phoenix/contextEnricher';
 import { getMemoriesByUser, getRecentUtterances, getActiveIssues, getActiveCriteria, getOrCreatePhoenixState, getDb } from '../db';
 import { getFileProcessor } from '../phoenix/fileProcessor';
-import { phoenixState } from '../../drizzle/schema';
-import { eq } from 'drizzle-orm';
+import { phoenixState, conversationMessages } from '../../drizzle/schema';
+import { eq, desc } from 'drizzle-orm';
 
 /**
  * Stream chat response using Server-Sent Events
  */
 export async function streamChatEndpoint(req: Request, res: Response) {
   try {
-    const { message, contextId } = req.query;
+    const { message, contextId, conversationId } = req.query;
     // Force fast mode to avoid quota issues with 3 hypotheses
     const fast = true;
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
@@ -34,7 +34,33 @@ export async function streamChatEndpoint(req: Request, res: Response) {
 
     // Build Phoenix context for enrichment
     const memories = await getMemoriesByUser(userId, fast ? 10 : 50);
-    const recentUtterances = await getRecentUtterances(userId, 5);
+    
+    // Get conversation history if conversationId is provided
+    let recentUtterances: any[] = [];
+    if (conversationId) {
+      const db = await getDb();
+      if (db) {
+        try {
+          const convMessages = await db.select()
+            .from(conversationMessages)
+            .where(eq(conversationMessages.conversationId, parseInt(conversationId as string)))
+            .orderBy(desc(conversationMessages.createdAt))
+            .limit(10);
+          // Reverse to get chronological order
+          recentUtterances = convMessages.reverse().map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            confidence: 1.0
+          }));
+          console.log(`[StreamingEndpoint] Loaded ${recentUtterances.length} messages from conversation ${conversationId}`);
+        } catch (error) {
+          console.error('[StreamingEndpoint] Error loading conversation history:', error);
+        }
+      }
+    } else {
+      // Fallback to utterances if no conversationId
+      recentUtterances = await getRecentUtterances(userId, 5);
+    }
     const activeIssues = await getActiveIssues(userId);
     const criteriaList = await getActiveCriteria();
     const state = await getOrCreatePhoenixState(userId);

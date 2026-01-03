@@ -113,14 +113,22 @@ export default function Dashboard() {
     try {
       const params = new URLSearchParams({
         message: userContent,
-        contextId
+        contextId,
+        conversationId: conversationIdFromEnsure?.toString() || ''
       });
 
+      console.log('[Dashboard] Sending message with conversationId:', conversationIdFromEnsure);
       const response = await fetch(`/api/stream/chat?${params}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        console.error('[Dashboard] Stream response error:', response.status);
+        throw new Error(`HTTP ${response.status}`);
+      }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
+      if (!reader) {
+        console.error('[Dashboard] No response body');
+        throw new Error('No response body');
+      }
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -139,21 +147,23 @@ export default function Dashboard() {
             const data = line.slice(6);
             if (data === '[DONE]') continue;
 
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'token') {
-                fullContent += parsed.content;
-                setMessages(prev =>
-                  prev.map(msg =>
-                    msg.id === assistantMessageId
-                      ? { ...msg, content: fullContent }
-                      : msg
-                  )
-                );
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'token') {
+                  fullContent += parsed.content;
+                  setMessages(prev =>
+                    prev.map(msg =>
+                      msg.id === assistantMessageId
+                        ? { ...msg, content: fullContent }
+                        : msg
+                    )
+                  );
+                } else if (parsed.type === 'error') {
+                  console.error('[Dashboard] Stream error:', parsed.message);
+                }
+              } catch (e) {
+                console.error('[Dashboard] Failed to parse stream data:', e);
               }
-            } catch (e) {
-              // Ignore parse errors
-            }
           }
         }
       }
