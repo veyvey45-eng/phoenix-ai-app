@@ -16,7 +16,11 @@ import { eq, desc } from 'drizzle-orm';
  */
 export async function streamChatEndpoint(req: Request, res: Response) {
   try {
-    const { message, contextId, conversationId } = req.query;
+    // Support both GET (query params) and POST (body) requests
+    const { message, contextId, conversationId } = req.method === 'POST' 
+      ? req.body 
+      : req.query;
+    
     // Force fast mode to avoid quota issues with 3 hypotheses
     const fast = true;
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
@@ -37,13 +41,15 @@ export async function streamChatEndpoint(req: Request, res: Response) {
     
     // Get conversation history if conversationId is provided
     let recentUtterances: any[] = [];
-    if (conversationId) {
+    const convId = conversationId ? (typeof conversationId === 'string' ? parseInt(conversationId) : conversationId) : null;
+    
+    if (convId && convId > 0) {
       const db = await getDb();
       if (db) {
         try {
           const convMessages = await db.select()
             .from(conversationMessages)
-            .where(eq(conversationMessages.conversationId, parseInt(conversationId as string)))
+            .where(eq(conversationMessages.conversationId, convId))
             .orderBy(desc(conversationMessages.createdAt))
             .limit(10);
           // Reverse to get chronological order
@@ -52,7 +58,7 @@ export async function streamChatEndpoint(req: Request, res: Response) {
             content: msg.content,
             confidence: 1.0
           }));
-          console.log(`[StreamingEndpoint] Loaded ${recentUtterances.length} messages from conversation ${conversationId}`);
+          console.log(`[StreamingEndpoint] Loaded ${recentUtterances.length} messages from conversation ${convId}`);
         } catch (error) {
           console.error('[StreamingEndpoint] Error loading conversation history:', error);
         }

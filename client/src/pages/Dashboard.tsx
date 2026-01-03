@@ -122,12 +122,6 @@ export default function Dashboard() {
     let fullContent = ''; // Declare outside try-catch to use in save messages
     
     try {
-      const params = new URLSearchParams({
-        message: userContent,
-        contextId,
-        conversationId: conversationIdFromEnsure?.toString() || ''
-      });
-
       console.log('[Dashboard] Sending message with conversationId:', conversationIdFromEnsure);
       
       // Add timeout to fetch request
@@ -135,13 +129,24 @@ export default function Dashboard() {
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       
       try {
-        const response = await fetch(`/api/stream/chat?${params}`, {
+        const response = await fetch(`/api/stream/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: userContent,
+            contextId,
+            conversationId: conversationIdFromEnsure || 0
+          }),
           signal: controller.signal
         });
         
         if (!response.ok) {
-          console.error('[Dashboard] Stream response error:', response.status);
-          throw new Error(`HTTP ${response.status}`);
+          console.error('[Dashboard] Stream response error:', response.status, response.statusText);
+          const errorText = await response.text();
+          console.error('[Dashboard] Error response:', errorText);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         clearTimeout(timeoutId);

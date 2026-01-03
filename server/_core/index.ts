@@ -38,9 +38,11 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
-  // Streaming endpoints for real-time responses
+  // Streaming endpoints for real-time responses (support both GET and POST)
   app.get("/api/stream/chat", streamChatEndpoint);
+  app.post("/api/stream/chat", streamChatEndpoint);
   app.get("/api/stream/fast-chat", fastStreamChatEndpoint);
+  app.post("/api/stream/fast-chat", fastStreamChatEndpoint);
   
   // Endpoint to save conversation messages
   app.post("/api/save-message", async (req, res) => {

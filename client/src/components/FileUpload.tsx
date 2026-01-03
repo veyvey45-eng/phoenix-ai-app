@@ -63,7 +63,7 @@ export function FileUpload({
   const { data: supportedTypes } = trpc.files.supportedTypes.useQuery();
   const uploadMutation = trpc.files.upload.useMutation();
   const deleteMutation = trpc.files.delete.useMutation();
-  const { data: persistedFiles = [], refetch: refetchFiles } = trpc.files.list.useQuery();
+  const { data: persistedFiles = [], refetch: refetchFiles, isLoading: isLoadingFiles } = trpc.files.list.useQuery();
 
   // Charger les fichiers persistés depuis la base de données
   useEffect(() => {
@@ -160,20 +160,17 @@ export function FileUpload({
 
         setUploadedFiles(prev => [...prev, uploadedFile]);
         
-        // Attendre un peu que l'extraction soit complète
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Appeler le callback avec le fichier uploadé
+        onFileUploaded?.(uploadedFile);
+        
+        // Attendre que l'extraction soit complète
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
         // Recharger depuis la base de données pour obtenir le contenu extrait
         await refetchFiles();
         
-        // Appeler le callback avec le fichier complet
-        onFileUploaded?.(uploadedFile);
-        
-        // Sélectionner automatiquement le fichier
+        // Sélectionner automatiquement le fichier (refetchFiles met à jour persistedFiles)
         selectFile(uploadedFile);
-        
-        // Recharger la liste depuis la base de données
-        await refetchFiles();
         
         toast.success(`${file.name} uploadé avec succès`);
       } catch (error) {
@@ -214,7 +211,24 @@ export function FileUpload({
   };
 
   const selectFile = (file: UploadedFile) => {
+    // Appeler le callback avec le fichier
+    // Le contenu extractedText devrait être disponible si le fichier a été traité
     onFileSelected?.(file);
+  };
+  
+  const loadFileContent = async (fileId: string) => {
+    // Charger le contenu complet du fichier depuis le serveur
+    try {
+      const response = await fetch(`/api/files/${fileId}`);
+      if (!response.ok) {
+        throw new Error('Failed to load file');
+      }
+      const fullFile = await response.json();
+      return fullFile.extractedText;
+    } catch (error) {
+      console.error('Erreur lors du chargement du fichier:', error);
+      return null;
+    }
   };
 
   const FileIcon = (mimeType: string) => {
