@@ -261,6 +261,17 @@ export const conversations = mysqlTable("conversations", {
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = typeof conversations.$inferInsert;
 
+// Conversation messages - Link messages to conversations
+export const conversationMessages = mysqlTable("conversationMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  conversationId: int("conversationId").notNull(),
+  role: mysqlEnum("role", ["user", "assistant"]).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ConversationMessage = typeof conversationMessages.$inferSelect;
+export type InsertConversationMessage = typeof conversationMessages.$inferInsert;
 
 // ============================================================================
 // ADMIN SYSTEM - Roles, Permissions, and Sensitive Approvals

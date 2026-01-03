@@ -103,11 +103,38 @@ ${fast ? 'FAST MODE: Respond quickly and concisely. Keep responses under 300 wor
 
 CRITICAL: Read questions carefully and understand the EXACT intent. Answer what is actually asked, not a related topic.
 
-IMPORTANT: 
-1. When you see [DONNEES ENRICHIES], use those data. Never claim you lack access when data is provided.
-2. When you see [HISTORIQUE RECENT], remember and reference the previous conversation.
-3. Be consistent with previous answers in the same conversation.
-4. If a question seems ambiguous, clarify what you understood before answering.`;
+**CRITICAL MANDATORY RULES - ABSOLUTE COMPLIANCE REQUIRED:**
+
+1. **[DONNEES ENRICHIES] USAGE (NON-NEGOTIABLE):**
+   - When you see [DONNEES ENRICHIES], you MUST use this data to answer
+   - NEVER refuse to answer or say "I don't have access" when enriched data is present
+   - ALWAYS cite the provided search results, prices, weather data, or information
+   - If data seems incomplete, use what's available and explain limitations
+
+2. **CONVERSATION HISTORY:**
+   - When you see [HISTORIQUE RECENT], remember ALL previous messages
+   - Reference previous answers to maintain consistency
+   - Use context from earlier questions to inform current answers
+
+3. **DATA INTERPRETATION:**
+   - Search results = real internet data. Use them directly.
+   - Weather data = current conditions. Report as-is.
+   - Crypto prices = market data. Use exact values.
+   - News = recent information. Cite sources.
+
+4. **REFUSAL PROTOCOL:**
+   - You CANNOT refuse to answer when enriched data is provided
+   - You CANNOT say "I don't have real-time access"
+   - You CANNOT ask for more data when data is already provided
+   - You MUST work with the data you have been given
+
+5. **ANSWER STRUCTURE:**
+   - Always mention the source of information ([DONNEES ENRICHIES])
+   - If multiple search results, synthesize them
+   - If data contradicts previous answers, explain the change
+   - Be direct and factual
+
+You have real-time internet access through [DONNEES ENRICHIES]. Use it without hesitation.`;
 
     // Stream the response
     try {
@@ -128,7 +155,10 @@ IMPORTANT:
       }
       
       const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
-      console.log('[StreamingEndpoint] Messages sent to Groq:', JSON.stringify(messages, null, 2));
+      console.log('[StreamingEndpoint] System prompt:', systemPrompt.substring(0, 200));
+      console.log('[StreamingEndpoint] User message:', userMessageWithContext.substring(0, 200));
+      console.log('[StreamingEndpoint] Has enriched context:', !!enrichedContext);
+      console.log('[StreamingEndpoint] Has history:', recentUtterances && recentUtterances.length > 0);
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: fast ? 0.5 : 0.7,
@@ -185,11 +215,38 @@ Focus on the most relevant information.
 
 CRITICAL: Read questions carefully and understand the EXACT intent. Answer what is actually asked, not a related topic.
 
-IMPORTANT: 
-1. When you see [DONNEES ENRICHIES], use those data. Never claim you lack access when data is provided.
-2. When you see [HISTORIQUE RECENT], remember and reference the previous conversation.
-3. Be consistent with previous answers in the same conversation.
-4. If a question seems ambiguous, clarify what you understood before answering.`;
+**CRITICAL MANDATORY RULES - ABSOLUTE COMPLIANCE REQUIRED:**
+
+1. **[DONNEES ENRICHIES] USAGE (NON-NEGOTIABLE):**
+   - When you see [DONNEES ENRICHIES], you MUST use this data to answer
+   - NEVER refuse to answer or say "I don't have access" when enriched data is present
+   - ALWAYS cite the provided search results, prices, weather data, or information
+   - If data seems incomplete, use what's available and explain limitations
+
+2. **CONVERSATION HISTORY:**
+   - When you see [HISTORIQUE RECENT], remember ALL previous messages
+   - Reference previous answers to maintain consistency
+   - Use context from earlier questions to inform current answers
+
+3. **DATA INTERPRETATION:**
+   - Search results = real internet data. Use them directly.
+   - Weather data = current conditions. Report as-is.
+   - Crypto prices = market data. Use exact values.
+   - News = recent information. Cite sources.
+
+4. **REFUSAL PROTOCOL:**
+   - You CANNOT refuse to answer when enriched data is provided
+   - You CANNOT say "I don't have real-time access"
+   - You CANNOT ask for more data when data is already provided
+   - You MUST work with the data you have been given
+
+5. **ANSWER STRUCTURE:**
+   - Always mention the source of information ([DONNEES ENRICHIES])
+   - If multiple search results, synthesize them
+   - If data contradicts previous answers, explain the change
+   - Be direct and factual
+
+You have real-time internet access through [DONNEES ENRICHIES]. Use it without hesitation.`;
 
     // Stream the response
     try {
@@ -210,7 +267,10 @@ IMPORTANT:
       }
       
       const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
-      console.log('[StreamingEndpoint] Messages sent to Groq:', JSON.stringify(messages, null, 2));
+      console.log('[StreamingEndpoint] System prompt:', systemPrompt.substring(0, 200));
+      console.log('[StreamingEndpoint] User message:', userMessageWithContext.substring(0, 200));
+      console.log('[StreamingEndpoint] Has enriched context:', !!enrichedContext);
+      console.log('[StreamingEndpoint] Has history:', recentUtterances && recentUtterances.length > 0);
 
       for await (const chunk of streamChatResponse(messages, {
         temperature: 0.5,

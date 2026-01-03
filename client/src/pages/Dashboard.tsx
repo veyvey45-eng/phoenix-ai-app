@@ -1,134 +1,101 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
-import { PhoenixChat } from "@/components/PhoenixChat";
-import { TormentGauge } from "@/components/TormentGauge";
-import { HypothesesPanel } from "@/components/HypothesesPanel";
-import { IssuesPanel, IssueStats } from "@/components/IssuesPanel";
-import { AuditLog, CompactAudit } from "@/components/AuditLog";
-import { MemoryExplorer } from "@/components/MemoryExplorer";
-import { DemoMode, DemoScenario } from "@/components/DemoMode";
-import { FileUpload } from "@/components/FileUpload";
-import { ExportPanel } from "@/components/ExportPanel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { 
-  Brain, 
-  Activity, 
-  AlertTriangle, 
-  Database,
-  MessageSquare,
-  Sparkles,
-  Shield,
-  BarChart3,
-  FileUp
-} from "lucide-react";
-import { toast } from "sonner";
-import { useEffect } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, Send, MessageSquare } from "lucide-react";
+import { Streamdown } from "streamdown";
 import { ConversationsList } from "@/components/ConversationsList";
+import { toast } from "sonner";
 
+// Generate UUID
+const generateId = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  confidence?: number;
-  hypotheses?: Array<{
-    id: string;
-    content: string;
-    confidence: number;
-    reasoning?: string;
-    sources?: string[];
-  }>;
-  chosenHypothesisId?: string;
-  tormentScore?: number;
-  tormentChange?: number;
-  reasoning?: string;
   timestamp: Date;
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [contextId, setContextId] = useState<string>(() => crypto.randomUUID());
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [contextId, setContextId] = useState<string>(() => generateId());
   const [conversationId, setConversationId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("chat");
-  const [fastMode, setFastMode] = useState(() => {
-    const saved = localStorage.getItem('phoenix-fast-mode');
-    return saved ? JSON.parse(saved) : false;
-  });
   const [showConversations, setShowConversations] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Queries
   const phoenixState = trpc.phoenix.getState.useQuery(undefined, {
-    refetchInterval: 5000 // Refresh every 5 seconds
+    refetchInterval: 5000
   });
-  
-  const auditLog = trpc.audit.list.useQuery({ limit: 50 });
-  const criteria = trpc.criteria.list.useQuery();
-  const conversationMutation = trpc.conversations.create.useMutation({
-    onSuccess: (conversation) => {
-      if (conversation) {
-        setConversationId(conversation.id);
-        setContextId(conversation.contextId);
-        setMessages([]);
-      }
-    }
-  });
+
+  const conversationMutation = trpc.conversations.create.useMutation();
+
   const saveMessageMutation = trpc.conversations.saveMessage.useMutation();
 
-  // Auto-create conversation on first message
-  const ensureConversation = useCallback(async () => {
-    if (!conversationId) {
-      conversationMutation.mutate({});
-      return new Promise(resolve => setTimeout(resolve, 500));
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
+  }, [messages]);
+
+  // Ensure conversation exists before sending message
+  const ensureConversation = useCallback(async (): Promise<number | null> => {
+    if (conversationId) {
+      return conversationId;
+    }
+    
+    return new Promise<number | null>((resolve) => {
+      conversationMutation.mutate({}, {
+        onSuccess: (conversation) => {
+          if (conversation) {
+            setConversationId(conversation.id);
+            setContextId(conversation.contextId);
+            setTimeout(() => resolve(conversation.id), 100);
+          } else {
+            resolve(null);
+          }
+        },
+        onError: () => resolve(null)
+      });
+    });
   }, [conversationId, conversationMutation]);
 
-  const handleSendMessage = useCallback(async (content: string, useFastMode?: boolean) => {
-    // Ensure conversation exists first
-    if (!conversationId) {
-      await ensureConversation();
-      return; // Will be called again after conversation is created
-    }
-    const finalConversationId = conversationId;
-    // Check if message contains file references and retrieve content
-    let finalContent = content;
-    const fileIdMatches = content.match(/\[FILE_ID:([^\]]+)\]/g) || [];
-    
-    if (fileIdMatches.length > 0) {
-      for (const match of fileIdMatches) {
-        const fileId = match.replace(/\[FILE_ID:|\]/g, '');
-        try {
-          const fileResponse = await fetch(`/api/files/${fileId}`);
-          if (fileResponse.ok) {
-            const fileData = await fileResponse.json();
-            finalContent = finalContent.replace(
-              match,
-              `[FICHIER: ${fileData.originalName}]\n${fileData.extractedText || 'Contenu non extractible'}`
-            );
-          }
-        } catch (error) {
-          console.error(`Erreur fichier ${fileId}:`, error);
-        }
-      }
-    }
-    
-    // Add user message immediately
+  // Handle sending message
+  const handleSendMessage = useCallback(async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userContent = input.trim();
+    setInput("");
+
+    // Ensure conversation exists and get its ID
+    const conversationIdFromEnsure = await ensureConversation();
+
+    // Add user message
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: "user",
-      content: finalContent,
+      content: userContent,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Create placeholder for assistant message
-    const assistantMessageId = crypto.randomUUID();
+    // Add placeholder for assistant message
+    const assistantMessageId = generateId();
     const assistantMessage: Message = {
       id: assistantMessageId,
       role: "assistant",
@@ -137,15 +104,15 @@ export default function Dashboard() {
     };
     setMessages(prev => [...prev, assistantMessage]);
 
-    // Use streaming endpoint for real-time response
+    setIsLoading(true);
+
     try {
-      const endpoint = useFastMode ?? fastMode ? '/api/stream/fast-chat' : '/api/stream/chat';
       const params = new URLSearchParams({
-        message: finalContent,
+        message: userContent,
         contextId
       });
 
-      const response = await fetch(`${endpoint}?${params}`);
+      const response = await fetch(`/api/stream/chat?${params}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const reader = response.body?.getReader();
@@ -172,7 +139,6 @@ export default function Dashboard() {
               const parsed = JSON.parse(data);
               if (parsed.type === 'token') {
                 fullContent += parsed.content;
-                // Update message in real-time
                 setMessages(prev =>
                   prev.map(msg =>
                     msg.id === assistantMessageId
@@ -188,303 +154,205 @@ export default function Dashboard() {
         }
       }
 
-      // Save messages to database if conversation exists
+      // Save messages to database - use final conversationId
+      const finalConversationId = conversationIdFromEnsure;
+      console.log('Saving messages for conversation:', finalConversationId);
       if (finalConversationId) {
         try {
-          await saveMessageMutation.mutateAsync({
-            conversationId: finalConversationId,
-            role: 'user',
-            content: finalContent
+          // Save user message
+          console.log('Saving user message...');
+          const userRes = await fetch('/api/save-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: finalConversationId,
+              role: 'user',
+              content: userContent
+            })
           });
-          await saveMessageMutation.mutateAsync({
-            conversationId: finalConversationId,
-            role: 'assistant',
-            content: fullContent
+          console.log('User message response:', await userRes.json());
+
+          // Save assistant message
+          console.log('Saving assistant message...');
+          const assistantRes = await fetch('/api/save-message', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversationId: finalConversationId,
+              role: 'assistant',
+              content: fullContent
+            })
           });
-        } catch (err) {
-          console.error('Error saving messages:', err);
+          console.log('Assistant message response:', await assistantRes.json());
+        } catch (error) {
+          console.error('Failed to save messages:', error);
         }
+      } else {
+        console.log('No conversation ID to save messages');
       }
-
-      // Refresh Phoenix state after streaming completes
-      phoenixState.refetch();
-      auditLog.refetch();
     } catch (error) {
-      console.error('Streaming error:', error);
-      toast.error('Erreur lors du streaming', {
-        description: error instanceof Error ? error.message : 'Unknown error'
-      });
-      // Remove the placeholder message on error
-      setMessages(prev => prev.filter(m => m.id !== assistantMessageId));
+      console.error('Error:', error);
+      toast.error('Erreur lors de la communication avec Phoenix');
+      setMessages(prev => prev.filter(msg => msg.id !== assistantMessageId));
+    } finally {
+      setIsLoading(false);
     }
-  }, [contextId, fastMode, phoenixState, auditLog, conversationId, saveMessageMutation, ensureConversation]);
+  }, [input, isLoading, contextId, conversationId, ensureConversation, saveMessageMutation]);
 
-  const resolveIssueMutation = trpc.issues.resolve.useMutation({
-    onSuccess: () => {
-      toast.success("Issue résolue");
-      phoenixState.refetch();
-    }
-  });
-
-  const deferIssueMutation = trpc.issues.defer.useMutation({
-    onSuccess: () => {
-      toast.info("Issue reportée");
-      phoenixState.refetch();
-    }
-  });
-
-  const handleResolveIssue = useCallback((issueId: number, resolution: string) => {
-    resolveIssueMutation.mutate({ issueId, resolution });
-  }, [resolveIssueMutation]);
-
-  const handleDeferIssue = useCallback((issueId: number) => {
-    deferIssueMutation.mutate({ issueId });
-  }, [deferIssueMutation]);
-
-  const handleSelectConversation = useCallback((convId: number, convContextId: string) => {
-    setConversationId(convId);
-    setContextId(convContextId);
-    setMessages([]);
-    setShowConversations(false);
-  }, []);
-
-  const state = phoenixState.data;
-  const lastHypotheses = messages.filter(m => m.role === "assistant" && m.hypotheses).slice(-1)[0]?.hypotheses || [];
-
-  // Load conversation messages when conversation changes
-  const conversationQuery = trpc.conversations.get.useQuery(
+  // Query to get conversation messages
+  const getConversationQuery = trpc.conversations.get.useQuery(
     { conversationId: conversationId || 0 },
     { enabled: !!conversationId }
   );
 
+  // Load messages when conversation changes
   useEffect(() => {
-    if (conversationQuery.data?.messages) {
-      const loadedMessages = conversationQuery.data.messages.map((msg: any) => ({
-        id: msg.id.toString(),
+    if (getConversationQuery.data?.messages) {
+      const loadedMessages: Message[] = getConversationQuery.data.messages.map(msg => ({
+        id: generateId(),
         role: msg.role as 'user' | 'assistant',
         content: msg.content,
         timestamp: new Date(msg.createdAt)
       }));
       setMessages(loadedMessages);
+    } else if (conversationId && !getConversationQuery.isLoading && getConversationQuery.data === undefined) {
+      // If conversation is selected but no messages, show empty
+      setMessages([]);
     }
-  }, [conversationQuery.data?.messages]);
+  }, [getConversationQuery.data, conversationId, getConversationQuery.isLoading]);
+
+  // Handle conversation selection
+  const handleSelectConversation = useCallback((convId: number, convContextId: string) => {
+    setConversationId(convId);
+    setContextId(convContextId);
+    setShowConversations(false);
+    // Force refetch of messages
+    getConversationQuery.refetch();
+  }, []);
+
+  const state = phoenixState.data;
 
   return (
     <DashboardLayout>
-      <div className="h-full flex">
-        {/* Conversations sidebar */}
-        {showConversations && (
-          <div className="w-64 border-r border-border flex flex-col bg-muted/30">
-            <ConversationsList
-              onSelectConversation={handleSelectConversation}
-              onCreateNew={() => {
-                conversationMutation.mutate({});
-              }}
-            />
-          </div>
-        )}
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-            <div className="border-b border-border px-4 flex items-center justify-between">
-              <TabsList className="h-12">
-                <TabsTrigger value="chat" className="gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Chat
-                </TabsTrigger>
-                <TabsTrigger value="hypotheses" className="gap-2">
-                  <Brain className="w-4 h-4" />
-                  Hypothèses
-                </TabsTrigger>
-                <TabsTrigger value="audit" className="gap-2">
-                  <Activity className="w-4 h-4" />
-                  Journal
-                </TabsTrigger>
-                <TabsTrigger value="memory" className="gap-2">
-                  <Database className="w-4 h-4" />
-                  Mémoire
-                </TabsTrigger>
-                <TabsTrigger value="files" className="gap-2">
-                  <FileUp className="w-4 h-4" />
-                  Fichiers
-                </TabsTrigger>
-              </TabsList>
-              
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowConversations(!showConversations)}
-                  className="gap-2"
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  {showConversations ? 'Masquer' : 'Conversations'}
-                </Button>
-                <DemoMode 
-                  onRunDemo={(scenario) => {
-                    toast.info(`Démo: ${scenario.title}`, {
-                      description: "Lancement de la démonstration..."
-                    });
-                    scenario.steps.forEach((step, idx) => {
-                      setTimeout(() => {
-                        if (step.type === 'user') {
-                          handleSendMessage(step.content);
-                        } else if (step.type === 'system') {
-                          toast.info(step.content, { description: step.highlight });
-                        }
-                      }, idx * 2000);
-                    });
-                  }}
-                  isRunning={false}
-                />
-                <ExportPanel 
-                  messages={messages.map(m => ({
-                    ...m,
-                    timestamp: m.timestamp
-                  }))}
-                  auditLog={auditLog.data || []}
-                  phoenixState={state ? {
-                    tormentScore: state.tormentScore,
-                    openIssuesCount: state.openIssuesCount,
-                    totalDecisions: state.totalDecisions,
-                    totalUtterances: state.totalUtterances
-                  } : undefined}
-                />
-              </div>
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="border-b border-border px-4 py-3 flex items-center justify-between bg-background/50">
+          <div className="flex items-center gap-3">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <div>
+              <h1 className="text-lg font-semibold">Phoenix Chat</h1>
+              <p className="text-xs text-muted-foreground">
+                {conversationId ? `Conversation #${conversationId}` : 'Nouvelle conversation'}
+              </p>
             </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowConversations(!showConversations)}
+            className="gap-2"
+          >
+            {showConversations ? 'Masquer' : 'Conversations'}
+          </Button>
+        </div>
 
-            <TabsContent value="chat" className="flex-1 m-0">
-              <PhoenixChat
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                isLoading={false}
-                currentTorment={state?.tormentScore || 0}
-                fastMode={fastMode}
-                onFastModeChange={(enabled) => {
-                  setFastMode(enabled);
-                  localStorage.setItem('phoenix-fast-mode', JSON.stringify(enabled));
-                }}
+        {/* Main content */}
+        <div className="flex-1 flex gap-4 overflow-hidden p-4">
+          {/* Conversations sidebar */}
+          {showConversations && (
+            <div className="w-64 border border-border rounded-lg overflow-hidden flex flex-col bg-card">
+              <ConversationsList
+                onSelectConversation={handleSelectConversation}
               />
-            </TabsContent>
+            </div>
+          )}
 
-            <TabsContent value="hypotheses" className="flex-1 m-0 p-4 overflow-auto">
-              <div className="max-w-4xl mx-auto space-y-4">
-                <HypothesesPanel
-                  hypotheses={lastHypotheses}
-                  chosenId={messages.filter(m => m.role === "assistant").slice(-1)[0]?.chosenHypothesisId}
-                  showReasoning
-                />
-                
-                {criteria.data && criteria.data.length > 0 && (
-                  <Card className="phoenix-card">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-primary" />
-                        Critères de Jugement Actifs
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {criteria.data.map((c) => (
-                          <div key={c.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={c.level === "0" ? "destructive" : "secondary"}>
-                                N{c.level}
-                              </Badge>
-                              <span className="text-sm">{c.name}</span>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              Poids: {c.weight}
-                            </span>
-                          </div>
-                        ))}
+          {/* Chat area */}
+          <div className="flex-1 flex flex-col border border-border rounded-lg bg-card overflow-hidden">
+            {/* Messages */}
+            <ScrollArea ref={scrollRef} className="flex-1 p-4">
+              <div className="space-y-4 max-w-2xl mx-auto">
+                {messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-center text-muted-foreground py-20">
+                    <div>
+                      <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Aucun message. Commencez une conversation!</p>
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          message.role === 'user'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-foreground border border-border'
+                        }`}
+                      >
+                        {message.role === 'assistant' ? (
+                          <Streamdown>{message.content}</Streamdown>
+                        ) : (
+                          <p className="text-sm">{message.content}</p>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  ))
+                )}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-muted border border-border px-4 py-2 rounded-lg flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Phoenix réfléchit...</span>
+                    </div>
+                  </div>
                 )}
               </div>
-            </TabsContent>
+            </ScrollArea>
 
-            <TabsContent value="audit" className="flex-1 m-0 p-4 overflow-auto">
-              <div className="max-w-4xl mx-auto">
-                <AuditLog 
-                  entries={auditLog.data || []} 
-                  maxHeight="calc(100vh - 250px)"
+            {/* Input area */}
+            <div className="border-t border-border p-4 bg-background/50">
+              <div className="flex gap-2">
+                <Textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Posez une question à Phoenix..."
+                  className="min-h-12 resize-none"
+                  disabled={isLoading}
                 />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="memory" className="flex-1 m-0 p-4 overflow-auto">
-              <div className="max-w-4xl mx-auto">
-                <MemoryExplorer />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="files" className="flex-1 m-0 p-4 overflow-auto">
-              <div className="max-w-4xl mx-auto space-y-4">
-                <Card className="phoenix-card">
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <FileUp className="w-5 h-5 text-primary" />
-                      Upload de Fichiers
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <FileUpload />
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Right sidebar - State panel */}
-        <div className="w-80 border-l border-border bg-card/50 p-4 overflow-auto hidden lg:block">
-          <div className="space-y-6">
-            {/* Torment Gauge */}
-            <div className="flex flex-col items-center">
-              <TormentGauge 
-                score={state?.tormentScore || 0} 
-                size="lg"
-              />
-            </div>
-
-            <Separator />
-
-            {/* Stats */}
-            <div className="space-y-3">
-              <div className="text-sm">
-                <div className="text-muted-foreground mb-1">Issues Ouvertes</div>
-                <div className="text-2xl font-bold text-primary">{state?.openIssuesCount || 0}</div>
-              </div>
-              <div className="text-sm">
-                <div className="text-muted-foreground mb-1">Décisions</div>
-                <div className="text-2xl font-bold text-primary">{state?.totalDecisions || 0}</div>
-              </div>
-              <div className="text-sm">
-                <div className="text-muted-foreground mb-1">Utterances</div>
-                <div className="text-2xl font-bold text-primary">{state?.totalUtterances || 0}</div>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={isLoading || !input.trim()}
+                  size="icon"
+                  className="h-12 w-12"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
               </div>
             </div>
-
-            <Separator />
-
-            {/* Issues */}
-            {state?.activeIssues && state.activeIssues.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Issues Actives</h3>
-                <div className="space-y-2">
-                  {state.activeIssues.slice(0, 3).map((issue) => (
-                    <div key={issue.id} className="text-xs p-2 bg-destructive/10 rounded border border-destructive/20">
-                      <div className="font-medium text-destructive">{issue.type}</div>
-                      <div className="text-muted-foreground mt-1">{issue.severity}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
+
+        {/* Status bar */}
+        {state && (
+          <div className="border-t border-border px-4 py-2 bg-background/50 text-xs text-muted-foreground flex gap-4">
+            <span>Torment: {state.tormentScore}</span>
+            <span>Issues: {state.openIssuesCount}</span>
+            <span>Decisions: {state.totalDecisions}</span>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

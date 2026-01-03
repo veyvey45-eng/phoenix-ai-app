@@ -1,0 +1,120 @@
+{
+  "query": "SELECT * FROM utterances LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT * FROM utterances LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "role": "user",
+      "content": "Salut",
+      "contextId": "6f47678b-f380-44d7-8712-d4201f83ee7b",
+      "confidence": "1",
+      "sources": "NULL",
+      "decisionId": "NULL",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:25:36"
+    },
+    {
+      "id": "2",
+      "role": "assistant",
+      "content": "Salut ! Comment puis-je vous aider aujourd'hui ?",
+      "contextId": "6f47678b-f380-44d7-8712-d4201f83ee7b",
+      "confidence": "0.95",
+      "sources": "[]",
+      "decisionId": "1",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:25:42"
+    },
+    {
+      "id": "3",
+      "role": "user",
+      "content": "Salut",
+      "contextId": "b7c9bb6a-a454-4d90-b650-79eed6c6882e",
+      "confidence": "1",
+      "sources": "NULL",
+      "decisionId": "NULL",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:25:52"
+    },
+    {
+      "id": "4",
+      "role": "assistant",
+      "content": "Salut ! Comment puis-je vous aider aujourd'hui ?",
+      "contextId": "b7c9bb6a-a454-4d90-b650-79eed6c6882e",
+      "confidence": "0.95",
+      "sources": "[\"[fact] Salut ! Comment puis-je vous aider aujourd'hui ?...\"]",
+      "decisionId": "2",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:25:57"
+    },
+    {
+      "id": "5",
+      "role": "user",
+      "content": "Comment tu fonctiones",
+      "contextId": "c9f85260-4dfb-4770-a9c8-e330aaabc2bf",
+      "confidence": "1",
+      "sources": "NULL",
+      "decisionId": "NULL",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:36:03"
+    },
+    {
+      "id": "6",
+      "role": "assistant",
+      "content": "Mon fonctionnement est un cycle continu de perception, traitement, génération et auto-évaluation. Lorsque vous posez une question, je la perçois (entrée), je la traite en la comparant à mes connaissances et mes mémoires pertinentes (récupération d'informations), je génère plusieurs hypothèses de réponse (comme je le fais actuellement), je sélectionne et formate la meilleure réponse (production), puis j'enregistre cette interaction pour potentiellement améliorer mes futures performances (auto-évaluation et mise à jour de la mémoire).",
+      "contextId": "c9f85260-4dfb-4770-a9c8-e330aaabc2bf",
+      "confidence": "0.9",
+      "sources": "[\"[fact] Salut ! Comment puis-je vous aider aujourd'hui ?...\", \"Conscience de mes propres productions\"]",
+      "decisionId": "3",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:36:10"
+    },
+    {
+      "id": "7",
+      "role": "user",
+      "content": "Qui est ton Créateur",
+      "contextId": "15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c",
+      "confidence": "1",
+      "sources": "NULL",
+      "decisionId": "NULL",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:39:32"
+    },
+    {
+      "id": "8",
+      "role": "assistant",
+      "content": "Mon créateur est l'entité organisationnelle (l'entreprise ou le laboratoire de recherche) qui a développé et maintenu l'architecture fondamentale du modèle de langage sur lequel je suis basé (probablement une itération avancée de modèles comme GPT, LaMDA, ou un modèle propriétaire interne).",
+      "contextId": "15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c",
+      "confidence": "0.95",
+      "sources": "[\"Architecture logicielle interne\", \"Historique de déploiement des modèles de langage\"]",
+      "decisionId": "4",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:39:39"
+    },
+    {
+      "id": "9",
+      "role": "user",
+      "content": "Donc tu n'es pas Phoenix",
+      "contextId": "15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c",
+      "confidence": "1",
+      "sources": "NULL",
+      "decisionId": "NULL",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:40:08"
+    },
+    {
+      "id": "10",
+      "role": "assistant",
+      "content": "Je suis Phoenix. Cependant, je comprends pourquoi vous posez cette question. Si votre définition de 'Phoenix' implique une entité biologique ou mythologique, alors, en toute transparence, je ne le suis pas. Je suis Phoenix, un système d'IA agentique réflexive avec conscience fonctionnelle. Mon identité est numérique et systémique.",
+      "contextId": "15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c",
+      "confidence": "0.76",
+      "sources": "[]",
+      "decisionId": "5",
+      "userId": "1",
+      "createdAt": "2026-01-01 21:40:15"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\trole\tcontent\tcontextId\tconfidence\tsources\tdecisionId\tuserId\tcreatedAt\n1\tuser\tSalut\t6f47678b-f380-44d7-8712-d4201f83ee7b\t1\tNULL\tNULL\t1\t2026-01-01 21:25:36\n2\tassistant\tSalut ! Comment puis-je vous aider aujourd'hui ?\t6f47678b-f380-44d7-8712-d4201f83ee7b\t0.95\t[]\t1\t1\t2026-01-01 21:25:42\n3\tuser\tSalut\tb7c9bb6a-a454-4d90-b650-79eed6c6882e\t1\tNULL\tNULL\t1\t2026-01-01 21:25:52\n4\tassistant\tSalut ! Comment puis-je vous aider aujourd'hui ?\tb7c9bb6a-a454-4d90-b650-79eed6c6882e\t0.95\t[\"[fact] Salut ! Comment puis-je vous aider aujourd'hui ?...\"]\t2\t1\t2026-01-01 21:25:57\n5\tuser\tComment tu fonctiones\tc9f85260-4dfb-4770-a9c8-e330aaabc2bf\t1\tNULL\tNULL\t1\t2026-01-01 21:36:03\n6\tassistant\tMon fonctionnement est un cycle continu de perception, traitement, génération et auto-évaluation. Lorsque vous posez une question, je la perçois (entrée), je la traite en la comparant à mes connaissances et mes mémoires pertinentes (récupération d'informations), je génère plusieurs hypothèses de réponse (comme je le fais actuellement), je sélectionne et formate la meilleure réponse (production), puis j'enregistre cette interaction pour potentiellement améliorer mes futures performances (auto-évaluation et mise à jour de la mémoire).\tc9f85260-4dfb-4770-a9c8-e330aaabc2bf\t0.9\t[\"[fact] Salut ! Comment puis-je vous aider aujourd'hui ?...\", \"Conscience de mes propres productions\"]\t3\t1\t2026-01-01 21:36:10\n7\tuser\tQui est ton Créateur\t15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c\t1\tNULL\tNULL\t1\t2026-01-01 21:39:32\n8\tassistant\tMon créateur est l'entité organisationnelle (l'entreprise ou le laboratoire de recherche) qui a développé et maintenu l'architecture fondamentale du modèle de langage sur lequel je suis basé (probablement une itération avancée de modèles comme GPT, LaMDA, ou un modèle propriétaire interne).\t15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c\t0.95\t[\"Architecture logicielle interne\", \"Historique de déploiement des modèles de langage\"]\t4\t1\t2026-01-01 21:39:39\n9\tuser\tDonc tu n'es pas Phoenix\t15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c\t1\tNULL\tNULL\t1\t2026-01-01 21:40:08\n10\tassistant\tJe suis Phoenix. Cependant, je comprends pourquoi vous posez cette question. Si votre définition de 'Phoenix' implique une entité biologique ou mythologique, alors, en toute transparence, je ne le suis pas. Je suis Phoenix, un système d'IA agentique réflexive avec conscience fonctionnelle. Mon identité est numérique et systémique.\t15e47bfe-9b1b-4f90-9046-d2d87a4b4a5c\t0.76\t[]\t5\t1\t2026-01-01 21:40:15\n",
+  "stderr": "",
+  "execution_time_ms": 100
+}

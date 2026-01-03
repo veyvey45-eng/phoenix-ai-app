@@ -13,6 +13,7 @@ import {
   phoenixState, InsertPhoenixState, PhoenixState,
   auditLog, InsertAuditLog, AuditLog,
   conversations, InsertConversation, Conversation,
+  conversationMessages, InsertConversationMessage, ConversationMessage,
   permissions, InsertPermission, Permission,
   rolePermissions, InsertRolePermission, RolePermission,
   sensitiveValidations, InsertSensitiveValidation, SensitiveValidation,
@@ -913,30 +914,39 @@ export async function deleteConversation(conversationId: number): Promise<boolea
   }
 }
 
-export async function getConversationMessages(contextId: string, limit = 100): Promise<Utterance[]> {
+export async function getConversationMessages(conversationId: number, limit = 100): Promise<ConversationMessage[]> {
   const db = await getDb();
   if (!db) return [];
 
   return db.select()
-    .from(utterances)
-    .where(eq(utterances.contextId, contextId))
-    .orderBy(utterances.createdAt)
+    .from(conversationMessages)
+    .where(eq(conversationMessages.conversationId, conversationId))
+    .orderBy(conversationMessages.createdAt)
     .limit(limit);
 }
 
 export async function saveConversationMessage(
-  contextId: string,
-  role: 'user' | 'assistant' | 'system',
-  content: string,
-  userId: number
-): Promise<Utterance | undefined> {
-  return createUtterance({
+  conversationId: number,
+  role: 'user' | 'assistant',
+  content: string
+): Promise<ConversationMessage | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.insert(conversationMessages).values({
+    conversationId,
     role,
-    content,
-    contextId,
-    userId,
-    confidence: 1.0
+    content
   });
+
+  if (!result) return undefined;
+
+  return db.select()
+    .from(conversationMessages)
+    .where(eq(conversationMessages.conversationId, conversationId))
+    .orderBy(desc(conversationMessages.createdAt))
+    .limit(1)
+    .then(rows => rows[0]);
 }
 
 export async function getOrCreateConversationForUser(

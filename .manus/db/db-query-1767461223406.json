@@ -1,0 +1,17 @@
+{
+  "query": "SELECT * FROM conversationMessages;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT * FROM conversationMessages;",
+  "rows": [
+    {
+      "id": "1",
+      "conversationId": "8",
+      "role": "user",
+      "content": "Test message",
+      "createdAt": "2026-01-03 17:26:56"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tconversationId\trole\tcontent\tcreatedAt\n1\t8\tuser\tTest message\t2026-01-03 17:26:56\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

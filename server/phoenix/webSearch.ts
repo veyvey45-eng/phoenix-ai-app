@@ -9,6 +9,7 @@
  */
 
 import { serperApi } from './serperApi';
+import { createHash } from 'crypto';
 
 interface SearchResult {
   title: string;
@@ -224,7 +225,7 @@ class WebSearchIntegration {
    */
   private generateSignature(results: SearchResult[]): string {
     const data = results.map(r => r.url).join('|');
-    const hash = require('crypto').createHash('sha256').update(data).digest('hex');
+    const hash = createHash('sha256').update(data).digest('hex');
     return hash; // Retourner le hash complet (64 caractères pour SHA-256)
   }
 

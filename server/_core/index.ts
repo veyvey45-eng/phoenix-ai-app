@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { streamChatEndpoint, fastStreamChatEndpoint } from "./streamingEndpoint";
 
+
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
     const server = net.createServer();
@@ -40,6 +41,25 @@ async function startServer() {
   // Streaming endpoints for real-time responses
   app.get("/api/stream/chat", streamChatEndpoint);
   app.get("/api/stream/fast-chat", fastStreamChatEndpoint);
+  
+  // Endpoint to save conversation messages
+  app.post("/api/save-message", async (req, res) => {
+    try {
+      const { conversationId, role, content } = req.body;
+      
+      if (!conversationId || !role || !content) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      const { saveConversationMessage } = await import('../db');
+      const result = await saveConversationMessage(conversationId, role, content);
+      
+      res.json({ success: true, message: result });
+    } catch (error) {
+      console.error('Error saving message:', error);
+      res.status(500).json({ error: 'Failed to save message' });
+    }
+  });
   // File retrieval endpoint for client-side file content loading
   app.get("/api/files/:fileId", async (req, res) => {
     try {

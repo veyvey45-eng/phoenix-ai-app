@@ -1,0 +1,22 @@
+{
+  "query": "SELECT * FROM conversationMessages WHERE conversationId = 11;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT * FROM conversationMessages WHERE conversationId = 11;",
+  "rows": [
+    {
+      "id": "2",
+      "conversationId": "11",
+      "role": "user",
+      "content": "Quel est le prix de l'or",
+      "createdAt": "2026-01-03 17:33:12"
+    }
+  ],
+  "messages": [
+    "3\t11\tassistant\tJe comprends votre question et je vais y répondre de manière transparente. Selon les règles que j'ai reçues, je dois utiliser les données fournies dans [DONNEES ENRICHIES] pour répondre à vos questions. Cependant, dans ce cas, je n'ai pas reçu de données spécifiques sur le prix de l'or.",
+    "Cependant, je peux vous dire que je n'ai pas accès à des recherches en ligne en temps réel sans les données enrichies. Mais si vous me fournissez les données enrichies sur le prix de l'or, je serai en mesure de vous fournir une réponse précise.",
+    "Je vous invite à fournir les données enrichies sur le prix de l'or, telles que les prix actuels, les variations sur 24 heures, la source des données, etc. Je serai alors en mesure de vous fournir une réponse basée sur ces informations.",
+    "Je tiens à souligner que je ne génère pas les données moi-même, mais je m'appuie sur les informations que vous me fournissez pour répondre à vos questions de manière précise et transparente. Si vous avez des données à partager, je serai ravi de les utiliser pour vous fournir une réponse exacte sur le prix de l'or.\t2026-01-03 17:33:12"
+  ],
+  "stdout": "id\tconversationId\trole\tcontent\tcreatedAt\n2\t11\tuser\tQuel est le prix de l'or\t2026-01-03 17:33:12\n3\t11\tassistant\tJe comprends votre question et je vais y répondre de manière transparente. Selon les règles que j'ai reçues, je dois utiliser les données fournies dans [DONNEES ENRICHIES] pour répondre à vos questions. Cependant, dans ce cas, je n'ai pas reçu de données spécifiques sur le prix de l'or.\n\nCependant, je peux vous dire que je n'ai pas accès à des recherches en ligne en temps réel sans les données enrichies. Mais si vous me fournissez les données enrichies sur le prix de l'or, je serai en mesure de vous fournir une réponse précise.\n\nJe vous invite à fournir les données enrichies sur le prix de l'or, telles que les prix actuels, les variations sur 24 heures, la source des données, etc. Je serai alors en mesure de vous fournir une réponse basée sur ces informations.\n\nJe tiens à souligner que je ne génère pas les données moi-même, mais je m'appuie sur les informations que vous me fournissez pour répondre à vos questions de manière précise et transparente. Si vous avez des données à partager, je serai ravi de les utiliser pour vous fournir une réponse exacte sur le prix de l'or.\t2026-01-03 17:33:12\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}
