@@ -9,6 +9,9 @@ import { getMemoryStore } from './phoenix/vectraMemory';
 import { getSleepModule } from './phoenix/sleepModule';
 import { getToolsEngine, ToolCall } from './phoenix/tools';
 import { getFileProcessor } from './phoenix/fileProcessor';
+import { openweatherApi } from './phoenix/openweatherApi';
+import { groqApi } from './phoenix/groqApi';
+import { serperApi } from './phoenix/serperApi';
 import { getMemorySyncModule } from './phoenix/memorySync';
 import { getArbitrator } from './phoenix/arbitrage';
 import { getActionEngine } from './phoenix/actionEngine';
@@ -2751,9 +2754,112 @@ export const appRouter = router({
         changes: {}
       });
       
-      return { success: true };
+       return { success: true };
     }),
   }),
-});
 
+  // ============================================================================
+  // REAL APIs - OpenWeatherMap, Groq, Serper
+  // ============================================================================
+  apis: router({
+    /**
+     * Get current weather from OpenWeatherMap
+     */
+    weather: protectedProcedure
+      .input(z.object({ city: z.string() }))
+      .query(async ({ ctx, input }) => {
+        const weather = await openweatherApi.getCurrentWeather(input.city);
+        return weather;
+      }),
+
+    /**
+     * Get weather forecast
+     */
+    weatherForecast: protectedProcedure
+      .input(z.object({ city: z.string(), days: z.number().default(5) }))
+      .query(async ({ ctx, input }) => {
+        const forecast = await openweatherApi.getForecast(input.city, input.days);
+        return forecast;
+      }),
+
+    /**
+     * Generate text using Groq LLM
+     */
+    groqGenerate: protectedProcedure
+      .input(z.object({
+        messages: z.array(z.object({
+          role: z.enum(['system', 'user', 'assistant']),
+          content: z.string()
+        })),
+        temperature: z.number().min(0).max(2).optional().default(0.7),
+        maxTokens: z.number().optional().default(2048)
+      }))
+      .mutation(async ({ ctx, input }) => {
+        if (!groqApi.isAvailable()) {
+          throw new Error('Groq API not available');
+        }
+        const response = await groqApi.generateText(input.messages, {
+          temperature: input.temperature,
+          maxTokens: input.maxTokens
+        });
+        return { text: response };
+      }),
+
+    /**
+     * Search the web using Serper
+     */
+    serperSearch: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        num: z.number().min(1).max(100).optional().default(10)
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!serperApi.isAvailable()) {
+          throw new Error('Serper API not available');
+        }
+        const results = await serperApi.search(input.query, { num: input.num });
+        return results;
+      }),
+
+    /**
+     * Search for news using Serper
+     */
+    serperNews: protectedProcedure
+      .input(z.object({
+        query: z.string(),
+        num: z.number().min(1).max(100).optional().default(10)
+      }))
+      .query(async ({ ctx, input }) => {
+        if (!serperApi.isAvailable()) {
+          throw new Error('Serper API not available');
+        }
+        const results = await serperApi.searchNews(input.query, { num: input.num });
+        return results;
+      }),
+
+    /**
+     * Get quick answer from Serper
+     */
+    serperAnswer: protectedProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ ctx, input }) => {
+        if (!serperApi.isAvailable()) {
+          throw new Error('Serper API not available');
+        }
+        const answer = await serperApi.getAnswerBox(input.query);
+        return answer;
+      }),
+
+    /**
+     * Check API availability
+     */
+    status: publicProcedure.query(async () => {
+      return {
+        openweathermap: !!process.env.Openweather_API_KEY,
+        groq: groqApi.isAvailable(),
+        serper: serperApi.isAvailable()
+      };
+    })
+  }),
+});
 export type AppRouter = typeof appRouter;

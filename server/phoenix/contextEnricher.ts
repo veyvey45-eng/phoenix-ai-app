@@ -3,9 +3,10 @@
  */
 
 import { webSearchIntegration, SearchResponse } from './webSearch';
-import { weatherApi } from './weatherApi';
+import { openweatherApi } from './openweatherApi';
 import { cryptoApi } from './cryptoApi';
 import { newsApiFree } from './newsApiFree';
+import { serperApi } from './serperApi';
 
 interface EnrichmentResult {
   needsInternet: boolean;
@@ -107,18 +108,18 @@ class ContextEnricher {
         const isForecast = /demain|prévision|semaine|jours/i.test(query);
         
         if (isForecast) {
-          const forecast = await weatherApi.getForecast(city, 5);
+          const forecast = await openweatherApi.getForecast(city, 5);
           return {
             needsInternet: true,
             category: 'weather',
-            enrichedContext: weatherApi.formatForecastForContext(forecast)
+            enrichedContext: openweatherApi.formatForecastForContext(forecast)
           };
         } else {
-          const weather = await weatherApi.getCurrentWeather(city);
+          const weather = await openweatherApi.getCurrentWeather(city);
           return {
             needsInternet: true,
             category: 'weather',
-            enrichedContext: weatherApi.formatWeatherForContext(weather)
+            enrichedContext: openweatherApi.formatWeatherForContext(weather)
           };
         }
       }
