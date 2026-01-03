@@ -87,7 +87,8 @@ export default function Dashboard() {
     
     if (uploadedFile) {
       fileContent = uploadedFile.content;
-      setUploadedFile(null);
+      // NE PAS réinitialiser uploadedFile ici - garder le fichier pour les questions suivantes
+      // L'utilisateur peut le supprimer explicitement s'il le souhaite
     }
     
     setInput("");
@@ -112,10 +113,17 @@ export default function Dashboard() {
       timestamp: new Date()
     };
     
-    // Add both messages at once to prevent race conditions
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
+      // Add both messages at once to prevent race conditions
+      setMessages(prev => [...prev, userMessage, assistantMessage]);
 
-    setIsLoading(true);
+      setIsLoading(true);
+      
+      // Log fileContent transmission for debugging
+      console.log('[Dashboard] fileContent transmission:', {
+        hasFileContent: !!fileContent,
+        fileContentLength: fileContent ? fileContent.length : 0,
+        uploadedFileName: uploadedFile?.name
+      });
     
     // Don't reload from database while sending
     const originalMessages = [userMessage, assistantMessage];
@@ -148,6 +156,8 @@ export default function Dashboard() {
           console.error('[Dashboard] Stream response error:', response.status, response.statusText);
           const errorText = await response.text();
           console.error('[Dashboard] Error response:', errorText);
+          // Clear uploaded file on error to avoid confusion
+          setUploadedFile(null);
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
@@ -286,9 +296,19 @@ export default function Dashboard() {
   const handleSelectConversation = useCallback((convId: number, convContextId: string) => {
     setConversationId(convId);
     setContextId(convContextId);
+    setMessages([]); // Clear messages when switching conversations
     setShowConversations(false);
     // Force refetch of messages
     getConversationQuery.refetch();
+  }, [getConversationQuery]);
+  
+  // Handle new conversation
+  const handleNewConversation = useCallback(() => {
+    setConversationId(null);
+    setContextId(generateId());
+    setMessages([]);
+    setUploadedFile(null);
+    setShowConversations(false);
   }, []);
 
   const state = phoenixState.data;
@@ -307,14 +327,25 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowConversations(!showConversations)}
-            className="gap-2"
-          >
-            {showConversations ? 'Masquer' : 'Conversations'}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNewConversation}
+              className="gap-2"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Nouvelle
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowConversations(!showConversations)}
+              className="gap-2"
+            >
+              {showConversations ? 'Masquer' : 'Conversations'}
+            </Button>
+          </div>
         </div>
 
         {/* Main content */}

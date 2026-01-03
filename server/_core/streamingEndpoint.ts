@@ -21,15 +21,16 @@ export async function streamChatEndpoint(req: Request, res: Response) {
       ? req.body 
       : req.query;
     
-    console.log('[StreamingEndpoint] Received fileContent:', {
-      hasFileContent: !!fileContent,
-      fileContentLength: fileContent ? (typeof fileContent === 'string' ? fileContent.length : 0) : 0,
-      messageLength: message ? message.length : 0
-    });
-    
     // Force fast mode to avoid quota issues with 3 hypotheses
     const fast = true;
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
+    
+    console.log('[StreamingEndpoint] Received fileContent:', {
+      hasFileContent: !!fileContent,
+      fileContentLength: fileContent ? (typeof fileContent === 'string' ? fileContent.length : 0) : 0,
+      messageLength: message ? message.length : 0,
+      conversationId
+    });
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'Message is required' });
@@ -70,9 +71,19 @@ export async function streamChatEndpoint(req: Request, res: Response) {
         }
       }
     } else {
-      // Fallback to utterances if no conversationId
-      recentUtterances = await getRecentUtterances(userId, 5);
+      // For new conversations (conversationId === 0 or null), don't load any history
+      // This prevents mixing messages from different conversations
+      console.log('[StreamingEndpoint] New conversation - no history loaded');
+      recentUtterances = [];
     }
+    
+    console.log('[StreamingEndpoint] Context isolation:', {
+      userId,
+      conversationId: convId,
+      recentUtterancesCount: recentUtterances.length,
+      hasFileContent: !!fileContent
+    });
+    
     const activeIssues = await getActiveIssues(userId);
     const criteriaList = await getActiveCriteria();
     const state = await getOrCreatePhoenixState(userId);
@@ -184,12 +195,15 @@ ${fileContent}
       // Build message with conversation history
       let userMessageWithContext = message;
       
-      // Add recent utterances if available
+      // Add recent utterances if available (only for existing conversations)
       if (recentUtterances && recentUtterances.length > 0) {
         const history = recentUtterances
           .map(u => `${u.role === 'user' ? 'Toi' : 'Phoenix'}: ${u.content}`)
           .join('\n');
         userMessageWithContext = `[HISTORIQUE RECENT]\n${history}\n\n[QUESTION ACTUELLE]\n${message}`;
+        console.log('[StreamingEndpoint] Added conversation history:', { utterancesCount: recentUtterances.length });
+      } else {
+        console.log('[StreamingEndpoint] No conversation history - new conversation');
       }
       
       // Add enriched context if available
@@ -323,12 +337,15 @@ ${fileContent}
       // Build message with conversation history
       let userMessageWithContext = message;
       
-      // Add recent utterances if available
+      // Add recent utterances if available (only for existing conversations)
       if (recentUtterances && recentUtterances.length > 0) {
         const history = recentUtterances
           .map(u => `${u.role === 'user' ? 'Toi' : 'Phoenix'}: ${u.content}`)
           .join('\n');
         userMessageWithContext = `[HISTORIQUE RECENT]\n${history}\n\n[QUESTION ACTUELLE]\n${message}`;
+        console.log('[StreamingEndpoint] Added conversation history:', { utterancesCount: recentUtterances.length });
+      } else {
+        console.log('[StreamingEndpoint] No conversation history - new conversation');
       }
       
       // Add enriched context if available
