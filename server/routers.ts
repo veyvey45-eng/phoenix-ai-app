@@ -87,7 +87,8 @@ export const appRouter = router({
       .input(z.object({
         message: z.string().min(1),
         contextId: z.string().optional(),
-        fastMode: z.boolean().optional().default(false)
+        fastMode: z.boolean().optional().default(false),
+        uploadedFileIds: z.array(z.string()).optional()
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
@@ -156,10 +157,28 @@ export const appRouter = router({
         const enrichment = await contextEnricher.enrichContext(input.message, userId.toString());
         console.log(`[Phoenix] Enrichissement Internet: ${enrichment.needsInternet ? enrichment.category : 'non requis'}`);
 
+        // Extract text from uploaded files if provided
+        let documentContext = '';
+        if (input.uploadedFileIds && input.uploadedFileIds.length > 0) {
+          const processor = getFileProcessor();
+          const documentTexts: string[] = [];
+          for (const fileId of input.uploadedFileIds) {
+            const file = processor.getFile(fileId);
+            if (file && file.userId === userId && file.extractedText) {
+              documentTexts.push(`[Document: ${file.originalName}]\n${file.extractedText}`);
+            }
+          }
+          if (documentTexts.length > 0) {
+            documentContext = `\n\n=== DOCUMENTS FOURNIS ===\n${documentTexts.join('\n\n=== FIN DOCUMENT ===\n')}`;
+            console.log(`[Phoenix] ${documentTexts.length} document(s) charges pour analyse`);
+          }
+        }
+        const messageWithDocuments = input.message + documentContext;
+
         // Process through Phoenix orchestrator
         // fastMode: 1 hypothèse pour réponse rapide, sinon 3 hypothèses
         const decision = await phoenix.process(
-          input.message, 
+          messageWithDocuments, 
           phoenixContext, 
           input.fastMode,
           enrichment.enrichedContext || undefined

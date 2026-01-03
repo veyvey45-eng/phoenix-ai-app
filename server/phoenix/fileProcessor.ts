@@ -194,63 +194,32 @@ export class FileProcessor {
     }
   }
 
-  // Extraction depuis PDF (simplifiée - en production utiliser pdf-parse)
+  // Extraction depuis PDF (utilisant pdf-parse)
   private async extractFromPdf(buffer: Buffer): Promise<FileExtractionResult> {
-    // Pour le MVP, on retourne un placeholder
-    // En production, utiliser pdf-parse ou pdfjs-dist
     try {
-      // Vérifier que c'est bien un PDF (magic bytes)
-      const header = buffer.slice(0, 5).toString('ascii');
-      if (header !== '%PDF-') {
-        return {
-          success: false,
-          error: 'Fichier PDF invalide'
-        };
-      }
-
-      // Extraction basique du texte brut (très simplifiée)
-      const content = buffer.toString('latin1');
+      // Importer dynamiquement pour éviter les dépendances circulaires
+      const { extractPDFText } = await import('./pdfExtractor');
       
-      // Chercher les streams de texte
-      const textMatches: string[] = [];
-      const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
-      let match;
+      const extracted = await extractPDFText(buffer);
       
-      while ((match = streamRegex.exec(content)) !== null) {
-        // Extraire le texte visible (très basique)
-        const streamContent = match[1];
-        const textParts = streamContent.match(/\(([^)]+)\)/g);
-        if (textParts) {
-          textMatches.push(...textParts.map(p => p.slice(1, -1)));
-        }
-      }
-
-      const extractedText = textMatches.join(' ').replace(/\\[nrt]/g, ' ').trim();
-      
-      if (extractedText.length > 0) {
-        return {
-          success: true,
-          text: extractedText,
-          wordCount: extractedText.split(/\s+/).length,
-          metadata: {
-            type: 'pdf',
-            extractionMethod: 'basic'
-          }
-        };
-      }
-
       return {
         success: true,
-        text: '[Contenu PDF - extraction avancée requise pour ce document]',
+        text: extracted.text,
+        pageCount: extracted.pages,
+        wordCount: extracted.text.split(/\s+/).filter(w => w.length > 0).length,
         metadata: {
           type: 'pdf',
-          note: 'Le PDF contient probablement des images ou du texte encodé. Une extraction avancée serait nécessaire.'
+          pages: extracted.pages,
+          title: extracted.metadata.title,
+          author: extracted.metadata.author,
+          subject: extracted.metadata.subject,
+          extractionMethod: 'pdf-parse'
         }
       };
     } catch (error) {
       return {
         success: false,
-        error: 'Erreur lors de l\'extraction du PDF'
+        error: `Erreur lors de l'extraction du PDF: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
