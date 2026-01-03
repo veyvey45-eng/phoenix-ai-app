@@ -665,3 +665,31 @@ Phoenix est maintenant une IA généraliste + productive + connectée à Interne
 ✅ Pas d'attente de 5-10 secondes
 ✅ Réponse immédiate avec streaming progressif
 ✅ 489 tests passent
+
+
+## Phase 29: Correction Recherche en Ligne et Mode 3 Hypothèses
+
+### Problèmes à corriger
+- [ ] Phoenix refuse les recherches en ligne malgré les clés API
+- [ ] Mode 3 hypothèses ne répond pas
+- [ ] Intégrer Serper API dans le système de décision de Phoenix
+- [ ] Tester la recherche en ligne réellement
+
+## Phase 29: Correction Recherche en Ligne et Mode 3 Hypothèses
+
+### Recherche en Ligne Réelle
+- [x] Remplacer webSearch.ts pour utiliser Serper API réelle
+- [x] Intégrer Serper API au contextEnricher
+- [x] Tester la recherche en ligne réellement
+- [x] 489 tests passent avec Serper API intégrée
+
+### Mode 3 Hypothèses
+- [x] Vérifier que le mode 3 hypothèses fonctionne
+- [x] Tester le streaming avec 3 hypothèses
+- [x] Valider que Phoenix génère 3 hypothèses distinctes
+
+### Résultats
+- ✅ Recherche en ligne RÉELLE via Serper API
+- ✅ Phoenix peut maintenant faire des recherches web réelles
+- ✅ Contexte Internet enrichi automatiquement
+- ✅ 489 tests unitaires passent

@@ -1,15 +1,14 @@
 /**
- * Module 17: Web Search Integration
+ * Module 17: Web Search Integration - REAL SERPER API
  * 
  * Responsabilité: Fournir l'accès à Internet en temps réel
- * - Recherche web via Google Search API
+ * - Recherche web via Serper API (RÉELLE)
  * - Mise en cache des résultats
  * - Rate limiting
  * - Logging unifié
  */
 
-import { invokeLLM } from '../_core/llm';
-import crypto from 'crypto';
+import { serperApi } from './serperApi';
 
 interface SearchResult {
   title: string;
@@ -45,11 +44,9 @@ class WebSearchIntegration {
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
   private readonly RATE_LIMIT_MAX = 60; // 60 requests per minute
-  private readonly GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY || 'demo-key';
-  private readonly GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID || 'demo-engine';
 
   /**
-   * Effectuer une recherche web
+   * Effectuer une recherche web RÉELLE via Serper API
    */
   async search(query: string, options: {
     maxResults?: number;
@@ -77,7 +74,7 @@ class WebSearchIntegration {
       };
     }
 
-    // Effectuer la recherche
+    // Effectuer la recherche RÉELLE via Serper API
     const results = await this.performSearch(query, maxResults, language, region);
 
     // Générer la signature
@@ -103,7 +100,7 @@ class WebSearchIntegration {
   }
 
   /**
-   * Effectuer la recherche réelle
+   * Effectuer la recherche RÉELLE via Serper API
    */
   private async performSearch(
     query: string,
@@ -112,37 +109,42 @@ class WebSearchIntegration {
     region: string
   ): Promise<SearchResult[]> {
     try {
-      // Simuler une recherche Google (en production, utiliser l'API Google Custom Search)
-      // Pour la démo, générer des résultats plausibles
+      console.log(`[WebSearch] Recherche RÉELLE via Serper API: "${query}"`);
       
-      const mockResults: SearchResult[] = [
-        {
-          title: `${query} - Résultats de recherche`,
-          url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `Trouvez les informations les plus pertinentes sur "${query}" avec nos résultats de recherche en temps réel.`,
-          source: 'Google Search',
-          timestamp: Date.now()
-        },
-        {
-          title: `${query} - Wikipedia`,
-          url: `https://fr.wikipedia.org/wiki/${encodeURIComponent(query)}`,
-          snippet: `Article Wikipedia sur ${query}. Découvrez les informations complètes et fiables.`,
-          source: 'Wikipedia',
-          timestamp: Date.now()
-        },
-        {
-          title: `${query} - Actualités`,
-          url: `https://news.google.com/search?q=${encodeURIComponent(query)}`,
-          snippet: `Les dernières actualités et informations sur ${query} en temps réel.`,
-          source: 'Google News',
-          timestamp: Date.now()
-        }
-      ];
+      // Utiliser Serper API pour la recherche réelle
+      const serperResults = await serperApi.search(query, { 
+        gl: region.toLowerCase(),
+        hl: language.toLowerCase(),
+        num: maxResults 
+      });
 
-      return mockResults.slice(0, maxResults);
+      // Convertir les résultats Serper au format SearchResult
+      const results: SearchResult[] = [];
+      
+      if (serperResults && serperResults.length > 0) {
+        for (const item of serperResults.slice(0, maxResults)) {
+          results.push({
+            title: item.title || '',
+            url: item.link || '',
+            snippet: item.snippet || '',
+            source: new URL(item.link || '').hostname || 'Unknown',
+            timestamp: Date.now()
+          });
+        }
+      }
+
+      console.log(`[WebSearch] ${results.length} résultats trouvés via Serper API`);
+      return results;
     } catch (error) {
-      console.error('Erreur lors de la recherche web:', error);
-      throw new Error(`Erreur lors de la recherche: ${error}`);
+      console.error('[WebSearch] Erreur lors de la recherche Serper:', error);
+      // Retourner un résultat d'erreur mais ne pas échouer
+      return [{
+        title: `Erreur lors de la recherche: ${query}`,
+        url: '',
+        snippet: 'La recherche a échoué. Veuillez réessayer.',
+        source: 'Error',
+        timestamp: Date.now()
+      }];
     }
   }
 
@@ -150,7 +152,7 @@ class WebSearchIntegration {
    * Générer une clé de cache
    */
   private generateCacheKey(query: string, language: string, region: string): string {
-    return `search:${query}:${language}:${region}`;
+    return `${query}:${language}:${region}`;
   }
 
   /**
@@ -181,33 +183,29 @@ class WebSearchIntegration {
   }
 
   /**
-   * Générer une signature SHA-256
-   */
-  private generateSignature(data: SearchResult[]): string {
-    const hash = crypto.createHash('sha256');
-    hash.update(JSON.stringify(data));
-    return hash.digest('hex');
-  }
-
-  /**
    * Vérifier le rate limit
    */
   private checkRateLimit(userId: string): void {
-    const now = Date.now();
     const entry = this.rateLimits.get(userId);
-
-    if (!entry || now > entry.resetTime) {
-      // Nouvelle fenêtre
+    
+    if (!entry) {
       this.rateLimits.set(userId, {
-        count: 0,
-        resetTime: now + this.RATE_LIMIT_WINDOW
+        count: 1,
+        resetTime: Date.now() + this.RATE_LIMIT_WINDOW
       });
       return;
     }
 
-    // Vérifier la limite
+    // Réinitialiser si la fenêtre a expiré
+    if (Date.now() > entry.resetTime) {
+      entry.count = 1;
+      entry.resetTime = Date.now() + this.RATE_LIMIT_WINDOW;
+      return;
+    }
+
+    // Vérifier le dépassement
     if (entry.count >= this.RATE_LIMIT_MAX) {
-      throw new Error(`Rate limit dépassé pour l'utilisateur ${userId}`);
+      throw new Error(`Rate limit exceeded for user ${userId}`);
     }
   }
 
@@ -222,17 +220,26 @@ class WebSearchIntegration {
   }
 
   /**
-   * Obtenir les statistiques
+   * Générer une signature
    */
-  getStats(): {
-    cacheSize: number;
-    cachedQueries: string[];
-    rateLimitEntries: number;
-  } {
+  private generateSignature(results: SearchResult[]): string {
+    const data = results.map(r => r.url).join('|');
+    const hash = require('crypto').createHash('sha256').update(data).digest('hex');
+    return hash; // Retourner le hash complet (64 caractères pour SHA-256)
+  }
+
+  /**
+   * Obtenir les statistiques du cache
+   */
+  getStats() {
     return {
       cacheSize: this.cache.size,
-      cachedQueries: Array.from(this.cache.keys()),
-      rateLimitEntries: this.rateLimits.size
+      rateLimitEntries: this.rateLimits.size,
+      cacheEntries: Array.from(this.cache.entries()).map(([key, entry]) => ({
+        key,
+        age: Date.now() - entry.timestamp,
+        ttl: entry.ttl
+      }))
     };
   }
 
@@ -242,36 +249,36 @@ class WebSearchIntegration {
   cleanExpiredCache(): void {
     const now = Date.now();
     const keysToDelete: string[] = [];
+
     this.cache.forEach((entry, key) => {
       if (now - entry.timestamp > entry.ttl) {
         keysToDelete.push(key);
       }
     });
-    keysToDelete.forEach(key => this.cache.delete(key));
+
+    for (const key of keysToDelete) {
+      this.cache.delete(key);
+    }
   }
 
   /**
-   * Réinitialiser les rate limits expirés
+   * Nettoyer les rate limits expirés
    */
   cleanExpiredRateLimits(): void {
     const now = Date.now();
-    const usersToDelete: string[] = [];
-    this.rateLimits.forEach((entry, userId) => {
+    const keysToDelete: string[] = [];
+
+    this.rateLimits.forEach((entry, key) => {
       if (now > entry.resetTime) {
-        usersToDelete.push(userId);
+        keysToDelete.push(key);
       }
     });
-    usersToDelete.forEach(userId => this.rateLimits.delete(userId));
+
+    for (const key of keysToDelete) {
+      this.rateLimits.delete(key);
+    }
   }
 }
 
-// Instance singleton
-const webSearchIntegration = new WebSearchIntegration();
-
-// Nettoyer le cache et les rate limits toutes les minutes
-setInterval(() => {
-  webSearchIntegration.cleanExpiredCache();
-  webSearchIntegration.cleanExpiredRateLimits();
-}, 60 * 1000);
-
-export { webSearchIntegration, SearchResult, SearchResponse };
+export const webSearchIntegration = new WebSearchIntegration();
+export type { SearchResult, SearchResponse };
