@@ -17,7 +17,7 @@ import { eq, desc } from 'drizzle-orm';
 export async function streamChatEndpoint(req: Request, res: Response) {
   try {
     // Support both GET (query params) and POST (body) requests
-    const { message, contextId, conversationId } = req.method === 'POST' 
+    const { message, contextId, conversationId, fileContent } = req.method === 'POST' 
       ? req.body 
       : req.query;
     
@@ -156,6 +156,23 @@ CRITICAL: Read questions carefully and understand the EXACT intent. Answer what 
 
 You have real-time internet access through [DONNEES ENRICHIES]. Use it without hesitation.`;
 
+    // Add file content to system prompt if provided
+    let finalSystemPrompt = systemPrompt;
+    if (fileContent && typeof fileContent === 'string') {
+      finalSystemPrompt += `
+
+6. **[CONTENU DU FICHIER] USAGE (MANDATORY):**
+   - The user has uploaded a file with content provided below
+   - You MUST analyze and reference this file content when answering
+   - NEVER say you don't have access to the file
+   - ALWAYS use the file content to answer questions about it
+   - Cite specific parts of the file in your response
+
+[CONTENU DU FICHIER]
+${fileContent}
+[FIN CONTENU DU FICHIER]`;
+    }
+
     // Stream the response
     try {
       // Build message with conversation history
@@ -174,8 +191,8 @@ You have real-time internet access through [DONNEES ENRICHIES]. Use it without h
         userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
       }
       
-      const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
-      console.log('[StreamingEndpoint] System prompt:', systemPrompt.substring(0, 200));
+      const messages = formatMessagesForStreaming(finalSystemPrompt, userMessageWithContext);
+      console.log('[StreamingEndpoint] System prompt:', finalSystemPrompt.substring(0, 200));
       console.log('[StreamingEndpoint] User message:', userMessageWithContext.substring(0, 200));
       console.log('[StreamingEndpoint] Has enriched context:', !!enrichedContext);
       console.log('[StreamingEndpoint] Has history:', recentUtterances && recentUtterances.length > 0);
@@ -207,7 +224,9 @@ You have real-time internet access through [DONNEES ENRICHIES]. Use it without h
  */
 export async function fastStreamChatEndpoint(req: Request, res: Response) {
   try {
-    const { message, contextId } = req.query;
+    const { message, contextId, fileContent } = req.method === 'POST' 
+      ? req.body 
+      : req.query;
     // Fast mode is always enabled to avoid quota issues
     const userId = (req as any).user?.id || 1; // Default to user ID 1 for anonymous users
 
@@ -269,6 +288,23 @@ CRITICAL: Read questions carefully and understand the EXACT intent. Answer what 
 
 You have real-time internet access through [DONNEES ENRICHIES]. Use it without hesitation.`;
 
+    // Add file content to system prompt if provided
+    let finalSystemPrompt = systemPrompt;
+    if (fileContent && typeof fileContent === 'string') {
+      finalSystemPrompt += `
+
+6. **[CONTENU DU FICHIER] USAGE (MANDATORY):**
+   - The user has uploaded a file with content provided below
+   - You MUST analyze and reference this file content when answering
+   - NEVER say you don't have access to the file
+   - ALWAYS use the file content to answer questions about it
+   - Cite specific parts of the file in your response
+
+[CONTENU DU FICHIER]
+${fileContent}
+[FIN CONTENU DU FICHIER]`;
+    }
+
     // Stream the response
     try {
       // Build message with conversation history
@@ -287,8 +323,8 @@ You have real-time internet access through [DONNEES ENRICHIES]. Use it without h
         userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
       }
       
-      const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
-      console.log('[StreamingEndpoint] System prompt:', systemPrompt.substring(0, 200));
+      const messages = formatMessagesForStreaming(finalSystemPrompt, userMessageWithContext);
+      console.log('[StreamingEndpoint] System prompt:', finalSystemPrompt.substring(0, 200));
       console.log('[StreamingEndpoint] User message:', userMessageWithContext.substring(0, 200));
       console.log('[StreamingEndpoint] Has enriched context:', !!enrichedContext);
       console.log('[StreamingEndpoint] Has history:', recentUtterances && recentUtterances.length > 0);

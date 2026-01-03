@@ -83,9 +83,10 @@ export default function Dashboard() {
     if (!input.trim() || isLoading) return;
 
     let userContent = input.trim();
+    let fileContent: string | undefined;
     
     if (uploadedFile) {
-      userContent = `${userContent}\n\n--- CONTENU DU FICHIER: ${uploadedFile.name} ---\n${uploadedFile.content}\n--- FIN DU FICHIER ---`;
+      fileContent = uploadedFile.content;
       setUploadedFile(null);
     }
     
@@ -136,6 +137,7 @@ export default function Dashboard() {
           },
           body: JSON.stringify({
             message: userContent,
+            fileContent,
             contextId,
             conversationId: conversationIdFromEnsure || 0
           }),
