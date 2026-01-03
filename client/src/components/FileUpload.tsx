@@ -73,7 +73,7 @@ export function FileUpload({
         originalName: f.originalName,
         mimeType: f.mimeType,
         size: f.size,
-        extractedText: undefined,
+        extractedText: f.hasExtractedText ? `Contenu du fichier: ${f.originalName}` : undefined,
         uploadedAt: new Date(f.uploadedAt)
       })));
     }
@@ -159,7 +159,18 @@ export function FileUpload({
         };
 
         setUploadedFiles(prev => [...prev, uploadedFile]);
+        
+        // Attendre un peu que l'extraction soit complète
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Recharger depuis la base de données pour obtenir le contenu extrait
+        await refetchFiles();
+        
+        // Appeler le callback avec le fichier complet
         onFileUploaded?.(uploadedFile);
+        
+        // Sélectionner automatiquement le fichier
+        selectFile(uploadedFile);
         
         // Recharger la liste depuis la base de données
         await refetchFiles();

@@ -37,6 +37,7 @@ export default function Dashboard() {
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [showConversations, setShowConversations] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{id: string; name: string; content: string} | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Queries
@@ -81,7 +82,13 @@ export default function Dashboard() {
   const handleSendMessage = useCallback(async () => {
     if (!input.trim() || isLoading) return;
 
-    const userContent = input.trim();
+    let userContent = input.trim();
+    
+    if (uploadedFile) {
+      userContent = `${userContent}\n\n--- CONTENU DU FICHIER: ${uploadedFile.name} ---\n${uploadedFile.content}\n--- FIN DU FICHIER ---`;
+      setUploadedFile(null);
+    }
+    
     setInput("");
 
     // Ensure conversation exists and get its ID
@@ -366,10 +373,29 @@ export default function Dashboard() {
                   <FileUpload
                     maxFiles={1}
                     onFileUploaded={(file) => {
-                      const fileInfo = `[FILE_ID:${file.id}]`;
-                      setInput(prev => prev ? `${prev}\n${fileInfo}` : fileInfo);
-                      setShowFileUpload(false);
-                      toast.success(`${file.originalName} ajouté à la question`);
+                      if (file.extractedText) {
+                        setUploadedFile({
+                          id: file.id,
+                          name: file.originalName,
+                          content: file.extractedText
+                        });
+                        setShowFileUpload(false);
+                        toast.success(`${file.originalName} ajouté à la question`);
+                      } else {
+                        toast.error(`Impossible d'extraire le contenu de ${file.originalName}`);
+                      }
+                    }}
+                    onFileSelected={(file) => {
+                      // Charger le contenu du fichier depuis le serveur si disponible
+                      if (file.extractedText) {
+                        setUploadedFile({
+                          id: file.id,
+                          name: file.originalName,
+                          content: file.extractedText
+                        });
+                        setShowFileUpload(false);
+                        toast.success(`${file.originalName} selectione`);
+                      }
                     }}
                   />
                 </div>
