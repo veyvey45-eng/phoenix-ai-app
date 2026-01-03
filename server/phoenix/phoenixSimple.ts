@@ -120,9 +120,11 @@ ${MODULES.map((m, i) => `${i + 1}. ${m}`).join('\n')}
     systemPrompt += `\n\n## DOCUMENTS FOURNIS\n${uploadedDocuments.map((doc, i) => `Document ${i + 1}:\n${doc}`).join('\n\n')}`;
   }
 
-  // Déterminer si c'est une requête de recherche
+  // Déterminer le type de requête
   const isSearchQuery = /cherche|recherche|actualit|nouvelles|news|google|internet|web/i.test(userMessage);
+  const isWeatherQuery = /météo|température|temps|weather|climat|degré|celsius/i.test(userMessage);
   let searchResults = '';
+  let weatherData = '';
 
   if (isSearchQuery) {
     try {
