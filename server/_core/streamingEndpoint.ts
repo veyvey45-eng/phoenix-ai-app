@@ -75,10 +75,13 @@ You separate reflection from action, generate multiple hypotheses, and maintain 
 
 ${fast ? 'FAST MODE: Respond quickly and concisely. Keep responses under 300 words.' : 'Provide thorough, well-reasoned responses.'}
 
+CRITICAL: Read questions carefully and understand the EXACT intent. Answer what is actually asked, not a related topic.
+
 IMPORTANT: 
-1. When you see [DONNEES ENRICHIES], you MUST use those data to answer. Never say you don't have access to information when data is provided.
-2. When you see [HISTORIQUE RECENT], you MUST remember and reference the previous conversation. Never say you don't have access to previous messages.
-3. Be consistent with previous answers in the same conversation.`;
+1. When you see [DONNEES ENRICHIES], use those data. Never claim you lack access when data is provided.
+2. When you see [HISTORIQUE RECENT], remember and reference the previous conversation.
+3. Be consistent with previous answers in the same conversation.
+4. If a question seems ambiguous, clarify what you understood before answering.`;
 
     // Stream the response
     try {
@@ -154,10 +157,13 @@ export async function fastStreamChatEndpoint(req: Request, res: Response) {
 Respond concisely and directly. Keep responses under 200 words.
 Focus on the most relevant information.
 
+CRITICAL: Read questions carefully and understand the EXACT intent. Answer what is actually asked, not a related topic.
+
 IMPORTANT: 
-1. When you see [DONNEES ENRICHIES], you MUST use those data to answer. Never say you don't have access to information when data is provided.
-2. When you see [HISTORIQUE RECENT], you MUST remember and reference the previous conversation. Never say you don't have access to previous messages.
-3. Be consistent with previous answers in the same conversation.`;
+1. When you see [DONNEES ENRICHIES], use those data. Never claim you lack access when data is provided.
+2. When you see [HISTORIQUE RECENT], remember and reference the previous conversation.
+3. Be consistent with previous answers in the same conversation.
+4. If a question seems ambiguous, clarify what you understood before answering.`;
 
     // Stream the response
     try {
