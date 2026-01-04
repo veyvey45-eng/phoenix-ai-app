@@ -18,7 +18,10 @@ import {
   Square,
   Settings,
   Paperclip,
-  Zap
+  Zap,
+  Play as PlayIcon,
+  Download,
+  Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -673,6 +676,19 @@ interface MessageBubbleProps {
 
 function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const contentRef = useRef<HTMLDivElement>(null);
+  
+  const extractCodeFromDOM = () => {
+    if (!contentRef.current) return null;
+    const codeBlock = contentRef.current.querySelector('pre code');
+    if (codeBlock) {
+      return {
+        code: codeBlock.textContent || '',
+        language: Array.from(codeBlock.classList).find(c => c.startsWith('language-'))?.replace('language-', '') || 'python'
+      };
+    }
+    return null;
+  };
   
   const confidenceClass = message.confidence !== undefined
     ? message.confidence >= 0.8 
@@ -716,7 +732,7 @@ function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageB
             : "bg-card border-border"
         )}>
           {/* Message text */}
-          <div className={cn("prose prose-sm max-w-none", !isUser && "dark:prose-invert")}>
+          <div className={cn("prose prose-sm max-w-none", !isUser && "dark:prose-invert")} ref={contentRef}>
             <Streamdown>{message.content}</Streamdown>
           </div>
 
@@ -743,6 +759,65 @@ function MessageBubble({ message, isExpanded, onToggleExpand, speech }: MessageB
                     <AlertTriangle className="w-3 h-3 mr-1" />
                     Tourment: {message.tormentChange > 0 ? "+" : ""}{message.tormentChange.toFixed(1)}
                   </Badge>
+                )}
+                
+                {/* Code execution button - if message contains code blocks */}
+                {(message.content.includes('```') || message.content.includes('<pre') || message.content.includes('<code')) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      const codeData = extractCodeFromDOM();
+                      if (codeData) {
+                        console.log('[Code Execution] Detected code:', codeData);
+                        
+                        // Send execution request
+                        fetch('/api/stream/code-execution', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ code: codeData.code, language: codeData.language })
+                        }).then(r => r.json()).then(result => {
+                          console.log('[Code Execution] Result:', result);
+                          if (result.success) {
+                            toast.success(`Code exécuté: ${result.output || result.stdout || 'OK'}`);
+                          } else {
+                            toast.error(`Erreur: ${result.error || 'Unknown error'}`);
+                          }
+                        }).catch(e => {
+                          console.error('[Code Execution] Error:', e);
+                          toast.error(`Erreur: ${e.message}`);
+                        });
+                      } else {
+                        console.warn('[Code Execution] No code block found');
+                        toast.error('Aucun bloc de code détecté');
+                      }
+                    }}
+                    title="Exécuter le code"
+                  >
+                    <PlayIcon className="h-3 w-3" />
+                  </Button>
+                )}
+                
+                {/* Copy button */}
+                {(message.content.includes('```') || message.content.includes('<pre') || message.content.includes('<code')) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      const codeData = extractCodeFromDOM();
+                      if (codeData) {
+                        navigator.clipboard.writeText(codeData.code.trim());
+                        toast.success("Code copié!");
+                      } else {
+                        toast.error('Aucun bloc de code détecté');
+                      }
+                    }}
+                    title="Copier le code"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
                 )}
                 
                 {/* TTS Button - now functional */}
