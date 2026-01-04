@@ -23,7 +23,9 @@ import { getSecurity } from './phoenix/security';
 import { getEvolutionInstance } from './phoenix/evolution';
 import { contextEnricher } from './phoenix/contextEnricher';
 import { processPhoenixQuery } from './phoenix/phoenixSimple';
+import { e2bSandbox } from './phoenix/e2bSandbox';
 import { streamingRouter } from './routers/streamingRouter';
+import { codeInterpreterRouter } from './routers/codeInterpreterRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -75,6 +77,7 @@ import {
 
 export const appRouter = router({
   system: systemRouter,
+  codeInterpreter: codeInterpreterRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
