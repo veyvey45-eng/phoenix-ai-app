@@ -82,8 +82,16 @@ export function generateCodeForCalculation(message: string): string | null {
     return `print("${text}")`;
   }
   
-  // Extraire les nombres et opérateurs pour calculs simples
-  const mathMatch = message.match(/([\d.]+)\s*([\+\-\*\/])\s*([\d.]+)/);
+  // Extraire les nombres et opérateurs pour calculs simples (support pour multiples opérandes)
+  // Chercher d'abord les calculs avec 3+ nombres (ex: 10 + 20 + 30)
+  const multiMathMatch = message.match(/(\d+(?:\.\d+)?(?:\s*[\+\-\*\/]\s*\d+(?:\.\d+)?)+)/);
+  if (multiMathMatch) {
+    const expression = multiMathMatch[1].replace(/\s+/g, '');
+    return `print(${expression})`;
+  }
+  
+  // Fallback pour calculs simples avec 2 nombres
+  const mathMatch = message.match(/(\d+(?:\.\d+)?)\s*([\+\-\*\/])\s*(\d+(?:\.\d+)?)/);
   if (mathMatch) {
     const [, num1, op, num2] = mathMatch;
     return `print(${num1} ${op} ${num2})`;

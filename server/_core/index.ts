@@ -8,7 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { streamChatEndpoint, fastStreamChatEndpoint } from "./streamingEndpoint";
-import { handleCodeExecution, handleCodeExecutionStream } from "./codeExecutionEndpoint";
+import { handleCodeExecution, handleCodeExecutionStream, executePhoenixCodeEndpoint } from "./codeExecutionEndpoint";
 import codeExecutionRouter from "../phoenix/codeExecutionEndpoint";
 
 
@@ -49,6 +49,7 @@ async function startServer() {
   // Code execution endpoints
   app.post("/api/stream/code-execution", handleCodeExecutionStream);
   app.post("/api/code-execution", handleCodeExecution);
+  app.post("/api/execute-phoenix-code", executePhoenixCodeEndpoint);
   app.use("/api", codeExecutionRouter);
   
   // Endpoint to save conversation messages

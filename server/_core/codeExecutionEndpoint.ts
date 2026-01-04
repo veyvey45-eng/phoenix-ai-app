@@ -47,6 +47,53 @@ export async function handleCodeExecution(req: Request, res: Response) {
   }
 }
 
+/**
+ * Execute code found in Phoenix response
+ */
+export async function executePhoenixCodeEndpoint(req: Request, res: Response) {
+  try {
+    const { response } = req.body;
+    
+    if (!response || typeof response !== 'string') {
+      res.status(400).json({ error: 'Response text is required' });
+      return;
+    }
+    
+    const userId = (req as any).user?.id || 'anonymous';
+    
+    console.log('[CodeExecutionEndpoint] Processing response for code execution');
+    console.log('[CodeExecutionEndpoint] Response length:', response.length);
+    
+    // Import the handler
+    const { executeAllCodeBlocks } = await import('../phoenix/postExecutionHandler');
+    
+    // Execute all code blocks found in the response
+    const result = await executeAllCodeBlocks(response, String(userId));
+    
+    console.log('[CodeExecutionEndpoint] Execution complete');
+    console.log('[CodeExecutionEndpoint] Results:', {
+      blocksFound: result.executionResults.length,
+      allSuccessful: result.executionResults.every(r => r.success)
+    });
+    
+    // Return the modified response with real execution results
+    res.json({
+      success: true,
+      originalResponse: result.originalResponse,
+      modifiedResponse: result.modifiedResponse,
+      executionResults: result.executionResults,
+      executionCount: result.executionResults.length
+    });
+    
+  } catch (error) {
+    console.error('[CodeExecutionEndpoint] Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}
+
 export async function handleCodeExecutionStream(req: Request, res: Response) {
   try {
     const { code, language = 'python' } = req.body;

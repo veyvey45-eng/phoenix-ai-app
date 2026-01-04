@@ -27,8 +27,8 @@ console.log(\`Sum: \${sum}\`);`);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const executePythonMutation = trpc.codeInterpreter.executePython.useMutation();
-  const executeJSMutation = trpc.codeInterpreter.executeJavaScript.useMutation();
+  const executePythonMutation = trpc.codeInterpreter.executePythonAdmin.useMutation();
+  const executeJSMutation = trpc.codeInterpreter.executeJavaScriptAdmin.useMutation();
 
   const handleExecute = async () => {
     setIsLoading(true);

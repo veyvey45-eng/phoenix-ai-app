@@ -1,16 +1,35 @@
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { e2bSandbox } from "../phoenix/e2bSandbox";
 
 /**
  * Code Interpreter Router
- * Admin-only code execution endpoints
+ * Code execution endpoints
  */
 export const codeInterpreterRouter = router({
   /**
-   * Execute Python code in E2B Sandbox (Admin-only)
+   * Execute Python code (Public - for Phoenix to use)
    */
-  executePython: protectedProcedure
+  executePythonPublic: publicProcedure
+    .input(z.object({
+      code: z.string().min(1),
+      language: z.literal('python').optional().default('python'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log(`[CodeInterpreter] Executing Python code`);
+      
+      const result = await e2bSandbox.executePython(
+        input.code,
+        String(ctx.user?.id || 'anonymous'),
+        ctx.user?.email || 'anonymous@system.local'
+      );
+
+      return result;
+    }),
+  /**
+   * Execute Python code in E2B Sandbox (Protected - Admin-only)
+   */
+  executePythonAdmin: protectedProcedure
     .input(z.object({
       code: z.string().min(1),
     }))
@@ -32,9 +51,29 @@ export const codeInterpreterRouter = router({
     }),
 
   /**
-   * Execute JavaScript code in E2B Sandbox (Admin-only)
+   * Execute JavaScript code (Public - for Phoenix to use)
    */
-  executeJavaScript: protectedProcedure
+  executeJavaScriptPublic: publicProcedure
+    .input(z.object({
+      code: z.string().min(1),
+      language: z.literal('javascript').optional().default('javascript'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log(`[CodeInterpreter] Executing JavaScript code`);
+      
+      const result = await e2bSandbox.executeJavaScript(
+        input.code,
+        String(ctx.user?.id || 'anonymous'),
+        ctx.user?.email || 'anonymous@system.local'
+      );
+
+      return result;
+    }),
+
+  /**
+   * Execute JavaScript code in E2B Sandbox (Protected - Admin-only)
+   */
+  executeJavaScriptAdmin: protectedProcedure
     .input(z.object({
       code: z.string().min(1),
     }))
