@@ -268,13 +268,13 @@ export const e2bRouter = router({
       const sandboxId = `${userId}-${input.conversationId || 'default'}`;
 
       try {
-        const info = await e2bAdapter.getSandboxInfo(sandboxId);
+        const sandbox = e2bAdapter.getSandbox(sandboxId);
+        const stats = e2bAdapter.getStatistics();
         return {
-          success: !info.error,
-          sandboxId: info.sandboxId,
-          isActive: info.isActive,
-          createdAt: info.createdAt,
-          error: info.error,
+          success: sandbox !== null,
+          sandboxId: sandboxId,
+          isActive: sandbox !== null,
+          activeSandboxes: stats.activeSandboxes,
         };
       } catch (error) {
         return {
@@ -299,8 +299,8 @@ export const e2bRouter = router({
       const sandboxId = `${userId}-${input.conversationId || 'default'}`;
 
       try {
-        const result = await e2bAdapter.closeSandbox(sandboxId);
-        return { success: result };
+        await e2bAdapter.closeSandbox(sandboxId);
+        return { success: true };
       } catch (error) {
         return {
           success: false,
@@ -318,7 +318,7 @@ export const e2bRouter = router({
     const userId = String(ctx.user.id);
 
     try {
-      const adapterStats = e2bAdapter.getStats();
+      const adapterStats = e2bAdapter.getStatistics();
       const userMetrics = monitoring.getUserMetrics(userId);
 
       return {
