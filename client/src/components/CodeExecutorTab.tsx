@@ -33,10 +33,10 @@ export function CodeExecutorTab() {
     try {
       if (activeTab === "python") {
         const response = await executePythonMutation.mutateAsync({ code });
-        setResult(response.output || response.stdout || "Exécution réussie");
+        setResult(response.output || "Exécution réussie");
       } else {
         const response = await executeJSMutation.mutateAsync({ code });
-        setResult(response.output || response.stdout || "Exécution réussie");
+        setResult(response.output || "Exécution réussie");
       }
       setExecutionTime(Date.now() - startTime);
       toast.success("Code exécuté avec succès");

@@ -165,8 +165,13 @@ export default function Dashboard() {
       // Save messages to database
       saveMessageMutation.mutate({
         conversationId: convId,
-        userMessage: input,
-        assistantMessage: fullContent
+        role: 'user',
+        content: input
+      });
+      saveMessageMutation.mutate({
+        conversationId: convId,
+        role: 'assistant',
+        content: fullContent
       });
 
       setUploadedFile(null);
