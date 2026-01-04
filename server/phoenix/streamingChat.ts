@@ -168,12 +168,16 @@ async function* streamWithGoogleAI(
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
-    console.log('[StreamingChat] Google AI: Sending request');
+    console.log('[StreamingChat] Google AI: Sending request with tool support');
+    const { CODE_INTERPRETER_TOOL_DEFINITION } = await import('./codeInterpreterTool');
+    
     const response = await invokeLLM({
       messages: messages.map(m => ({
-        role: m.role as 'system' | 'user' | 'assistant',
-        content: m.content
-      }))
+        role: m.role as 'system' | 'user' | 'assistant' | 'tool',
+        content: m.content,
+        tool_call_id: (m as any).tool_call_id
+      })),
+      tools: [CODE_INTERPRETER_TOOL_DEFINITION] as any
     });
 
     // Yield the response in chunks to simulate streaming
