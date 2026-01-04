@@ -6,7 +6,7 @@ import React from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X } from 'lucide-react';
+import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { getLoginUrl } from '@/const';
 
@@ -24,6 +24,7 @@ export function Navigation() {
     { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Chat', icon: MessageSquare, href: '/chat' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
+    { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
   ] : [];
 
   return (

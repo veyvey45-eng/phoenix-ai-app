@@ -9,15 +9,15 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import { CodeExecutorPage } from "./pages/CodeExecutorPage";
-import Chat from "./pages/Chat";
+import WebPageGeneratorPage from "./pages/WebPageGenerator";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/chat" component={Chat} />
       <Route path="/code-executor" component={CodeExecutorPage} />
+      <Route path="/web-generator" component={WebPageGeneratorPage} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

@@ -9,7 +9,7 @@
  * - Monitoring
  */
 
-import { getWebPageGenerator, PageGenerationRequest, GeneratedPage } from './webPageGenerator';
+import { getWebPageGeneratorSimple, PageGenerationRequest, GeneratedPage } from './webPageGeneratorSimple';
 import { getProjectGenerator, ProjectGenerationRequest, GeneratedProject } from './projectGenerator';
 import { getDependencyManager, InstallationResult } from './dependencyManager';
 import { getDeploymentManager, DeploymentConfig, DeploymentResult } from './deploymentManager';
@@ -71,7 +71,7 @@ class EngineerModule {
 
       console.log('[EngineerModule] Generating web page:', request.pageType);
 
-      const generator = getWebPageGenerator();
+      const generator = getWebPageGeneratorSimple();
       const page = await generator.generateWebPage(request);
 
       this.completeTask(taskId, page);
