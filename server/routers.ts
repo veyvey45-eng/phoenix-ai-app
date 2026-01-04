@@ -28,6 +28,7 @@ import { streamingRouter } from './routers/streamingRouter';
 import { codeInterpreterRouter } from './routers/codeInterpreterRouter';
 import { stripeRouter } from './routers/stripe';
 import { e2bRouter } from './routers/e2b';
+import { e2bHistoryRouter } from './routers/e2bHistory';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -82,6 +83,7 @@ export const appRouter = router({
   codeInterpreter: codeInterpreterRouter,
   stripe: stripeRouter,
   e2b: e2bRouter,
+  e2bHistory: e2bHistoryRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
