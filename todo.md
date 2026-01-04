@@ -749,3 +749,30 @@ Les tests prouvent que Phoenix:
 - [x] Tester avec 5 cas complexes - TOUS RÉUSSIS
 - [x] Vérifier que E2B Sandbox fonctionne si E2B_API_KEY est configuré
 - [x] Vérifier que l'exécution native fonctionne si E2B n'est pas disponible
+
+
+## Phase 30: Implémentation des 4 Capacités Manquantes de Phoenix
+
+### 1. Persistance et État Global
+- [x] Créer un système de stockage de session persistant (persistentState.ts)
+- [x] Implémenter le maintien des variables entre les exécutions
+- [x] Implémenter la création/lecture de fichiers persistants
+- [x] Implémenter les sessions utilisateur complexes
+
+### 2. Accès au Système d'Exploitation
+- [x] Implémenter l'exécution de commandes shell sécurisées (osAccess.ts)
+- [x] Implémenter l'installation de packages (pip, npm)
+- [x] Implémenter l'accès aux fichiers système
+- [x] Ajouter les contrôles de sécurité pour les commandes dangereuses
+
+### 3. Auto-Correction Itérative
+- [x] Implémenter la détection automatique des erreurs (autoCorrection.ts)
+- [x] Implémenter la génération de code de correction
+- [x] Implémenter la boucle de rétroaction sans intervention utilisateur
+- [x] Implémenter le logging des itérations
+
+### 4. Interaction Graphique et Web
+- [x] Implémenter Puppeteer pour l'automatisation web (webAutomation.ts)
+- [x] Installer Puppeteer et dépendances
+- [x] Implémenter la capture d'écran et les interactions GUI
+- [x] Implémenter la navigation web automatisée
