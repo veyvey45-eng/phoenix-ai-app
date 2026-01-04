@@ -21,11 +21,9 @@ export function Navigation() {
   };
 
   const navItems = user ? [
-    { label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' },
-    { label: 'Chat', icon: MessageSquare, href: '/chat' },
+    { label: 'Conversation', icon: MessageSquare, href: '/dashboard' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
     { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
-    { label: 'Showcase', icon: Sparkles, href: '/showcase' },
   ] : [];
 
   return (

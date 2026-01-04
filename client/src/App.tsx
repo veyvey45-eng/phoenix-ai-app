@@ -15,7 +15,7 @@ import { PhoenixShowcase } from "./pages/PhoenixShowcase";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Dashboard} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/code-executor" component={CodeExecutorPage} />
       <Route path="/web-generator" component={WebPageGeneratorPage} />
