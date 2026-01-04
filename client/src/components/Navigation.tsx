@@ -25,6 +25,7 @@ export function Navigation() {
     { label: 'Chat', icon: MessageSquare, href: '/chat' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
     { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
+    { label: 'Showcase', icon: Sparkles, href: '/showcase' },
   ] : [];
 
   return (

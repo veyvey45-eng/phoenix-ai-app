@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import { CodeExecutorPage } from "./pages/CodeExecutorPage";
 import WebPageGeneratorPage from "./pages/WebPageGenerator";
+import { PhoenixShowcase } from "./pages/PhoenixShowcase";
 
 function Router() {
   return (
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/code-executor" component={CodeExecutorPage} />
       <Route path="/web-generator" component={WebPageGeneratorPage} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/showcase" component={PhoenixShowcase} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
