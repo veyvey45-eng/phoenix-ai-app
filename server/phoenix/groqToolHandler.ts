@@ -128,8 +128,10 @@ export async function* streamWithToolHandling(
   }
 ): AsyncGenerator<string> {
   try {
+    console.log('[StreamWithToolHandling] Starting tool handling');
     // D'abord, appeler Groq avec les tools
     const result = await callGroqWithTools(messages, options);
+    console.log('[StreamWithToolHandling] Got result:', { resultLength: result.length });
 
     // Ensuite, streamer le résultat
     // Diviser en chunks pour simuler le streaming

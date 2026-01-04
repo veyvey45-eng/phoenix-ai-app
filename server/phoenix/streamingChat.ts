@@ -5,6 +5,7 @@
 
 import { invokeLLM } from '../_core/llm';
 import { streamWithToolHandling } from './groqToolHandler';
+import { executeCodeDirectly, formatCodeExecutionResponse } from './directCodeExecutor';
 
 interface StreamingOptions {
   temperature?: number;
@@ -20,6 +21,18 @@ export async function* streamChatResponse(
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
+    // Get the user message (last message)
+    const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // Try to execute code directly if detected
+    const directExecution = await executeCodeDirectly(userMessage);
+    if (directExecution.executed) {
+      console.log('[StreamingChat] Code executed directly');
+      const response = formatCodeExecutionResponse(directExecution);
+      yield response;
+      return;
+    }
+    
     // Use Groq for faster streaming when available
     const apiKey = process.env.GROG_API_KEY;
     console.log('[StreamingChat] Groq API key available:', !!apiKey);
