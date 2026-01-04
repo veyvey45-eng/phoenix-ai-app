@@ -1,18 +1,20 @@
 /**
- * Phoenix Orchestrator - Coordonne les 4 modules avancés
+ * Phoenix Orchestrator - Coordonne les 4 modules avancés + E2B
  * 
  * Responsabilités:
  * 1. Détecte le type de tâche (calcul, OS, web, auto-correction)
  * 2. Routage vers le module approprié
  * 3. Gestion de la persistance d'état
  * 4. Boucle de rétroaction et auto-correction
- * 5. Logging et monitoring
+ * 5. Exécution via E2B Sandbox réel
+ * 6. Logging et monitoring
  */
 
 import { persistentState } from './persistentState';
 import { autoCorrection } from './autoCorrection';
 import { osAccess } from './osAccess';
 import { webAutomation } from './webAutomation';
+import { getE2BAdapter } from './e2bAdapter';
 
 export interface TaskRequest {
   userId: string;
@@ -20,7 +22,7 @@ export interface TaskRequest {
   taskType: 'calculation' | 'os_command' | 'web_interaction' | 'code_execution' | 'auto_correction' | 'unknown';
   content: string;
   code?: string;
-  language?: 'python' | 'javascript';
+  language?: 'python' | 'javascript' | 'bash';
   context?: Record<string, any>;
 }
 
@@ -28,7 +30,7 @@ export interface TaskResult {
   success: boolean;
   output: string;
   error?: string;
-  executionTime: number;
+  duration: number;
   attempts: number;
   isCorrected: boolean;
   metadata?: Record<string, any>;
@@ -45,7 +47,7 @@ export class PhoenixOrchestrator {
   }> = [];
 
   constructor() {
-    console.log('[Orchestrator] Initialized');
+    console.log('[Orchestrator] Initialized with E2B integration');
   }
 
   /**
@@ -102,7 +104,7 @@ export class PhoenixOrchestrator {
   }
 
   /**
-   * Exécute une tâche avec orchestration complète
+   * Exécute une tâche avec orchestration complète et E2B
    */
   async executeTask(request: TaskRequest): Promise<TaskResult> {
     const startTime = Date.now();
@@ -111,93 +113,89 @@ export class PhoenixOrchestrator {
     let isCorrected = false;
 
     try {
+      // Détecter le type si nécessaire
+      const taskType = request.taskType === 'unknown' ? this.detectTaskType(request.content) : request.taskType;
+      request.taskType = taskType;
+
       // Charger l'état persistant
-      const state = await persistentState.getSession(request.userId, request.conversationId);
-      console.log(`[Orchestrator] État chargé pour l'utilisateur ${request.userId}:`, state);
+      const state = persistentState.getSession(request.userId, request.conversationId);
+      console.log(`[Orchestrator] État chargé pour l'utilisateur ${request.userId}`);
+
+      // Obtenir l'adaptateur E2B
+      const e2bAdapter = getE2BAdapter();
 
       // Boucle de rétroaction avec auto-correction
       while (attempts < this.maxAttempts) {
         attempts++;
-        console.log(`[Orchestrator] Tentative ${attempts}/${this.maxAttempts}`);
+        console.log(`[Orchestrator] Tentative ${attempts}/${this.maxAttempts} - Type: ${taskType}`);
 
         try {
-          let result: string;
+          let result: TaskResult;
 
           // Routage vers le module approprié
-          switch (request.taskType) {
+          switch (taskType) {
+            case 'code_execution':
+              result = await this.executeCodeWithE2B(e2bAdapter, request);
+              break;
+
             case 'os_command':
-              console.log('[Orchestrator] Routage vers OS Access Manager');
-              const osResult = await osAccess.executeCommand(request.content, request.userId);
-              result = osResult.stdout || osResult.stderr;
-              if (!osResult.success) {
-                throw new Error(osResult.stderr);
-              }
+              result = await this.executeOSCommandWithE2B(e2bAdapter, request);
               break;
 
             case 'web_interaction':
-              console.log('[Orchestrator] Routage vers Web Automation Engine');
-              const sessionId = `session_${request.userId}_${Date.now()}`;
-              const pageId = `page_${Date.now()}`;
-              // Créer une session
-              await webAutomation.createSession(request.userId, sessionId);
-              // Naviguer vers une URL (placeholder pour maintenant)
-              const webResult = await webAutomation.navigateTo(sessionId, pageId, 'about:blank');
-              result = webResult.message || 'Web automation executed';
-              if (!webResult.success) {
-                throw new Error(webResult.message);
-              }
-              break;
-
-            case 'code_execution':
-              console.log('[Orchestrator] Routage vers Code Execution');
-              result = await this.executeCode(request.code || request.content, request.language || 'python');
+              result = await this.executeWebInteraction(request);
               break;
 
             default:
-              console.log('[Orchestrator] Type de tâche inconnu, exécution comme code');
-              result = await this.executeCode(request.content, 'python');
+              result = await this.executeCodeWithE2B(e2bAdapter, request);
           }
 
-          // Sauvegarder l'état persistant
-          await persistentState.setVariable(request.userId, request.conversationId, 'lastResult', result);
-          await persistentState.setVariable(request.userId, request.conversationId, 'lastExecution', new Date().toISOString());
+          // Si succès, sauvegarder et retourner
+          if (result.success) {
+            // Sauvegarder l'état persistant
+            await persistentState.setVariable(request.userId, request.conversationId, 'lastResult', result.output);
+            await persistentState.setVariable(request.userId, request.conversationId, 'lastExecution', new Date().toISOString());
 
-          // Enregistrer dans le log
-          this.executionLog.push({
-            timestamp: new Date(),
-            userId: request.userId,
-            taskType: request.taskType,
-            success: true,
-            attempts,
-          });
+            // Enregistrer dans le log
+            this.executionLog.push({
+              timestamp: new Date(),
+              userId: request.userId,
+              taskType: taskType,
+              success: true,
+              attempts,
+            });
 
-          const executionTime = Date.now() - startTime;
-          console.log(`[Orchestrator] Tâche réussie en ${executionTime}ms après ${attempts} tentative(s)`);
+            const duration = Date.now() - startTime;
+            console.log(`[Orchestrator] ✅ Tâche réussie en ${duration}ms après ${attempts} tentative(s)`);
 
-          return {
-            success: true,
-            output: result,
-            executionTime,
-            attempts,
-            isCorrected,
-          };
+            return {
+              ...result,
+              duration,
+              attempts,
+              isCorrected,
+            };
+          }
+
+          // Si erreur, préparer pour auto-correction
+          lastError = result.error;
+          throw new Error(lastError);
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error);
-          console.error(`[Orchestrator] Erreur à la tentative ${attempts}:`, lastError);
+          console.error(`[Orchestrator] ❌ Erreur à la tentative ${attempts}:`, lastError);
 
           // Auto-correction si ce n'est pas la dernière tentative
           if (attempts < this.maxAttempts) {
-            console.log(`[Orchestrator] Tentative d'auto-correction...`);
+            console.log(`[Orchestrator] 🔄 Tentative d'auto-correction...`);
             try {
               const correctedCode = await autoCorrection.generateCorrection(
                 request.content,
                 request.code || request.content,
                 lastError,
-                attempts - 1
+                attempts
               );
               request.code = correctedCode;
               isCorrected = true;
-              console.log('[Orchestrator] Code corrigé, nouvelle tentative...');
+              console.log('[Orchestrator] ✏️ Code corrigé, nouvelle tentative...');
             } catch (correctionError) {
               console.error('[Orchestrator] Erreur lors de la correction:', correctionError);
               // Continuer quand même à la prochaine tentative
@@ -210,30 +208,30 @@ export class PhoenixOrchestrator {
       this.executionLog.push({
         timestamp: new Date(),
         userId: request.userId,
-        taskType: request.taskType,
+        taskType: taskType,
         success: false,
         attempts,
       });
 
-      const executionTime = Date.now() - startTime;
+      const duration = Date.now() - startTime;
       return {
         success: false,
         output: '',
         error: `Impossible de compléter la tâche après ${attempts} tentatives. Dernière erreur: ${lastError}`,
-        executionTime,
+        duration,
         attempts,
         isCorrected,
       };
     } catch (error) {
-      const executionTime = Date.now() - startTime;
+      const duration = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[Orchestrator] Erreur critique:', errorMessage);
+      console.error('[Orchestrator] 🚨 Erreur critique:', errorMessage);
 
       return {
         success: false,
         output: '',
         error: `Erreur critique: ${errorMessage}`,
-        executionTime,
+        duration,
         attempts,
         isCorrected: false,
       };
@@ -241,17 +239,97 @@ export class PhoenixOrchestrator {
   }
 
   /**
-   * Exécute du code Python ou JavaScript
+   * Exécute du code via E2B Sandbox
    */
-  private async executeCode(code: string, language: 'python' | 'javascript'): Promise<string> {
-    // Cette méthode sera connectée à e2bSandbox.ts dans la prochaine étape
-    console.log(`[Orchestrator] Exécution ${language}:`, code.substring(0, 100));
-    
-    // Placeholder pour maintenant - sera remplacé par l'intégration E2B
+  private async executeCodeWithE2B(e2bAdapter: ReturnType<typeof getE2BAdapter>, request: TaskRequest): Promise<TaskResult> {
+    const sandboxId = `${request.userId}-${request.conversationId}`;
+    const language = request.language || 'python';
+    const code = request.code || request.content;
+
+    console.log(`[Orchestrator] Exécution ${language} via E2B Sandbox`);
+
+    let e2bResult;
     if (language === 'python') {
-      return `Résultat Python: ${code.substring(0, 50)}...`;
+      e2bResult = await e2bAdapter.executePython(sandboxId, code);
+    } else if (language === 'javascript') {
+      e2bResult = await e2bAdapter.executeNode(sandboxId, code);
     } else {
-      return `Résultat JavaScript: ${code.substring(0, 50)}...`;
+      e2bResult = await e2bAdapter.executeShell(sandboxId, code);
+    }
+
+    return {
+      success: e2bResult.success,
+      output: e2bResult.stdout,
+      error: e2bResult.stderr || undefined,
+      duration: e2bResult.duration,
+      attempts: 1,
+      isCorrected: false,
+      metadata: {
+        sandboxId: e2bResult.sandboxId,
+        language,
+        exitCode: e2bResult.exitCode,
+      },
+    };
+  }
+
+  /**
+   * Exécute une commande OS via E2B Sandbox
+   */
+  private async executeOSCommandWithE2B(e2bAdapter: ReturnType<typeof getE2BAdapter>, request: TaskRequest): Promise<TaskResult> {
+    const sandboxId = `${request.userId}-${request.conversationId}`;
+    const command = request.content;
+
+    console.log(`[Orchestrator] Exécution commande OS via E2B Sandbox:`, command);
+
+    const e2bResult = await e2bAdapter.executeShell(sandboxId, command);
+
+    return {
+      success: e2bResult.success,
+      output: e2bResult.stdout,
+      error: e2bResult.stderr || undefined,
+      duration: e2bResult.duration,
+      attempts: 1,
+      isCorrected: false,
+      metadata: {
+        sandboxId: e2bResult.sandboxId,
+        exitCode: e2bResult.exitCode,
+      },
+    };
+  }
+
+  /**
+   * Exécute une interaction web
+   */
+  private async executeWebInteraction(request: TaskRequest): Promise<TaskResult> {
+    console.log(`[Orchestrator] Exécution interaction web`);
+
+    try {
+      const sessionId = `session_${request.userId}_${Date.now()}`;
+      const pageId = `page_${Date.now()}`;
+
+      // Créer une session
+      await webAutomation.createSession(request.userId, sessionId);
+
+      // Naviguer vers une URL (placeholder pour maintenant)
+      const webResult = await webAutomation.navigateTo(sessionId, pageId, 'about:blank');
+
+      return {
+        success: webResult.success,
+        output: webResult.message || 'Web automation executed',
+        error: webResult.success ? undefined : webResult.message,
+        duration: 0,
+        attempts: 1,
+        isCorrected: false,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        output: '',
+        error: error instanceof Error ? error.message : String(error),
+        duration: 0,
+        attempts: 1,
+        isCorrected: false,
+      };
     }
   }
 
@@ -274,8 +352,6 @@ export class PhoenixOrchestrator {
   async reset(): Promise<void> {
     console.log('[Orchestrator] Réinitialisation...');
     this.executionLog = [];
-    // Fermer toutes les sessions web
-    // Les sessions sont fermées individuellement lors de la fermeture
   }
 }
 
