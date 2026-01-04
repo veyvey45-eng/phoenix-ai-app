@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getLoginUrl } from "@/const";
 import { motion } from "framer-motion";
+import { E2BExecutor } from "@/components/E2BExecutor";
 import { 
   Brain, 
   Shield, 
@@ -28,6 +29,20 @@ export default function Home() {
       window.location.href = getLoginUrl();
     }
   };
+
+  if (user) {
+    return (
+      <div className="min-h-screen bg-background p-8">
+        <div className="max-w-6xl mx-auto space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Bienvenue, {user.name || 'Utilisateur'}!</h1>
+            <p className="text-muted-foreground">Exécutez du code dans une sandbox isolée E2B</p>
+          </div>
+          <E2BExecutor />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

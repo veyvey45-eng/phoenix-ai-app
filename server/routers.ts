@@ -27,6 +27,7 @@ import { e2bSandbox } from './phoenix/e2bSandbox';
 import { streamingRouter } from './routers/streamingRouter';
 import { codeInterpreterRouter } from './routers/codeInterpreterRouter';
 import { stripeRouter } from './routers/stripe';
+import { e2bRouter } from './routers/e2b';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -80,6 +81,7 @@ export const appRouter = router({
   system: systemRouter,
   codeInterpreter: codeInterpreterRouter,
   stripe: stripeRouter,
+  e2b: e2bRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
