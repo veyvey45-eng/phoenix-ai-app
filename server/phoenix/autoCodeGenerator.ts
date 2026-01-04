@@ -19,41 +19,41 @@ export function isCalculationRequest(message: string): boolean {
   const lowerMessage = message.toLowerCase();
   
   const patterns = [
+    // Calculs simples
     /calcul[e]?|compute|math/i,
     /racine|sqrt|logarithme|exponentiel|puissance/i,
     /somme|moyenne|médiane|écart-type|statistique/i,
     /résoudre|solve|équation|formula/i,
     /[\d\s\+\-\*\/\(\)]+\s*=|calcul|résultat/i,
+    // Demandes de code
+    /crée.*code|créer.*code|generate.*code|écris.*code|write.*code/i,
+    /affiche|print|exécute|execute|run/i,
   ];
   
   return patterns.some(pattern => pattern.test(lowerMessage));
 }
 
 /**
- * Génère le code Python pour un calcul simple
+ * Génère le code Python pour un calcul simple ou une demande de code
  */
 export function generateCodeForCalculation(message: string): string | null {
   const lowerMessage = message.toLowerCase();
   
-  // Extraire les nombres et opérateurs
-  const mathMatch = message.match(/(\d+\.?\d*)\s*([\+\-\*\/])\s*(\d+\.?\d*)/);
-  if (mathMatch) {
-    const [, num1, op, num2] = mathMatch;
-    return `print(${num1} ${op} ${num2})`;
-  }
+  // IMPORTANT: Vérifier les patterns plus spécifiques EN PREMIER
   
-  // Calcul de racine carrée
+  // Calcul de racine carrée (DOIT être avant les autres patterns)
   if (lowerMessage.includes('racine') || lowerMessage.includes('sqrt')) {
-    const numMatch = message.match(/racine.*?(\d+)|sqrt.*?(\d+)/i);
+    // Chercher un nombre après "racine" ou "sqrt"
+    const numMatch = message.match(/(?:racine|sqrt)[^\d]*([\d.]+)/i);
     if (numMatch) {
-      const num = numMatch[1] || numMatch[2];
+      const num = numMatch[1];
       return `import math\nprint(math.sqrt(${num}))`;
     }
   }
   
   // Calcul de puissance
   if (lowerMessage.includes('puissance') || lowerMessage.includes('power')) {
-    const numMatch = message.match(/puissance.*?(\d+).*?(\d+)|(\d+)\s*\^\s*(\d+)/i);
+    const numMatch = message.match(/puissance[^\d]*([\d.]+)[^\d]*([\d.]+)|(\d+)\s*\^\s*(\d+)/i);
     if (numMatch) {
       const base = numMatch[1] || numMatch[3];
       const exp = numMatch[2] || numMatch[4];
@@ -63,11 +63,30 @@ export function generateCodeForCalculation(message: string): string | null {
   
   // Calcul de factorielle
   if (lowerMessage.includes('factorielle') || lowerMessage.includes('factorial')) {
-    const numMatch = message.match(/factorielle.*?(\d+)|factorial.*?(\d+)/i);
+    const numMatch = message.match(/factorielle[^\d]*([\d.]+)|factorial[^\d]*([\d.]+)/i);
     if (numMatch) {
       const num = numMatch[1] || numMatch[2];
       return `import math\nprint(math.factorial(${num}))`;
     }
+  }
+  
+  // Demande "affiche Bonjour le monde"
+  if ((lowerMessage.includes('affiche') || lowerMessage.includes('print')) && lowerMessage.includes('monde')) {
+    return `print("Bonjour le monde")`;
+  }
+  
+  // Demande "affiche [texte]"
+  const affichMatch = message.match(/affiche[s]?\s+["']?([^"'\n]+)["']?/i);
+  if (affichMatch) {
+    const text = affichMatch[1].trim();
+    return `print("${text}")`;
+  }
+  
+  // Extraire les nombres et opérateurs pour calculs simples
+  const mathMatch = message.match(/([\d.]+)\s*([\+\-\*\/])\s*([\d.]+)/);
+  if (mathMatch) {
+    const [, num1, op, num2] = mathMatch;
+    return `print(${num1} ${op} ${num2})`;
   }
   
   return null;
