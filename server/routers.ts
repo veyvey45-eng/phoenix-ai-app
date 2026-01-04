@@ -189,7 +189,7 @@ export const appRouter = router({
           const processor = getFileProcessor();
           const documentTexts: string[] = [];
           for (const fileId of input.uploadedFileIds) {
-            const file = processor.getFile(fileId);
+            const file = await processor.getFile(fileId);
             if (file && file.userId === userId && file.extractedText) {
               documentTexts.push(`[Document: ${file.originalName}]\n${file.extractedText}`);
             }
@@ -772,7 +772,8 @@ export const appRouter = router({
      */
     list: protectedProcedure.query(async ({ ctx }) => {
       const processor = getFileProcessor();
-      return processor.getUserFiles(ctx.user.id).map(f => ({
+      const files = await processor.getUserFiles(ctx.user.id);
+      return files.map(f => ({
         id: f.id,
         originalName: f.originalName,
         mimeType: f.mimeType,
@@ -789,7 +790,7 @@ export const appRouter = router({
       .input(z.object({ fileId: z.string() }))
       .query(async ({ ctx, input }) => {
         const processor = getFileProcessor();
-        const file = processor.getFile(input.fileId);
+        const file = await processor.getFile(input.fileId);
         
         if (!file || file.userId !== ctx.user.id) {
           throw new Error('Fichier non trouvé');
@@ -814,9 +815,9 @@ export const appRouter = router({
       .input(z.object({ query: z.string() }))
       .query(async ({ ctx, input }) => {
         const processor = getFileProcessor();
-        const results = processor.searchInFiles(ctx.user.id, input.query);
+        const results = await processor.searchInFiles(ctx.user.id, input.query);
         
-        return results.map(r => ({
+        return results.map((r: { file: { id: string; originalName: string }; matches: string[] }) => ({
           fileId: r.file.id,
           fileName: r.file.originalName,
           matches: r.matches
@@ -830,13 +831,13 @@ export const appRouter = router({
       .input(z.object({ fileId: z.string() }))
       .mutation(async ({ ctx, input }) => {
         const processor = getFileProcessor();
-        const file = processor.getFile(input.fileId);
+        const file = await processor.getFile(input.fileId);
         
         if (!file || file.userId !== ctx.user.id) {
           throw new Error('Fichier non trouvé');
         }
 
-        processor.deleteFile(input.fileId);
+        await processor.deleteFile(input.fileId);
 
         await logAuditEvent({
           eventType: "file_deleted",
@@ -859,7 +860,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const processor = getFileProcessor();
-        const file = processor.getFile(input.fileId);
+        const file = await processor.getFile(input.fileId);
         
         if (!file || file.userId !== ctx.user.id) {
           throw new Error('Fichier non trouve');

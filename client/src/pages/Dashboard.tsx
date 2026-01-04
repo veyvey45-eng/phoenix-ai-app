@@ -315,8 +315,8 @@ export default function Dashboard() {
                           toast.success(`${file.originalName} uploadé`);
                         }
                       }}
-                      onFileSelected={(file) => {
-                        if (file.extractedText) {
+                      onFileSelected={async (file) => {
+                        if (file.extractedText && file.extractedText !== '__HAS_CONTENT__') {
                           setUploadedFile({
                             id: file.id,
                             name: file.originalName,
@@ -324,6 +324,9 @@ export default function Dashboard() {
                           });
                           setShowFileUpload(false);
                           toast.success(`${file.originalName} sélectionné`);
+                        } else if (file.extractedText === '__HAS_CONTENT__') {
+                          // Le contenu sera chargé par FileUpload via loadFileContent
+                          toast.info(`Chargement du contenu de ${file.originalName}...`);
                         }
                       }}
                     />

@@ -82,14 +82,23 @@ async function startServer() {
   app.get("/api/files/:fileId", async (req, res) => {
     try {
       const { fileId } = req.params;
-      const user = (req as any).user;
+      
+      // Authenticate the request using the SDK
+      const { sdk } = await import('./sdk');
+      let user;
+      try {
+        user = await sdk.authenticateRequest(req);
+      } catch (error) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
       if (!user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       
       const { getFileProcessor } = await import('../phoenix/fileProcessor');
       const processor = getFileProcessor();
-      const file = processor.getFile(fileId);
+      const file = await processor.getFile(fileId);
       
       if (!file || file.userId !== user.id) {
         return res.status(404).json({ error: 'File not found' });

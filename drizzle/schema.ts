@@ -765,3 +765,28 @@ export const webAutomationSessions = mysqlTable("web_automation_sessions", {
 
 export type WebAutomationSession = typeof webAutomationSessions.$inferSelect;
 export type InsertWebAutomationSession = typeof webAutomationSessions.$inferInsert;
+
+
+// ============================================================================
+// USER FILES - Fichiers uploadés par les utilisateurs
+// ============================================================================
+
+/**
+ * User Files - Fichiers uploadés par les utilisateurs (PDF, TXT, MD, etc.)
+ * Persistés en base de données pour survivre aux redémarrages du serveur
+ */
+export const userFiles = mysqlTable("user_files", {
+  id: varchar("id", { length: 64 }).primaryKey(), // nanoid
+  userId: int("userId").notNull(),
+  originalName: varchar("originalName", { length: 255 }).notNull(),
+  mimeType: varchar("mimeType", { length: 100 }).notNull(),
+  size: int("size").notNull(), // in bytes
+  storageUrl: text("storageUrl").notNull(), // S3 URL
+  storageKey: varchar("storageKey", { length: 512 }).notNull(), // S3 key
+  extractedText: text("extractedText"), // Texte extrait du fichier
+  metadata: json("metadata").$type<Record<string, unknown>>(), // Métadonnées additionnelles
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserFile = typeof userFiles.$inferSelect;
+export type InsertUserFile = typeof userFiles.$inferInsert;

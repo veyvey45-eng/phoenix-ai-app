@@ -68,12 +68,14 @@ export function FileUpload({
   // Charger les fichiers persistés depuis la base de données
   useEffect(() => {
     if (persistedFiles && persistedFiles.length > 0) {
+      // Charger les fichiers avec un marqueur pour indiquer qu'ils ont du texte extrait
+      // Le contenu complet sera chargé à la demande via loadFileContent
       setUploadedFiles(persistedFiles.map(f => ({
         id: f.id.toString(),
         originalName: f.originalName,
         mimeType: f.mimeType,
         size: f.size,
-        extractedText: f.hasExtractedText ? `Contenu du fichier: ${f.originalName}` : undefined,
+        extractedText: f.hasExtractedText ? '__HAS_CONTENT__' : undefined,
         uploadedAt: new Date(f.uploadedAt)
       })));
     }
@@ -213,17 +215,24 @@ export function FileUpload({
   const selectFile = async (file: UploadedFile) => {
     // Charger le contenu complet du fichier depuis le serveur
     try {
+      console.log('[FileUpload] Loading content for file:', file.id, file.originalName);
       const fullContent = await loadFileContent(file.id);
+      console.log('[FileUpload] Content loaded:', fullContent ? `${fullContent.length} chars` : 'null');
       if (fullContent) {
+        // Mettre à jour le fichier local avec le contenu complet
+        setUploadedFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, extractedText: fullContent } : f
+        ));
         onFileSelected?.({
           ...file,
           extractedText: fullContent
         });
       } else {
+        console.warn('[FileUpload] No content found for file:', file.id);
         onFileSelected?.(file);
       }
     } catch (error) {
-      console.error('Error loading file content:', error);
+      console.error('[FileUpload] Error loading file content:', error);
       onFileSelected?.(file);
     }
   };

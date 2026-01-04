@@ -1,10 +1,14 @@
 /**
  * Phoenix File Processor
  * Gestion de l'upload et de l'extraction de contenu des fichiers
+ * Persistance en base de données pour survivre aux redémarrages
  */
 
 import { storagePut } from '../storage';
 import { nanoid } from 'nanoid';
+import { getDb } from '../db';
+import { userFiles } from '../../drizzle/schema';
+import { eq, desc } from 'drizzle-orm';
 
 // Types pour les fichiers
 export interface UploadedFile {
@@ -47,7 +51,9 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Classe principale du processeur de fichiers
 export class FileProcessor {
-  private uploadedFiles: Map<string, UploadedFile> = new Map();
+  // Cache en mémoire pour les fichiers récemment accédés
+  private fileCache: Map<string, UploadedFile> = new Map();
+  private cacheTimeout = 5 * 60 * 1000; // 5 minutes
 
   // Vérifier si le type MIME est supporté
   isSupportedType(mimeType: string): boolean {
@@ -107,7 +113,26 @@ export class FileProcessor {
       userId
     };
 
-    this.uploadedFiles.set(fileId, uploadedFile);
+    // Sauvegarder en base de données
+    const db = await getDb();
+    if (db) {
+      await db.insert(userFiles).values({
+      id: fileId,
+      userId,
+      originalName: fileName,
+      mimeType,
+      size: fileBuffer.length,
+      storageUrl: url,
+      storageKey,
+      extractedText: extraction.text || null,
+      metadata: extraction.metadata || null,
+      });
+    }
+
+    // Mettre en cache
+    this.fileCache.set(fileId, uploadedFile);
+    
+    console.log(`[FileProcessor] File uploaded and saved to DB: ${fileId} (${fileName})`);
     return uploadedFile;
   }
 
@@ -148,7 +173,7 @@ export class FileProcessor {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Erreur d\'extraction'
+        error: `Erreur lors de l'extraction: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }
@@ -156,48 +181,44 @@ export class FileProcessor {
   // Extraction depuis fichier texte
   private extractFromText(buffer: Buffer): FileExtractionResult {
     const text = buffer.toString('utf-8');
-    const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-
     return {
       success: true,
       text,
-      wordCount,
+      wordCount: text.split(/\s+/).filter(w => w.length > 0).length,
       metadata: {
-        encoding: 'utf-8',
-        lineCount: text.split('\n').length
+        type: 'text',
+        encoding: 'utf-8'
       }
     };
   }
 
   // Extraction depuis JSON
   private extractFromJson(buffer: Buffer): FileExtractionResult {
-    const text = buffer.toString('utf-8');
     try {
-      const parsed = JSON.parse(text);
-      const prettyText = JSON.stringify(parsed, null, 2);
+      const content = buffer.toString('utf-8');
+      const parsed = JSON.parse(content);
+      const text = JSON.stringify(parsed, null, 2);
       
       return {
         success: true,
-        text: prettyText,
-        wordCount: prettyText.split(/\s+/).length,
+        text,
         metadata: {
           type: 'json',
-          keys: typeof parsed === 'object' ? Object.keys(parsed) : []
+          keys: Object.keys(parsed),
+          isArray: Array.isArray(parsed)
         }
       };
     } catch {
       return {
-        success: true,
-        text,
-        metadata: { type: 'invalid-json' }
+        success: false,
+        error: 'JSON invalide'
       };
     }
   }
 
-  // Extraction depuis PDF (utilisant pdf-parse)
+  // Extraction depuis PDF
   private async extractFromPdf(buffer: Buffer): Promise<FileExtractionResult> {
     try {
-      // Importer dynamiquement pour éviter les dépendances circulaires
       const { extractPDFText } = await import('./pdfExtractor');
       
       const extracted = await extractPDFText(buffer);
@@ -226,13 +247,9 @@ export class FileProcessor {
 
   // Extraction depuis DOCX (simplifiée)
   private async extractFromDocx(buffer: Buffer): Promise<FileExtractionResult> {
-    // Pour le MVP, extraction basique
-    // En production, utiliser mammoth ou docx
     try {
       const content = buffer.toString('utf-8');
       
-      // DOCX est un ZIP, chercher le contenu XML
-      // Extraction très basique des textes entre balises
       const textMatches = content.match(/<w:t[^>]*>([^<]+)<\/w:t>/g);
       
       if (textMatches) {
@@ -270,8 +287,6 @@ export class FileProcessor {
 
   // Extraction depuis image (placeholder pour OCR)
   private async extractFromImage(buffer: Buffer, mimeType: string): Promise<FileExtractionResult> {
-    // Pour le MVP, retourner un placeholder
-    // En production, utiliser Tesseract.js ou une API OCR
     return {
       success: true,
       text: '[Image uploadée - OCR non disponible dans cette version]',
@@ -284,34 +299,104 @@ export class FileProcessor {
     };
   }
 
-  // Obtenir un fichier par ID
-  getFile(fileId: string): UploadedFile | undefined {
-    return this.uploadedFiles.get(fileId);
+  // Obtenir un fichier par ID (depuis DB ou cache)
+  async getFile(fileId: string): Promise<UploadedFile | undefined> {
+    // Vérifier le cache d'abord
+    if (this.fileCache.has(fileId)) {
+      return this.fileCache.get(fileId);
+    }
+
+    // Sinon, charger depuis la DB
+    try {
+      const db = await getDb();
+      if (!db) return undefined;
+      
+      const [dbFile] = await db.select().from(userFiles).where(eq(userFiles.id, fileId)).limit(1);
+      
+      if (!dbFile) {
+        return undefined;
+      }
+
+      const uploadedFile: UploadedFile = {
+        id: dbFile.id,
+        originalName: dbFile.originalName,
+        mimeType: dbFile.mimeType,
+        size: dbFile.size,
+        storageUrl: dbFile.storageUrl,
+        storageKey: dbFile.storageKey,
+        extractedText: dbFile.extractedText || undefined,
+        metadata: dbFile.metadata as Record<string, unknown> || undefined,
+        uploadedAt: dbFile.createdAt,
+        userId: dbFile.userId
+      };
+
+      // Mettre en cache
+      this.fileCache.set(fileId, uploadedFile);
+      
+      return uploadedFile;
+    } catch (error) {
+      console.error('[FileProcessor] Error loading file from DB:', error);
+      return undefined;
+    }
   }
 
-  // Obtenir tous les fichiers d'un utilisateur
-  getUserFiles(userId: number): UploadedFile[] {
-    return Array.from(this.uploadedFiles.values())
-      .filter(f => f.userId === userId)
-      .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+  // Obtenir tous les fichiers d'un utilisateur (depuis DB)
+  async getUserFiles(userId: number): Promise<UploadedFile[]> {
+    try {
+      const db = await getDb();
+      if (!db) return [];
+      
+      const dbFiles = await db.select()
+        .from(userFiles)
+        .where(eq(userFiles.userId, userId))
+        .orderBy(desc(userFiles.createdAt));
+
+      return dbFiles.map(dbFile => ({
+        id: dbFile.id,
+        originalName: dbFile.originalName,
+        mimeType: dbFile.mimeType,
+        size: dbFile.size,
+        storageUrl: dbFile.storageUrl,
+        storageKey: dbFile.storageKey,
+        extractedText: dbFile.extractedText || undefined,
+        metadata: dbFile.metadata as Record<string, unknown> || undefined,
+        uploadedAt: dbFile.createdAt,
+        userId: dbFile.userId
+      }));
+    } catch (error) {
+      console.error('[FileProcessor] Error loading user files from DB:', error);
+      return [];
+    }
   }
 
   // Supprimer un fichier
-  deleteFile(fileId: string): boolean {
-    return this.uploadedFiles.delete(fileId);
+  async deleteFile(fileId: string): Promise<boolean> {
+    try {
+      const db = await getDb();
+      if (!db) return false;
+      
+      await db.delete(userFiles).where(eq(userFiles.id, fileId));
+      this.fileCache.delete(fileId);
+      console.log(`[FileProcessor] File deleted: ${fileId}`);
+      return true;
+    } catch (error) {
+      console.error('[FileProcessor] Error deleting file:', error);
+      return false;
+    }
   }
 
   // Rechercher dans les fichiers
-  searchInFiles(userId: number, query: string): Array<{ file: UploadedFile; matches: string[] }> {
+  async searchInFiles(userId: number, query: string): Promise<Array<{ file: UploadedFile; matches: string[] }>> {
     const results: Array<{ file: UploadedFile; matches: string[] }> = [];
     const queryLower = query.toLowerCase();
 
-    for (const file of this.getUserFiles(userId)) {
+    const files = await this.getUserFiles(userId);
+    
+    for (const file of files) {
       if (!file.extractedText) continue;
 
       const textLower = file.extractedText.toLowerCase();
       if (textLower.includes(queryLower)) {
-        // Extraire les contextes autour des matches
         const matches: string[] = [];
         let index = textLower.indexOf(queryLower);
         
@@ -327,6 +412,11 @@ export class FileProcessor {
     }
 
     return results;
+  }
+
+  // Vider le cache
+  clearCache(): void {
+    this.fileCache.clear();
   }
 }
 
