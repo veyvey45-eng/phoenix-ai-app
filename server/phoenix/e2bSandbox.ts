@@ -1,9 +1,13 @@
 /**
  * E2B Sandbox Module
- * Real code execution using E2B Code Interpreter SDK
+ * Real code execution using E2B Code Interpreter SDK or native execution
  */
 
 import { Sandbox } from '@e2b/code-interpreter';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
 interface ExecutionResult {
   success: boolean;
@@ -16,11 +20,19 @@ interface ExecutionResult {
 
 class E2BSandboxService {
   private apiKey: string;
+  private tempDir: string;
 
   constructor() {
     this.apiKey = process.env.E2B_API_KEY || '';
+    this.tempDir = path.join(os.tmpdir(), 'phoenix-sandbox');
+    
+    // Créer le répertoire temporaire
+    if (!fs.existsSync(this.tempDir)) {
+      fs.mkdirSync(this.tempDir, { recursive: true });
+    }
+    
     if (!this.apiKey) {
-      console.warn('[E2B Sandbox] API key not configured');
+      console.warn('[E2B Sandbox] E2B API key not configured - using native execution');
     }
   }
 
@@ -43,78 +55,140 @@ class E2BSandboxService {
       // Validate code for dangerous operations
       this.validateCode(code, 'python');
       
-      // If E2B is not available, use fallback
-      if (!this.isAvailable()) {
-        console.log('[E2B Sandbox] E2B not available, using fallback execution');
-        return this.executePythonFallback(code, userId, username, startTime);
+      // If E2B is available, use it
+      if (this.isAvailable()) {
+        return await this.executePythonE2B(code, userId, username, startTime);
       }
       
-      // Create sandbox and execute code
-      let sandbox: InstanceType<typeof Sandbox> | null = null;
-      try {
-        sandbox = await Sandbox.create();
-        
-        console.log('[E2B Sandbox] Created E2B sandbox');
-        
-        // Execute the code
-        const execution = await sandbox.runCode(code, { language: 'python' });
-        
-        // Collect output
-        let output = '';
-        if (execution.logs?.stdout) {
-          output += execution.logs.stdout.join('\n');
-        }
-        if (execution.logs?.stderr) {
-          output += (output ? '\n' : '') + execution.logs.stderr.join('\n');
-        }
-        
-        // Handle errors
-        if (execution.error) {
-          const executionTime = Date.now() - startTime;
-          return {
-            success: false,
-            output: output || '',
-            error: execution.error.value,
-            executionTime,
-            language: 'python',
-          };
-        }
-        
-        const executionTime = Date.now() - startTime;
-        
-        return {
-          success: true,
-          output: output || '[No output]',
-          executionTime,
-          language: 'python',
-        };
-      } finally {
-        // Clean up
-        if (sandbox) {
-          try {
-            // E2B Sandbox doesn't have explicit close method
-            // It will be cleaned up automatically
-          } catch (e) {
-            console.error('[E2B Sandbox] Error closing sandbox:', e);
-          }
-        }
-      }
+      // Otherwise use native Python execution
+      console.log('[E2B Sandbox] Using native Python execution');
+      return await this.executePythonNative(code, userId, username, startTime);
     } catch (error) {
       const executionTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       console.error('[E2B Sandbox] Python execution error:', errorMessage);
       
-      // If E2B failed, use fallback
-      if (errorMessage.includes('API') || errorMessage.includes('auth') || errorMessage.includes('401')) {
-        console.log('[E2B Sandbox] E2B authentication failed, using fallback execution');
-        return this.executePythonFallback(code, userId, username, startTime);
-      }
-      
       return {
         success: false,
         output: '',
         error: errorMessage,
+        executionTime,
+        language: 'python',
+      };
+    }
+  }
+
+  /**
+   * Execute Python code using E2B
+   */
+  private async executePythonE2B(code: string, userId: string, username: string, startTime: number): Promise<ExecutionResult> {
+    let sandbox: InstanceType<typeof Sandbox> | null = null;
+    try {
+      sandbox = await Sandbox.create();
+      console.log('[E2B Sandbox] Created E2B sandbox');
+      
+      // Execute the code
+      const execution = await sandbox.runCode(code, { language: 'python' });
+      
+      // Collect output
+      let output = '';
+      if (execution.logs?.stdout) {
+        output += execution.logs.stdout.join('\n');
+      }
+      if (execution.logs?.stderr) {
+        output += (output ? '\n' : '') + execution.logs.stderr.join('\n');
+      }
+      
+      // Handle errors
+      if (execution.error) {
+        const executionTime = Date.now() - startTime;
+        return {
+          success: false,
+          output: output || '',
+          error: execution.error.value,
+          executionTime,
+          language: 'python',
+        };
+      }
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        output: output || '[No output]',
+        executionTime,
+        language: 'python',
+      };
+    } finally {
+      if (sandbox) {
+        try {
+          // E2B Sandbox doesn't have explicit close method
+        } catch (e) {
+          console.error('[E2B Sandbox] Error closing sandbox:', e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Execute Python code using native Python
+   */
+  private async executePythonNative(code: string, userId: string, username: string, startTime: number): Promise<ExecutionResult> {
+    try {
+      // Create a temporary Python file
+      const tempFile = path.join(this.tempDir, `${userId}-${Date.now()}.py`);
+      fs.writeFileSync(tempFile, code, 'utf-8');
+      
+      console.log(`[E2B Sandbox] Created temporary Python file: ${tempFile}`);
+      
+      try {
+        // Execute the Python file
+        const output = execSync(`python3 "${tempFile}"`, {
+          encoding: 'utf-8',
+          timeout: 30000, // 30 seconds timeout
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        });
+        
+        const executionTime = Date.now() - startTime;
+        
+        return {
+          success: true,
+          output: output.trim() || '[No output]',
+          executionTime,
+          language: 'python',
+        };
+      } catch (error: any) {
+        const executionTime = Date.now() - startTime;
+        
+        // Extract error message from stderr
+        let errorMessage = error.message || String(error);
+        if (error.stderr) {
+          errorMessage = error.stderr.toString();
+        }
+        
+        return {
+          success: false,
+          output: error.stdout?.toString() || '',
+          error: errorMessage,
+          executionTime,
+          language: 'python',
+        };
+      } finally {
+        // Clean up temporary file
+        try {
+          fs.unlinkSync(tempFile);
+          console.log(`[E2B Sandbox] Cleaned up temporary file: ${tempFile}`);
+        } catch (e) {
+          console.error('[E2B Sandbox] Error cleaning up temporary file:', e);
+        }
+      }
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      return {
+        success: false,
+        output: '',
+        error: error instanceof Error ? error.message : String(error),
         executionTime,
         language: 'python',
       };
@@ -133,78 +207,140 @@ class E2BSandboxService {
       // Validate code for dangerous operations
       this.validateCode(code, 'javascript');
       
-      // If E2B is not available, use fallback
-      if (!this.isAvailable()) {
-        console.log('[E2B Sandbox] E2B not available, using fallback execution');
-        return this.executeJavaScriptFallback(code, userId, username, startTime);
+      // If E2B is available, use it
+      if (this.isAvailable()) {
+        return await this.executeJavaScriptE2B(code, userId, username, startTime);
       }
       
-      // Create sandbox and execute code
-      let sandbox: InstanceType<typeof Sandbox> | null = null;
-      try {
-        sandbox = await Sandbox.create();
-        
-        console.log('[E2B Sandbox] Created E2B sandbox for JavaScript');
-        
-        // Execute the code
-        const execution = await sandbox.runCode(code, { language: 'javascript' });
-        
-        // Collect output
-        let output = '';
-        if (execution.logs?.stdout) {
-          output = execution.logs.stdout.join('\n');
-        }
-        if (execution.logs?.stderr) {
-          output += (output ? '\n' : '') + execution.logs.stderr.join('\n');
-        }
-        
-        // Handle errors
-        if (execution.error) {
-          const executionTime = Date.now() - startTime;
-          return {
-            success: false,
-            output: output || '',
-            error: execution.error.value,
-            executionTime,
-            language: 'javascript',
-          };
-        }
-        
-        const executionTime = Date.now() - startTime;
-        
-        return {
-          success: true,
-          output: output || '[No output]',
-          executionTime,
-          language: 'javascript',
-        };
-      } finally {
-        // Clean up
-        if (sandbox) {
-          try {
-            // E2B Sandbox doesn't have explicit close method
-            // It will be cleaned up automatically
-          } catch (e) {
-            console.error('[E2B Sandbox] Error closing sandbox:', e);
-          }
-        }
-      }
+      // Otherwise use native Node.js execution
+      console.log('[E2B Sandbox] Using native Node.js execution');
+      return await this.executeJavaScriptNative(code, userId, username, startTime);
     } catch (error) {
       const executionTime = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       console.error('[E2B Sandbox] JavaScript execution error:', errorMessage);
       
-      // If E2B failed, use fallback
-      if (errorMessage.includes('API') || errorMessage.includes('auth') || errorMessage.includes('401')) {
-        console.log('[E2B Sandbox] E2B authentication failed, using fallback execution');
-        return this.executeJavaScriptFallback(code, userId, username, startTime);
-      }
-      
       return {
         success: false,
         output: '',
         error: errorMessage,
+        executionTime,
+        language: 'javascript',
+      };
+    }
+  }
+
+  /**
+   * Execute JavaScript code using E2B
+   */
+  private async executeJavaScriptE2B(code: string, userId: string, username: string, startTime: number): Promise<ExecutionResult> {
+    let sandbox: InstanceType<typeof Sandbox> | null = null;
+    try {
+      sandbox = await Sandbox.create();
+      console.log('[E2B Sandbox] Created E2B sandbox for JavaScript');
+      
+      // Execute the code
+      const execution = await sandbox.runCode(code, { language: 'javascript' });
+      
+      // Collect output
+      let output = '';
+      if (execution.logs?.stdout) {
+        output = execution.logs.stdout.join('\n');
+      }
+      if (execution.logs?.stderr) {
+        output += (output ? '\n' : '') + execution.logs.stderr.join('\n');
+      }
+      
+      // Handle errors
+      if (execution.error) {
+        const executionTime = Date.now() - startTime;
+        return {
+          success: false,
+          output: output || '',
+          error: execution.error.value,
+          executionTime,
+          language: 'javascript',
+        };
+      }
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        output: output || '[No output]',
+        executionTime,
+        language: 'javascript',
+      };
+    } finally {
+      if (sandbox) {
+        try {
+          // E2B Sandbox doesn't have explicit close method
+        } catch (e) {
+          console.error('[E2B Sandbox] Error closing sandbox:', e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Execute JavaScript code using native Node.js
+   */
+  private async executeJavaScriptNative(code: string, userId: string, username: string, startTime: number): Promise<ExecutionResult> {
+    try {
+      // Create a temporary JavaScript file
+      const tempFile = path.join(this.tempDir, `${userId}-${Date.now()}.js`);
+      fs.writeFileSync(tempFile, code, 'utf-8');
+      
+      console.log(`[E2B Sandbox] Created temporary JavaScript file: ${tempFile}`);
+      
+      try {
+        // Execute the JavaScript file
+        const output = execSync(`node "${tempFile}"`, {
+          encoding: 'utf-8',
+          timeout: 30000, // 30 seconds timeout
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        });
+        
+        const executionTime = Date.now() - startTime;
+        
+        return {
+          success: true,
+          output: output.trim() || '[No output]',
+          executionTime,
+          language: 'javascript',
+        };
+      } catch (error: any) {
+        const executionTime = Date.now() - startTime;
+        
+        // Extract error message from stderr
+        let errorMessage = error.message || String(error);
+        if (error.stderr) {
+          errorMessage = error.stderr.toString();
+        }
+        
+        return {
+          success: false,
+          output: error.stdout?.toString() || '',
+          error: errorMessage,
+          executionTime,
+          language: 'javascript',
+        };
+      } finally {
+        // Clean up temporary file
+        try {
+          fs.unlinkSync(tempFile);
+          console.log(`[E2B Sandbox] Cleaned up temporary file: ${tempFile}`);
+        } catch (e) {
+          console.error('[E2B Sandbox] Error cleaning up temporary file:', e);
+        }
+      }
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      return {
+        success: false,
+        output: '',
+        error: error instanceof Error ? error.message : String(error),
         executionTime,
         language: 'javascript',
       };
@@ -238,110 +374,6 @@ class E2BSandboxService {
       if (pattern.test(code)) {
         throw new Error(`Dangerous operation detected: ${pattern.source}`);
       }
-    }
-  }
-
-  /**
-   * Fallback: Simulate Python execution
-   */
-  private executePythonFallback(code: string, userId: string, username: string, startTime: number): ExecutionResult {
-    console.log('[E2B Sandbox] Using Python fallback (simulation)');
-    
-    try {
-      // Extract print statements
-      const printRegex = /print\s*\(\s*([^)]+)\s*\)/g;
-      const outputs: string[] = [];
-      let match;
-      
-      while ((match = printRegex.exec(code)) !== null) {
-        const arg = match[1].trim();
-        
-        // Try to evaluate simple expressions
-        try {
-          // Remove f-string prefix if present
-          let evalCode = arg;
-          if (evalCode.startsWith('f"') || evalCode.startsWith("f'")) {
-            evalCode = evalCode.slice(1);
-          }
-          
-          // Simple evaluation (very limited)
-          if (evalCode.includes('+')) {
-            const parts = evalCode.split('+').map(p => p.trim());
-            const numbers = parts.map(p => {
-              const num = parseFloat(p);
-              return isNaN(num) ? p : num;
-            });
-            const result = numbers.reduce((a, b) => {
-              if (typeof a === 'number' && typeof b === 'number') {
-                return a + b;
-              }
-              return String(a) + String(b);
-            });
-            outputs.push(String(result));
-          } else if (!isNaN(parseFloat(arg))) {
-            outputs.push(arg);
-          } else {
-            outputs.push(arg.replace(/['"]/g, ''));
-          }
-        } catch (e) {
-          outputs.push(arg);
-        }
-      }
-      
-      const executionTime = Date.now() - startTime;
-      
-      return {
-        success: true,
-        output: outputs.length > 0 ? outputs.join('\n') : '[No output]',
-        executionTime,
-        language: 'python',
-      };
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      return {
-        success: false,
-        output: '',
-        error: error instanceof Error ? error.message : String(error),
-        executionTime,
-        language: 'python',
-      };
-    }
-  }
-
-  /**
-   * Fallback: Simulate JavaScript execution
-   */
-  private executeJavaScriptFallback(code: string, userId: string, username: string, startTime: number): ExecutionResult {
-    console.log('[E2B Sandbox] Using JavaScript fallback (simulation)');
-    
-    try {
-      // Extract console.log statements
-      const logRegex = /console\.log\s*\(\s*([^)]+)\s*\)/g;
-      const outputs: string[] = [];
-      let match;
-      
-      while ((match = logRegex.exec(code)) !== null) {
-        const arg = match[1].trim();
-        outputs.push(arg.replace(/['"]/g, ''));
-      }
-      
-      const executionTime = Date.now() - startTime;
-      
-      return {
-        success: true,
-        output: outputs.length > 0 ? outputs.join('\n') : '[No output]',
-        executionTime,
-        language: 'javascript',
-      };
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      return {
-        success: false,
-        output: '',
-        error: error instanceof Error ? error.message : String(error),
-        executionTime,
-        language: 'javascript',
-      };
     }
   }
 
