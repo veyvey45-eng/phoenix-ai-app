@@ -4,6 +4,7 @@
  */
 
 import { invokeLLM } from '../_core/llm';
+import { streamWithToolHandling } from './groqToolHandler';
 
 interface StreamingOptions {
   temperature?: number;
@@ -24,7 +25,7 @@ export async function* streamChatResponse(
     console.log('[StreamingChat] Groq API key available:', !!apiKey);
     
     if (apiKey) {
-      console.log('[StreamingChat] Using Groq API');
+      console.log('[StreamingChat] Using Groq API with tool support');
       yield* streamWithGroq(messages, options);
     } else {
       // Fallback to Google AI Studio
@@ -38,14 +39,35 @@ export async function* streamChatResponse(
 }
 
 /**
- * Stream using Groq API
+ * Stream using Groq API with tool support
  */
 async function* streamWithGroq(
   messages: Array<{ role: string; content: string }>,
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
-    console.log('[StreamingChat] Groq: Sending request to API');
+    console.log('[StreamingChat] Groq: Using tool handler for code execution');
+    // Utiliser le tool handler qui gère les tool calls ET le streaming
+    yield* streamWithToolHandling(messages as any, {
+      temperature: options?.temperature,
+      maxTokens: options?.maxTokens
+    });
+  } catch (error) {
+    console.error('[StreamingChat] Tool handler error:', error);
+    // Fallback au streaming normal sans tools
+    yield* streamWithGroqFallback(messages, options);
+  }
+}
+
+/**
+ * Fallback streaming without tools
+ */
+async function* streamWithGroqFallback(
+  messages: Array<{ role: string; content: string }>,
+  options?: StreamingOptions
+): AsyncGenerator<string> {
+  try {
+    console.log('[StreamingChat] Groq: Fallback streaming without tools');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -125,8 +147,8 @@ async function* streamWithGroq(
       reader.releaseLock();
     }
   } catch (error) {
-    console.error('[StreamingChat] Groq streaming error:', error);
-    // Try fallback to Google AI
+    console.error('[StreamingChat] Groq fallback streaming error:', error);
+    // Try Google AI fallback
     console.log('[StreamingChat] Groq failed, trying Google AI fallback');
     try {
       yield* streamWithGoogleAI(messages, options);
@@ -140,15 +162,13 @@ async function* streamWithGroq(
 
 /**
  * Stream using Google AI Studio (fallback)
- * Note: Google AI Studio doesn't have native streaming in the SDK,
- * so we'll use a simpler approach
  */
 async function* streamWithGoogleAI(
   messages: Array<{ role: string; content: string }>,
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
-    console.log('[StreamingChat] Google AI: Invoking LLM');
+    console.log('[StreamingChat] Google AI: Sending request');
     const response = await invokeLLM({
       messages: messages.map(m => ({
         role: m.role as 'system' | 'user' | 'assistant',
@@ -156,22 +176,16 @@ async function* streamWithGoogleAI(
       }))
     });
 
-    console.log('[StreamingChat] Google AI: Got response');
-    // Simulate streaming by yielding chunks
-    let text = response.choices?.[0]?.message?.content || '';
-    if (typeof text !== 'string') {
-      text = JSON.stringify(text);
-    }
-
-    console.log('[StreamingChat] Google AI: Streaming', text.length, 'characters');
-    const chunkSize = 10; // Characters per chunk
-    for (let i = 0; i < text.length; i += chunkSize) {
-      yield text.slice(i, i + chunkSize);
-      // Small delay to simulate streaming
+    // Yield the response in chunks to simulate streaming
+    const contentRaw = response.choices?.[0]?.message?.content;
+    const content = typeof contentRaw === 'string' ? contentRaw : '';
+    const chunkSize = 50;
+    for (let i = 0; i < content.length; i += chunkSize) {
+      yield content.substring(i, i + chunkSize);
       await new Promise(resolve => setTimeout(resolve, 10));
     }
   } catch (error) {
-    console.error('[StreamingChat] Google AI streaming error:', error);
+    console.error('[StreamingChat] Google AI error:', error);
     throw error;
   }
 }
@@ -183,25 +197,16 @@ export function formatMessagesForStreaming(
   systemPrompt: string,
   userMessage: string,
   context?: string
-): Array<{ role: string; content: string }> {
-  const messages: Array<{ role: string; content: string }> = [
-    {
-      role: 'system',
-      content: systemPrompt
-    }
+): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: systemPrompt }
   ];
 
   if (context) {
-    messages.push({
-      role: 'user',
-      content: `Context:\n${context}\n\nQuestion: ${userMessage}`
-    });
-  } else {
-    messages.push({
-      role: 'user',
-      content: userMessage
-    });
+    messages.push({ role: 'system', content: `Context: ${context}` });
   }
+
+  messages.push({ role: 'user', content: userMessage });
 
   return messages;
 }
