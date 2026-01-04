@@ -66,9 +66,17 @@ async function* streamWithGroq(
       maxTokens: options?.maxTokens
     });
   } catch (error) {
-    console.error('[StreamingChat] Tool handler error:', error);
-    // Fallback au streaming normal sans tools
-    yield* streamWithGroqFallback(messages, options);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[StreamingChat] Tool handler error:', errorMessage);
+    
+    // Check if it's a rate limit error
+    if (errorMessage.includes('rate_limit') || errorMessage.includes('429')) {
+      console.log('[StreamingChat] Groq rate limit detected, using Google AI fallback');
+      yield* streamWithGoogleAI(messages, options);
+    } else {
+      // Fallback au streaming normal sans tools
+      yield* streamWithGroqFallback(messages, options);
+    }
   }
 }
 
@@ -181,21 +189,25 @@ async function* streamWithGoogleAI(
   options?: StreamingOptions
 ): AsyncGenerator<string> {
   try {
-    console.log('[StreamingChat] Google AI: Sending request with tool support');
-    const { CODE_INTERPRETER_TOOL_DEFINITION } = await import('./codeInterpreterTool');
+    console.log('[StreamingChat] Google AI: Sending request WITHOUT tools');
     
     const response = await invokeLLM({
       messages: messages.map(m => ({
         role: m.role as 'system' | 'user' | 'assistant' | 'tool',
-        content: m.content,
-        tool_call_id: (m as any).tool_call_id
-      })),
-      tools: [CODE_INTERPRETER_TOOL_DEFINITION] as any
+        content: m.content
+      }))
     });
 
     // Yield the response in chunks to simulate streaming
     const contentRaw = response.choices?.[0]?.message?.content;
     const content = typeof contentRaw === 'string' ? contentRaw : '';
+    
+    if (!content) {
+      console.warn('[StreamingChat] Google AI returned empty response');
+      yield 'Desolé, je n\'arrive pas à générer une réponse en ce moment. Veuillez réessayer.';
+      return;
+    }
+    
     const chunkSize = 50;
     for (let i = 0; i < content.length; i += chunkSize) {
       yield content.substring(i, i + chunkSize);

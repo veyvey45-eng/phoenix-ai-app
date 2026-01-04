@@ -69,7 +69,7 @@ export function useStreamingChat({
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch('/api/phoenix/stream', {
+      const response = await fetch('/api/stream/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
