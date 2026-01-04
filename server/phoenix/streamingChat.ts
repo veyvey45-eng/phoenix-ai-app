@@ -5,15 +5,30 @@
 
 import { invokeLLM } from '../_core/llm';
 import { streamWithToolHandling } from './groqToolHandler';
-import { executeCodeDirectly, formatCodeExecutionResponse } from './directCodeExecutor';
-import { forceRealCodeExecution } from './forceCodeExecution';
-import { isCalculationRequest, executeCalculation, formatCalculationResponse } from './autoCodeGenerator';
-import { injectExecutableCode } from './codeInjector';
+import { generateAndExecuteCompleteFlow, isCodeRequest } from './smartCodeExecutor';
 
 interface StreamingOptions {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+}
+
+/**
+ * Format messages for streaming
+ */
+export function formatMessagesForStreaming(
+  systemPrompt: string,
+  userMessage: string,
+  context?: string
+): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: systemPrompt }
+  ];
+  if (context) {
+    messages.push({ role: 'system', content: `Context: ${context}` });
+  }
+  messages.push({ role: 'user', content: userMessage });
+  return messages;
 }
 
 /**
@@ -27,24 +42,19 @@ export async function* streamChatResponse(
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
     
-    // NOUVEAU: Vérifier si c'est un calcul et l'exécuter directement
-    if (isCalculationRequest(userMessage)) {
-      console.log('[StreamingChat] Calculation request detected, executing directly');
-      const calcResult = await executeCalculation(userMessage);
-      if (calcResult.success) {
-        const response = formatCalculationResponse(calcResult);
-        yield response;
+    // NOUVEAU: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
+    if (isCodeRequest(userMessage)) {
+      console.log('[StreamingChat] Code request detected, executing directly');
+      const codeResult = await generateAndExecuteCompleteFlow(userMessage);
+      if (codeResult.success && codeResult.fullResponse) {
+        // Retourner UNIQUEMENT le code et le résultat, pas la réponse de Phoenix
+        console.log('[StreamingChat] Code execution successful, returning result');
+        yield codeResult.fullResponse;
         return;
+      } else {
+        console.log('[StreamingChat] Code execution failed:', codeResult.error);
+        // Continuer avec Phoenix si le code échoue
       }
-    }
-    
-    // Try to execute code directly if detected
-    const directExecution = await executeCodeDirectly(userMessage);
-    if (directExecution.executed) {
-      console.log('[StreamingChat] Code executed directly');
-      const response = formatCodeExecutionResponse(directExecution);
-      yield response;
-      return;
     }
     
     // Use Groq for faster streaming when available
@@ -117,64 +127,43 @@ async function* streamWithGroqFallback(
         stream: true
       })
     });
-
     console.log('[StreamingChat] Groq: Response status:', response.status);
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[StreamingChat] Groq error response:', errorText);
       throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
-
     if (!response.body) {
       throw new Error('No response body');
     }
-
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-
         // Keep the last incomplete line in the buffer
         buffer = lines[lines.length - 1];
-
         for (let i = 0; i < lines.length - 1; i++) {
           const line = lines[i];
           if (line.startsWith('data: ')) {
             const data = line.slice(6);
-            if (data === '[DONE]') continue;
-
+            if (data === '[DONE]') {
+              console.log('[StreamingChat] Groq: Stream complete');
+              return;
+            }
             try {
               const json = JSON.parse(data);
-              const content = json.choices?.[0]?.delta?.content;
-              if (content) {
-                yield content;
+              const chunk = json.choices?.[0]?.delta?.content || '';
+              if (chunk) {
+                yield chunk;
               }
             } catch (e) {
-              // Ignore parsing errors for incomplete JSON
+              // Ignore JSON parse errors
             }
-          }
-        }
-      }
-
-      // Process any remaining data
-      if (buffer && buffer.startsWith('data: ')) {
-        const data = buffer.slice(6);
-        if (data !== '[DONE]') {
-          try {
-            const json = JSON.parse(data);
-            const content = json.choices?.[0]?.delta?.content;
-            if (content) {
-              yield content;
-            }
-          } catch (e) {
-            // Ignore
           }
         }
       }
@@ -182,21 +171,13 @@ async function* streamWithGroqFallback(
       reader.releaseLock();
     }
   } catch (error) {
-    console.error('[StreamingChat] Groq fallback streaming error:', error);
-    // Try Google AI fallback
-    console.log('[StreamingChat] Groq failed, trying Google AI fallback');
-    try {
-      yield* streamWithGoogleAI(messages, options);
-    } catch (fallbackError) {
-      console.error('[StreamingChat] Google AI fallback also failed:', fallbackError);
-      // Last resort: yield an error message
-      yield 'Désolé, je n\'arrive pas à générer une réponse en ce moment. Les services sont surchargés. Veuillez réessayer dans quelques instants.';
-    }
+    console.error('[StreamingChat] Groq fallback error:', error);
+    yield* streamWithGoogleAI(messages, options);
   }
 }
 
 /**
- * Stream using Google AI Studio (fallback)
+ * Stream with Google AI
  */
 async function* streamWithGoogleAI(
   messages: Array<{ role: string; content: string }>,
@@ -218,20 +199,11 @@ async function* streamWithGoogleAI(
     
     if (!content) {
       console.warn('[StreamingChat] Google AI returned empty response');
-      yield 'Desolé, je n\'arrive pas à générer une réponse en ce moment. Veuillez réessayer.';
+      yield 'Désolé, je n\'arrive pas à générer une réponse en ce moment. Veuillez réessayer.';
       return;
     }
     
-    // NOUVEAU: Exécuter le code réellement au lieu de le simuler
-    console.log('[StreamingChat] Forcing real code execution for Google AI response');
-    content = await forceRealCodeExecution(content);
-    console.log('[StreamingChat] Code execution complete, streaming response');
-    
-    // NOUVEAU: Injecter du code exécutable si Phoenix dit qu'elle ne peut pas exécuter
-    const userMessage = messages[messages.length - 1]?.content || '';
-    console.log('[StreamingChat] Injecting executable code if needed');
-    content = await injectExecutableCode(content, userMessage);
-    console.log('[StreamingChat] Code injection complete');
+    console.log('[StreamingChat] Google AI response received, streaming...');
     
     // Stream the complete response
     const chunkSize = 50;
@@ -239,29 +211,9 @@ async function* streamWithGoogleAI(
       yield content.substring(i, i + chunkSize);
       await new Promise(resolve => setTimeout(resolve, 10));
     }
+    console.log('[StreamingChat] Google AI streaming complete');
   } catch (error) {
     console.error('[StreamingChat] Google AI error:', error);
     throw error;
   }
-}
-
-/**
- * Format messages for streaming
- */
-export function formatMessagesForStreaming(
-  systemPrompt: string,
-  userMessage: string,
-  context?: string
-): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-    { role: 'system', content: systemPrompt }
-  ];
-
-  if (context) {
-    messages.push({ role: 'system', content: `Context: ${context}` });
-  }
-
-  messages.push({ role: 'user', content: userMessage });
-
-  return messages;
 }
