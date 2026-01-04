@@ -102,9 +102,18 @@ export default function Dashboard() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/stream/chat?conversationId=${convId}&message=${encodeURIComponent(input)}${uploadedFile ? `&fileContent=${encodeURIComponent(uploadedFile.content)}` : ''}`, {
-        method: 'GET',
+      // Use POST for file content to avoid URL length limits
+      const response = await fetch('/api/stream/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
+        body: JSON.stringify({
+          conversationId: convId,
+          message: input,
+          fileContent: uploadedFile?.content || undefined
+        })
       });
 
       if (!response.ok) {
