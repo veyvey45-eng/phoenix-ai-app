@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { streamChatEndpoint, fastStreamChatEndpoint } from "./streamingEndpoint";
 import { handleCodeExecution, handleCodeExecutionStream } from "./codeExecutionEndpoint";
+import codeExecutionRouter from "../phoenix/codeExecutionEndpoint";
 
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -48,6 +49,7 @@ async function startServer() {
   // Code execution endpoints
   app.post("/api/stream/code-execution", handleCodeExecutionStream);
   app.post("/api/code-execution", handleCodeExecution);
+  app.use("/api", codeExecutionRouter);
   
   // Endpoint to save conversation messages
   app.post("/api/save-message", async (req, res) => {

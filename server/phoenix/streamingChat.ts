@@ -6,6 +6,8 @@
 import { invokeLLM } from '../_core/llm';
 import { streamWithToolHandling } from './groqToolHandler';
 import { executeCodeDirectly, formatCodeExecutionResponse } from './directCodeExecutor';
+import { forceRealCodeExecution } from './forceCodeExecution';
+import { isCalculationRequest, executeCalculation, formatCalculationResponse } from './autoCodeGenerator';
 
 interface StreamingOptions {
   temperature?: number;
@@ -23,6 +25,17 @@ export async function* streamChatResponse(
   try {
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // NOUVEAU: Vérifier si c'est un calcul et l'exécuter directement
+    if (isCalculationRequest(userMessage)) {
+      console.log('[StreamingChat] Calculation request detected, executing directly');
+      const calcResult = await executeCalculation(userMessage);
+      if (calcResult.success) {
+        const response = formatCalculationResponse(calcResult);
+        yield response;
+        return;
+      }
+    }
     
     // Try to execute code directly if detected
     const directExecution = await executeCodeDirectly(userMessage);
@@ -199,8 +212,8 @@ async function* streamWithGoogleAI(
     });
 
     // Yield the response in chunks to simulate streaming
-    const contentRaw = response.choices?.[0]?.message?.content;
-    const content = typeof contentRaw === 'string' ? contentRaw : '';
+    let contentRaw = response.choices?.[0]?.message?.content;
+    let content = typeof contentRaw === 'string' ? contentRaw : '';
     
     if (!content) {
       console.warn('[StreamingChat] Google AI returned empty response');
@@ -208,6 +221,12 @@ async function* streamWithGoogleAI(
       return;
     }
     
+    // NOUVEAU: Exécuter le code réellement au lieu de le simuler
+    console.log('[StreamingChat] Forcing real code execution for Google AI response');
+    content = await forceRealCodeExecution(content);
+    console.log('[StreamingChat] Code execution complete, streaming response');
+    
+    // Stream the complete response
     const chunkSize = 50;
     for (let i = 0; i < content.length; i += chunkSize) {
       yield content.substring(i, i + chunkSize);
