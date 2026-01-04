@@ -48,7 +48,7 @@ class GroqApiService {
   }
 
   /**
-   * Generate text using Groq
+   * Generate text using Groq with optional tools
    */
   async generateText(
     messages: GroqMessage[],
@@ -56,6 +56,7 @@ class GroqApiService {
       temperature?: number;
       maxTokens?: number;
       model?: string;
+      tools?: any[];
     }
   ): Promise<string> {
     try {
@@ -75,7 +76,8 @@ class GroqApiService {
           temperature: options?.temperature ?? 0.7,
           max_tokens: options?.maxTokens ?? 2048,
           top_p: 1,
-          stop: null
+          stop: null,
+          ...(options?.tools && { tools: options.tools })
         })
       });
 
