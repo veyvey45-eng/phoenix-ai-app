@@ -78,6 +78,13 @@
       "when": 1767500823662,
       "tag": "0010_breezy_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1767532981164,
+      "tag": "0011_happy_vivisector",
+      "breakpoints": true
     }
   ]
 }

@@ -283,12 +283,12 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
     const now = Date.now();
     let deletedCount = 0;
 
-    for (const [sessionId, session] of this.sessions) {
+    this.sessions.forEach((session, sessionId) => {
       if (now - session.startTime > maxAge) {
         this.sessions.delete(sessionId);
         deletedCount++;
       }
-    }
+    });
 
     console.log(`[AutonomousBrowser] ${deletedCount} anciennes sessions supprimées`);
     return deletedCount;

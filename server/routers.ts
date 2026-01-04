@@ -30,6 +30,7 @@ import { stripeRouter } from './routers/stripe';
 import { e2bRouter } from './routers/e2b';
 import { e2bHistoryRouter } from './routers/e2bHistory';
 import { engineerRouter } from './routers/engineer';
+import { autonomousAgentRouter } from './routers/autonomousAgentRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -86,6 +87,7 @@ export const appRouter = router({
   e2b: e2bRouter,
   e2bHistory: e2bHistoryRouter,
   engineer: engineerRouter,
+  autonomousAgent: autonomousAgentRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

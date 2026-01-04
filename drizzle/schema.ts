@@ -566,3 +566,202 @@ export const sandboxCheckpoints = mysqlTable("sandbox_checkpoints", {
 
 export type SandboxCheckpoint = typeof sandboxCheckpoints.$inferSelect;
 export type InsertSandboxCheckpoint = typeof sandboxCheckpoints.$inferInsert;
+
+// ============================================================================
+// AUTONOMOUS AGENT SYSTEM - Architecture Multi-Agents
+// ============================================================================
+
+/**
+ * Autonomous Tasks - Objectifs que Phoenix doit accomplir
+ * Chaque tâche est décomposée en sous-étapes et exécutée de manière autonome
+ */
+export const autonomousTasks = mysqlTable("autonomous_tasks", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  objective: text("objective").notNull(), // L'objectif initial de l'utilisateur
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "failed", "paused"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium").notNull(),
+  
+  // Décomposition en étapes
+  steps: json("steps").$type<Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: "pending" | "in_progress" | "completed" | "failed";
+    action: string;
+    result?: string;
+    error?: string;
+  }>>(),
+  currentStepIndex: int("currentStepIndex").default(0),
+  
+  // Résultats et logs
+  result: text("result"),
+  errorMessage: text("errorMessage"),
+  logs: json("logs").$type<Array<{
+    timestamp: number;
+    level: "info" | "warn" | "error";
+    message: string;
+  }>>(),
+  
+  // Métadonnées
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  estimatedDuration: int("estimatedDuration"), // en secondes
+  actualDuration: int("actualDuration"), // en secondes
+});
+
+export type AutonomousTask = typeof autonomousTasks.$inferSelect;
+export type InsertAutonomousTask = typeof autonomousTasks.$inferInsert;
+
+/**
+ * Agent State - État interne de l'agent Phoenix
+ * Permet la récupération après crash
+ */
+export const agentState = mysqlTable("agent_state", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  userId: int("userId").notNull(),
+  currentTaskId: varchar("currentTaskId", { length: 255 }),
+  
+  // État du runtime
+  state: json("state").$type<{
+    variables: Record<string, unknown>;
+    memory: string;
+    context: Record<string, unknown>;
+    lastAction: string;
+    lastActionTime: number;
+  }>(),
+  
+  // Checkpoints pour récupération
+  lastCheckpointId: varchar("lastCheckpointId", { length: 255 }),
+  lastCheckpointTime: timestamp("lastCheckpointTime"),
+  
+  // Santé de l'agent
+  isHealthy: boolean("isHealthy").default(true),
+  lastHeartbeat: timestamp("lastHeartbeat").defaultNow(),
+  crashCount: int("crashCount").default(0),
+  lastCrashTime: timestamp("lastCrashTime"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AgentState = typeof agentState.$inferSelect;
+export type InsertAgentState = typeof agentState.$inferInsert;
+
+/**
+ * Task Logs - Journal détaillé de chaque tâche autonome
+ * Permet le debugging et l'audit
+ */
+export const taskLogs = mysqlTable("task_logs", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  taskId: varchar("taskId", { length: 255 }).notNull(),
+  userId: int("userId").notNull(),
+  
+  stepIndex: int("stepIndex"),
+  stepId: varchar("stepId", { length: 255 }),
+  
+  // Type d'action
+  actionType: varchar("actionType", { length: 100 }).notNull(), // "execute_code", "browse_web", "llm_call", etc.
+  
+  // Détails de l'action
+  input: json("input").$type<Record<string, unknown>>(),
+  output: json("output").$type<Record<string, unknown>>(),
+  error: text("error"),
+  
+  // Timing
+  startTime: timestamp("startTime").defaultNow(),
+  endTime: timestamp("endTime"),
+  duration: int("duration"), // en ms
+  
+  // Retry info
+  retryCount: int("retryCount").default(0),
+  maxRetries: int("maxRetries").default(3),
+  
+  // Metadata
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TaskLog = typeof taskLogs.$inferSelect;
+export type InsertTaskLog = typeof taskLogs.$inferInsert;
+
+/**
+ * Agent Decisions - Historique des décisions prises par l'agent
+ * Pour l'audit et l'amélioration continue
+ */
+export const agentDecisions = mysqlTable("agent_decisions", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  taskId: varchar("taskId", { length: 255 }).notNull(),
+  userId: int("userId").notNull(),
+  
+  // La décision
+  decision: text("decision").notNull(),
+  reasoning: text("reasoning").notNull(),
+  
+  // Options considérées
+  options: json("options").$type<Array<{
+    option: string;
+    pros: string[];
+    cons: string[];
+    score: number;
+  }>>(),
+  
+  // Résultat
+  selectedOption: text("selectedOption"),
+  outcome: mysqlEnum("outcome", ["success", "partial", "failed", "unknown"]).default("unknown"),
+  feedback: text("feedback"),
+  
+  // LLM info
+  llmModel: varchar("llmModel", { length: 100 }),
+  llmTokensUsed: int("llmTokensUsed"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentDecision = typeof agentDecisions.$inferSelect;
+export type InsertAgentDecision = typeof agentDecisions.$inferInsert;
+
+/**
+ * Web Automation Sessions - Sessions de navigation web autonome
+ */
+export const webAutomationSessions = mysqlTable("web_automation_sessions", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  taskId: varchar("taskId", { length: 255 }).notNull(),
+  userId: int("userId").notNull(),
+  
+  // URL et objectif
+  url: varchar("url", { length: 2048 }).notNull(),
+  objective: text("objective").notNull(),
+  
+  // Actions effectuées
+  actions: json("actions").$type<Array<{
+    type: string;
+    selector?: string;
+    value?: string;
+    result?: string;
+    timestamp: number;
+  }>>(),
+  
+  // Résultats
+  extractedData: json("extractedData").$type<Record<string, unknown>>(),
+  screenshot: text("screenshot"), // Base64 encoded
+  
+  // Statut
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "failed"]).default("pending"),
+  errorMessage: text("errorMessage"),
+  
+  // Timing
+  startTime: timestamp("startTime").defaultNow(),
+  endTime: timestamp("endTime"),
+  duration: int("duration"),
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WebAutomationSession = typeof webAutomationSessions.$inferSelect;
+export type InsertWebAutomationSession = typeof webAutomationSessions.$inferInsert;
