@@ -776,3 +776,55 @@ Les tests prouvent que Phoenix:
 - [x] Installer Puppeteer et dépendances
 - [x] Implémenter la capture d'écran et les interactions GUI
 - [x] Implémenter la navigation web automatisée
+
+
+## Phase 31: Reconfiguration Complète de Phoenix - Environnement Autonome et Persistant
+
+### Étape 1: Intégration des 4 modules à core.ts et streamingChat.ts
+- [x] Modifier core.ts pour utiliser persistentState lors de la génération d'hypothèses
+- [x] Modifier core.ts pour utiliser autoCorrection avec boucle de rétroaction (max 3 tentatives)
+- [x] Modifier streamingChat.ts pour appeler osAccess quand Phoenix demande des commandes OS
+- [x] Modifier streamingChat.ts pour appeler webAutomation quand Phoenix demande une interaction web
+- [x] Ajouter la détection automatique du type de tâche (calcul, OS, web, auto-correction)
+- [x] Créer orchestrator.ts pour coordonner les 4 modules
+
+### Étape 2: Checkpoint SQLite pour E2B Sandbox
+- [x] Créer e2bCheckpoint.ts pour sauvegarder l'état du sandbox
+- [x] Implémenter saveCheckpoint() - Sauvegarder variables, fichiers, état après chaque exécution
+- [x] Implémenter loadCheckpoint() - Restaurer l'état du sandbox au démarrage
+- [x] Ajouter table 'sandboxCheckpoints' à la base de données
+- [x] Implémenter la gestion des versions de checkpoint (historique)
+- [x] Ajouter la restauration automatique au démarrage d'une conversation
+
+### Étape 3: Configuration du volume persistant E2B
+- [x] Créer persistentVolume.ts pour gérer le volume persistant
+- [x] Implémenter createPersistentVolume() - Créer un volume dédié pour Phoenix
+- [x] Implémenter mountVolume() - Monter le volume dans le sandbox
+- [x] Implémenter listFiles() - Lister les fichiers du volume persistant
+- [x] Implémenter getFile() - Récupérer un fichier du volume
+- [x] Implémenter saveFile() - Sauvegarder un fichier dans le volume
+- [x] Ajouter la gestion du cycle de vie du volume
+
+### Étape 4: Indicateur visuel 'Réfléchir/Auto-corriger' sur le Dashboard
+- [x] Créer ReflectionIndicator.tsx - Composant pour afficher l'état de réflexion
+- [x] Ajouter le state 'isReflecting' au Dashboard
+- [x] Afficher l'indicateur quand Phoenix est en auto-correction
+- [x] Afficher le numéro de tentative (1/3, 2/3, 3/3)
+- [x] Afficher le type d'action en cours (calcul, OS, web, auto-correction)
+- [x] Ajouter une animation de "réflexion" (spinner, pulsation)
+- [x] Intégrer l'indicateur dans le chat
+
+### Étape 5: Tests complets et validation
+- [x] Tester la persistance d'état entre deux conversations
+- [x] Tester l'auto-correction avec code bugé
+- [x] Tester l'exécution de commandes OS
+- [x] Tester l'interaction web avec Puppeteer
+- [x] Tester le checkpoint et la restauration
+- [x] Tester le volume persistant
+- [x] Tester l'indicateur visuel
+
+### Étape 6: Livraison finale
+- [x] Vérifier que tout compile sans erreurs TypeScript
+- [x] Vérifier que le serveur démarre sans erreurs
+- [x] Créer un checkpoint final
+- [x] Documenter les nouvelles capacités

@@ -542,3 +542,27 @@ export const knowledgeConcepts = mysqlTable("knowledge_concepts", {
 
 export type KnowledgeConcept = typeof knowledgeConcepts.$inferSelect;
 export type InsertKnowledgeConcept = typeof knowledgeConcepts.$inferInsert;
+
+
+// ============================================================================
+// E2B SANDBOX CHECKPOINT - Sauvegarde et restauration de l'état du sandbox
+// ============================================================================
+
+/**
+ * Sandbox Checkpoints - Sauvegarde l'état complet du sandbox E2B
+ * Permet à Phoenix de restaurer son état entre les conversations
+ */
+export const sandboxCheckpoints = mysqlTable("sandbox_checkpoints", {
+  id: varchar("id", { length: 255 }).primaryKey(),
+  conversationId: varchar("conversationId", { length: 64 }).notNull(),
+  userId: int("userId").notNull(),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  data: json("data").notNull(), // JSON stringified CheckpointData
+  version: int("version").default(1).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SandboxCheckpoint = typeof sandboxCheckpoints.$inferSelect;
+export type InsertSandboxCheckpoint = typeof sandboxCheckpoints.$inferInsert;
