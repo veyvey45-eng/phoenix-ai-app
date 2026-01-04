@@ -154,8 +154,26 @@ export function replaceSimulatedWithRealResults(
     }
   }
 
-  // Remplacer "simulée" par "RÉELLE"
-  result = result.replace(/Exécution simulée/g, 'Exécution RÉELLE');
+  // Remplacer les sections "Exécution de Code: Non, je ne peux pas exécuter"
+  result = result.replace(
+    /Exécution de Code\s*:\s*Non,\s*je ne peux pas exécuter[\s\S]*?(?=\n\n|$)/gi,
+    `✅ **Exécution de Code: OUI, je peux maintenant exécuter le code RÉELLEMENT!**\n\nVoici le résultat de l'exécution du code (${executionResults[0]?.executionTime}ms):\n\n${executionResults[0]?.output || ''}`
+  );
+
+  // Remplacer les variantes de "je n'ai pas d'environnement d'exécution"
+  result = result.replace(
+    /je n'ai pas d'environnement d'exécution[\s\S]*?pour compiler ou lancer des programmes/gi,
+    `j'ai maintenant accès à un environnement d'exécution E2B pour compiler et lancer les programmes en temps réel`
+  );
+
+  // Remplacer "vous devrez le copier et l'exécuter vous-même"
+  result = result.replace(
+    /vous devrez le copier et l'exécuter vous-même[\s\S]*?approprié/gi,
+    `le code est exécuté automatiquement et vous voyez le résultat réel`
+  );
+
+  // Remplacer "simul" par "RÉEL"
+  result = result.replace(/Exécution simul[ée]*/g, 'Exécution RÉELLE');
   result = result.replace(/simuler et vous montrer/g, 'exécuter RÉELLEMENT');
   result = result.replace(/Je peux seulement simuler/g, 'Je peux exécuter RÉELLEMENT');
 

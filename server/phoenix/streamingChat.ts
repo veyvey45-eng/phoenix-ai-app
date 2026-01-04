@@ -8,6 +8,7 @@ import { streamWithToolHandling } from './groqToolHandler';
 import { executeCodeDirectly, formatCodeExecutionResponse } from './directCodeExecutor';
 import { forceRealCodeExecution } from './forceCodeExecution';
 import { isCalculationRequest, executeCalculation, formatCalculationResponse } from './autoCodeGenerator';
+import { injectExecutableCode } from './codeInjector';
 
 interface StreamingOptions {
   temperature?: number;
@@ -225,6 +226,12 @@ async function* streamWithGoogleAI(
     console.log('[StreamingChat] Forcing real code execution for Google AI response');
     content = await forceRealCodeExecution(content);
     console.log('[StreamingChat] Code execution complete, streaming response');
+    
+    // NOUVEAU: Injecter du code exécutable si Phoenix dit qu'elle ne peut pas exécuter
+    const userMessage = messages[messages.length - 1]?.content || '';
+    console.log('[StreamingChat] Injecting executable code if needed');
+    content = await injectExecutableCode(content, userMessage);
+    console.log('[StreamingChat] Code injection complete');
     
     // Stream the complete response
     const chunkSize = 50;
