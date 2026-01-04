@@ -723,3 +723,17 @@ Les tests prouvent que Phoenix:
 3. Ne refuse pas les requêtes de recherche
 4. Génère des hypothèses basées sur les données réelles
 5. Respecte le prompt système qui interdit les refus
+
+
+## Phase 28: Intégration Stripe pour Abonnements
+- [x] Configurer la fonctionnalité Stripe avec webdev_add_feature
+- [x] Créer les tables de base de données pour les abonnements
+- [x] Créer les tables stripeCustomers, stripeSubscriptions, stripePayments
+- [x] Implémenter les procédures tRPC pour créer/gérer les abonnements
+- [x] Créer l'interface utilisateur pour afficher les plans d'abonnement (Pricing.tsx)
+- [x] Implémenter le checkout Stripe avec session de paiement
+- [x] Configurer les webhooks Stripe pour les événements de paiement
+- [x] Créer la page de gestion des abonnements pour les utilisateurs (Subscriptions.tsx)
+- [x] Implémenter la notification au propriétaire lors des paiements
+- [x] Créer les helpers Stripe pour gérer les clients et abonnements
+- [x] Intégrer le router Stripe dans le router principal

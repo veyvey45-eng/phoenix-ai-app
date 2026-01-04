@@ -19,7 +19,10 @@ import {
   sensitiveValidations, InsertSensitiveValidation, SensitiveValidation,
   approvalRequests, InsertApprovalRequest, ApprovalRequest,
   moduleConfigs, InsertModuleConfig, ModuleConfig,
-  adminAuditLog, InsertAdminAuditLog, AdminAuditLog
+  adminAuditLog, InsertAdminAuditLog, AdminAuditLog,
+  stripeCustomers, InsertStripeCustomer, StripeCustomer,
+  stripeSubscriptions, InsertStripeSubscription, StripeSubscription,
+  stripePayments, InsertStripePayment, StripePayment
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 

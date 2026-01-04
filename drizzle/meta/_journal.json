@@ -64,6 +64,13 @@
       "when": 1767460871280,
       "tag": "0008_red_marten_broadcloak",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1767496496627,
+      "tag": "0009_curly_forge",
+      "breakpoints": true
     }
   ]
 }
