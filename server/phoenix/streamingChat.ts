@@ -6,6 +6,7 @@
 import { invokeLLM } from '../_core/llm';
 import { streamWithToolHandling } from './groqToolHandler';
 import { generateAndExecuteCompleteFlow, isCodeRequest } from './smartCodeExecutor';
+import { analyzeAndExecuteAutomatically, createEnrichedSystemPrompt } from './autoExecutionEngine';
 
 interface StreamingOptions {
   temperature?: number;
@@ -36,7 +37,9 @@ export function formatMessagesForStreaming(
  */
 export async function* streamChatResponse(
   messages: Array<{ role: string; content: string }>,
-  options?: StreamingOptions
+  options?: StreamingOptions,
+  userId?: number,
+  username?: string
 ): AsyncGenerator<string> {
   try {
     // Get the user message (last message)
@@ -57,17 +60,41 @@ export async function* streamChatResponse(
       }
     }
     
+    // NOUVEAU: Auto-exécution intelligente
+    console.log('[StreamingChat] Analyzing for auto-execution...');
+    const conversationHistory = messages.slice(0, -1).map(m => m.role + ': ' + m.content).join('\n');
+    const autoExecResult = await analyzeAndExecuteAutomatically({
+      userMessage,
+      phoenixResponse: '',
+      conversationHistory,
+      userId: userId || 0,
+      username: username || 'User'
+    });
+    
+    if (autoExecResult.shouldExecute) {
+      console.log('[StreamingChat] Auto-execution triggered:', autoExecResult.executionType);
+      yield autoExecResult.suggestion + '\n\n';
+    }
+    
     // Use Groq for faster streaming when available
     const apiKey = process.env.GROG_API_KEY;
     console.log('[StreamingChat] Groq API key available:', !!apiKey);
     
+    // Enrichir le system prompt avec les 16 Points
+    const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
+    const enrichedPrompt = createEnrichedSystemPrompt(systemPrompt);
+    const enrichedMessages = [
+      { role: 'system', content: enrichedPrompt },
+      ...messages.filter(m => m.role !== 'system')
+    ];
+    
     if (apiKey) {
       console.log('[StreamingChat] Using Groq API with tool support');
-      yield* streamWithGroq(messages, options);
+      yield* streamWithGroq(enrichedMessages, options);
     } else {
       // Fallback to Google AI Studio
       console.log('[StreamingChat] Using Google AI fallback');
-      yield* streamWithGoogleAI(messages, options);
+      yield* streamWithGoogleAI(enrichedMessages, options);
     }
   } catch (error) {
     console.error('[StreamingChat] Error:', error);
