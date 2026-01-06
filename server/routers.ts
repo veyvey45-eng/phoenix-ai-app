@@ -33,6 +33,7 @@ import { engineerRouter } from './routers/engineer';
 import { autonomousAgentRouter } from './routers/autonomousAgentRouter';
 import { realExecutorRouter } from './routers/realExecutorRouter';
 import { cryptoExpertRouter } from './routers/cryptoExpertRouter';
+import { innovativeFeaturesRouter } from './routers/innovativeFeaturesRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -92,6 +93,7 @@ export const appRouter = router({
   autonomousAgent: autonomousAgentRouter,
   realExecutor: realExecutorRouter,
   cryptoExpert: cryptoExpertRouter,
+  innovative: innovativeFeaturesRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

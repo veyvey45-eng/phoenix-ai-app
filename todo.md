@@ -628,3 +628,23 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - [ ] Export des analyses en PDF
 - [ ] Historique des prix avec graphiques
 
+
+
+---
+
+## Phase 52: Intégration UI des Fonctionnalités Innovantes
+
+- [x] Créer le router tRPC innovativeFeaturesRouter
+- [ ] Intégrer Deep Research dans le chat Phoenix
+- [ ] Intégrer Document Generator dans le chat Phoenix
+- [ ] Intégrer Email Assistant dans le chat Phoenix
+- [ ] Intégrer Image Generator dans le chat Phoenix
+- [ ] Intégrer Task Agent dans le chat Phoenix
+- [x] Créer la page Outils dans le sidebar
+- [ ] Ajouter le composant Deep Research Tool
+- [ ] Ajouter le composant Document Generator Tool
+- [ ] Ajouter le composant Email Assistant Tool
+- [ ] Ajouter le composant Image Generator Tool
+- [x] Implémenter le système de notifications toast
+- [ ] Ajouter les notifications pour les tâches longues
+- [ ] Tester l'intégration complète

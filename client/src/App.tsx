@@ -14,6 +14,7 @@ import { PhoenixShowcase } from "./pages/PhoenixShowcase";
 import About from "./pages/About";
 import { OfflineBanner } from "./components/ConnectionStatus";
 import CryptoExpert from "./pages/CryptoExpert";
+import Tools from "./pages/Tools";
 import { CommandPalette } from "./components/CommandPalette";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/showcase" component={PhoenixShowcase} />
       <Route path="/about" component={About} />
       <Route path="/crypto" component={CryptoExpert} />
+      <Route path="/tools" component={Tools} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
