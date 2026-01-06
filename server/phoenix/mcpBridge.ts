@@ -118,28 +118,46 @@ export class MCPBridgeClient {
 
   /**
    * Authentification avec le secret
+   * Format attendu par le bridge: { id, type: 'auth', payload: { secret } }
    */
   private async authenticate(secret: string): Promise<boolean> {
     return new Promise((resolve) => {
+      const authId = randomUUID();
+      
       const handler = (message: unknown) => {
-        const msg = message as { type: string };
-        if (msg.type === 'auth_success') {
-          this.status.authenticated = true;
-          console.log('[MCPBridge] Authentifié avec succès');
-          resolve(true);
-        } else if (msg.type === 'auth_error') {
-          console.error('[MCPBridge] Échec authentification');
+        const msg = message as { type: string; id?: string; data?: { success?: boolean; message?: string }; payload?: { success?: boolean; message?: string }; error?: string };
+        console.log('[MCPBridge] Auth response:', JSON.stringify(msg));
+        
+        // Le bridge répond avec type: 'response' et payload.success: true
+        if (msg.type === 'response' && msg.id === authId) {
+          if (msg.data?.success || msg.payload?.success) {
+            this.status.authenticated = true;
+            console.log('[MCPBridge] Authentifié avec succès');
+            resolve(true);
+          } else {
+            console.error('[MCPBridge] Échec authentification:', msg.data?.message || msg.payload?.message || msg.error);
+            resolve(false);
+          }
+        } else if (msg.type === 'error') {
+          console.error('[MCPBridge] Erreur authentification:', msg.error);
           resolve(false);
         }
       };
 
-      this.once('auth_success', handler);
-      this.once('auth_error', handler);
+      this.on('response', handler);
+      this.on('error', handler);
 
-      this.send({ type: 'auth', secret });
+      // Format correct pour le bridge: { id, type, payload }
+      this.send({ 
+        id: authId,
+        type: 'auth', 
+        payload: { secret } 
+      });
 
       // Timeout
       setTimeout(() => {
+        this.off('response', handler);
+        this.off('error', handler);
         resolve(false);
       }, 10000);
     });
