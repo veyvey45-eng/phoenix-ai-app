@@ -89,7 +89,7 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* Title */}
+            {/* Title - H1 SEO */}
             <motion.h1
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -97,8 +97,9 @@ export default function Home() {
               className="text-5xl md:text-7xl font-bold mb-2"
             >
               <span className="bg-gradient-to-r from-green-500 via-emerald-400 to-blue-500 bg-clip-text text-transparent">
-                Phoenix
+                Phoenix AI
               </span>
+              <span className="sr-only"> - Assistant IA Autonome avec Exécution de Code</span>
             </motion.h1>
             
             {/* ADAGA Copyright */}
