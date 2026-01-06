@@ -1,519 +1,291 @@
 /**
- * Innovative Features Module
- * Fonctionnalités avancées et innovantes pour Phoenix
+ * Innovative Features Integration Module for Phoenix AI
  */
 
-import { invokeLLM } from '../_core/llm';
-
-// ============================================================================
-// RÉSUMÉ AUTOMATIQUE DE CONVERSATIONS
-// ============================================================================
-
-interface ConversationSummary {
-  keyPoints: string[];
-  topics: string[];
-  sentiment: 'positive' | 'negative' | 'neutral';
-  actionItems: string[];
-  summary: string;
+import { shouldTriggerDeepResearch, determineResearchDepth } from './deepResearch';
+import { detectDocumentRequest } from './documentGenerator';
+import { detectEmailRequest } from './emailAssistant';
+import { detectImageRequest } from './imageGeneratorPhoenix';
+import { shouldUseTaskAgent } from './taskAgent';
+// detectSchedulingRequest n'existe pas dans taskScheduler, on crée une fonction locale
+function detectSchedulingRequest(message: string): { isSchedulingRequest: boolean; action?: string } {
+  const lowerMessage = message.toLowerCase();
+  const schedulingTriggers = ['rappelle-moi', 'rappel', 'planifie', 'programme', 'demain', 'dans', 'chaque jour', 'mes tâches', 'briefing'];
+  const isSchedulingRequest = schedulingTriggers.some(t => lowerMessage.includes(t));
+  if (!isSchedulingRequest) return { isSchedulingRequest: false };
+  if (lowerMessage.includes('briefing')) return { isSchedulingRequest: true, action: 'briefing' };
+  if (lowerMessage.includes('mes tâches')) return { isSchedulingRequest: true, action: 'list' };
+  return { isSchedulingRequest: true, action: 'create' };
 }
 
-/**
- * Génère un résumé automatique d'une conversation longue
- */
-export async function summarizeConversation(
-  messages: Array<{ role: string; content: string }>
-): Promise<ConversationSummary> {
-  try {
-    const conversationText = messages
-      .map(m => `${m.role}: ${m.content}`)
-      .join('\n\n');
+export type FeatureType = 'deep_research' | 'document_generation' | 'email_compose' | 
+  'email_summarize' | 'image_generation' | 'task_agent' | 'scheduling' | null;
 
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un expert en analyse de conversations. Génère un résumé structuré en JSON avec:
-- keyPoints: les points clés (max 5)
-- topics: les sujets abordés (max 5)
-- sentiment: positive, negative ou neutral
-- actionItems: les actions à faire (max 3)
-- summary: un résumé en 2-3 phrases
-
-Réponds UNIQUEMENT en JSON valide.`
-        },
-        {
-          role: 'user',
-          content: `Analyse cette conversation:\n\n${conversationText}`
-        }
-      ],
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'conversation_summary',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              keyPoints: { type: 'array', items: { type: 'string' } },
-              topics: { type: 'array', items: { type: 'string' } },
-              sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'] },
-              actionItems: { type: 'array', items: { type: 'string' } },
-              summary: { type: 'string' }
-            },
-            required: ['keyPoints', 'topics', 'sentiment', 'actionItems', 'summary'],
-            additionalProperties: false
-          }
-        }
-      }
-    });
-
-    const content = response.choices[0]?.message?.content;
-    const contentStr = typeof content === 'string' ? content : '{}';
-    return JSON.parse(contentStr);
-  } catch (error) {
-    console.error('[InnovativeFeatures] Error summarizing conversation:', error);
-    return {
-      keyPoints: [],
-      topics: [],
-      sentiment: 'neutral',
-      actionItems: [],
-      summary: 'Impossible de générer le résumé.'
-    };
-  }
+export interface FeatureDetectionResult {
+  feature: FeatureType;
+  confidence: number;
+  metadata?: Record<string, unknown>;
 }
 
-// ============================================================================
-// TEMPLATES DE STRATÉGIES DE TRADING
-// ============================================================================
-
-export interface TradingTemplate {
+export interface FeatureInfo {
   id: string;
   name: string;
   description: string;
-  type: 'conservative' | 'moderate' | 'aggressive';
-  rules: string[];
-  riskLevel: number; // 1-10
-  timeframe: string;
-  indicators: string[];
-  entryConditions: string[];
-  exitConditions: string[];
-  riskManagement: {
-    stopLoss: string;
-    takeProfit: string;
-    positionSize: string;
-  };
+  triggers: string[];
+  examples: string[];
 }
 
-export const tradingTemplates: TradingTemplate[] = [
+export function detectFeature(message: string): FeatureDetectionResult {
+  if (shouldTriggerDeepResearch(message)) {
+    return {
+      feature: 'deep_research',
+      confidence: 0.9,
+      metadata: { depth: determineResearchDepth(message) },
+    };
+  }
+  
+  const docRequest = detectDocumentRequest(message);
+  if (docRequest) {
+    return {
+      feature: 'document_generation',
+      confidence: 0.85,
+      metadata: { type: docRequest.type, topic: docRequest.topic },
+    };
+  }
+  
+  const emailRequest = detectEmailRequest(message);
+  if (emailRequest.type === 'compose') {
+    return { feature: 'email_compose', confidence: 0.85, metadata: emailRequest };
+  }
+  if (emailRequest.type === 'summarize') {
+    return { feature: 'email_summarize', confidence: 0.85, metadata: emailRequest };
+  }
+  
+  const imageRequest = detectImageRequest(message);
+  if (imageRequest.isImageRequest) {
+    return {
+      feature: 'image_generation',
+      confidence: 0.9,
+      metadata: { style: imageRequest.style, prompt: imageRequest.prompt },
+    };
+  }
+  
+  if (shouldUseTaskAgent(message)) {
+    return { feature: 'task_agent', confidence: 0.8 };
+  }
+  
+  const scheduleRequest = detectSchedulingRequest(message);
+  if (scheduleRequest.isSchedulingRequest) {
+    return {
+      feature: 'scheduling',
+      confidence: 0.85,
+      metadata: { action: scheduleRequest.action },
+    };
+  }
+  
+  return { feature: null, confidence: 0 };
+}
+
+export function getAvailableFeaturesInfo(): FeatureInfo[] {
+  return [
+    {
+      id: 'deep_research',
+      name: 'Recherche Approfondie',
+      description: 'Recherche multi-sources avec rapport détaillé et citations',
+      triggers: ['recherche approfondie', 'deep research', 'analyse complète'],
+      examples: ['Fais une recherche approfondie sur l\'IA', 'Deep research sur le changement climatique'],
+    },
+    {
+      id: 'document_generation',
+      name: 'Génération de Documents',
+      description: 'Création de PowerPoint, Excel, PDF, Word',
+      triggers: ['crée un powerpoint', 'génère un excel', 'fais un rapport pdf'],
+      examples: ['Crée un PowerPoint sur le marketing', 'Génère un tableau Excel des ventes'],
+    },
+    {
+      id: 'email_compose',
+      name: 'Rédaction d\'Email',
+      description: 'Rédaction d\'emails professionnels',
+      triggers: ['rédige un email', 'écris un mail', 'compose un email'],
+      examples: ['Rédige un email pour demander un rendez-vous', 'Écris un mail de relance'],
+    },
+    {
+      id: 'email_summarize',
+      name: 'Résumé d\'Email',
+      description: 'Résumé et analyse d\'emails',
+      triggers: ['résume cet email', 'synthèse de ce mail'],
+      examples: ['Résume cet email pour moi', 'Fais une synthèse de ce mail'],
+    },
+    {
+      id: 'image_generation',
+      name: 'Génération d\'Images',
+      description: 'Création d\'images avec différents styles',
+      triggers: ['génère une image', 'crée une image', 'dessine'],
+      examples: ['Génère une image d\'un coucher de soleil', 'Dessine un portrait style anime'],
+    },
+    {
+      id: 'task_agent',
+      name: 'Agent de Tâches',
+      description: 'Décomposition et exécution automatique de tâches complexes',
+      triggers: ['fais tout automatiquement', 'workflow', 'puis ensuite'],
+      examples: ['Recherche puis crée un rapport', 'Fais tout automatiquement'],
+    },
+    {
+      id: 'scheduling',
+      name: 'Planification',
+      description: 'Rappels et gestion de tâches planifiées',
+      triggers: ['rappelle-moi', 'planifie', 'mes tâches'],
+      examples: ['Rappelle-moi demain à 10h', 'Montre-moi mes tâches'],
+    },
+  ];
+}
+
+export function generateSmartSuggestions(message: string, _previousMessages?: string[]): string[] {
+  const suggestions: string[] = [];
+  const lowerMessage = message.toLowerCase();
+  
+  if (lowerMessage.includes('bitcoin') || lowerMessage.includes('crypto') || lowerMessage.includes('trading')) {
+    suggestions.push('Analyse technique du Bitcoin');
+    suggestions.push('Stratégies de trading crypto');
+    suggestions.push('Recherche approfondie sur les altcoins');
+  }
+  
+  if (lowerMessage.includes('stratégie') || lowerMessage.includes('strategy')) {
+    suggestions.push('Créer un plan de trading');
+    suggestions.push('Analyser les tendances du marché');
+    suggestions.push('Comparer différentes stratégies');
+  }
+  
+  if (lowerMessage.includes('email') || lowerMessage.includes('mail')) {
+    suggestions.push('Rédiger un email professionnel');
+    suggestions.push('Résumer mes emails non lus');
+    suggestions.push('Suggérer des réponses');
+  }
+  
+  if (lowerMessage.includes('document') || lowerMessage.includes('rapport')) {
+    suggestions.push('Créer un PowerPoint');
+    suggestions.push('Générer un tableau Excel');
+    suggestions.push('Rédiger un rapport PDF');
+  }
+  
+  return suggestions;
+}
+
+export const tradingTemplates = [
   {
     id: 'dca-conservative',
     name: 'DCA Conservateur',
-    description: 'Stratégie d\'accumulation progressive avec faible risque',
-    type: 'conservative',
+    description: 'Investissement régulier à faible risque',
+    riskLevel: 'low',
     rules: [
       'Investir un montant fixe chaque semaine',
-      'Ne jamais investir plus de 5% du capital par achat',
-      'Ignorer les fluctuations à court terme'
+      'Ne jamais investir plus de 5% du portefeuille en une fois',
+      'Diversifier sur 3-5 cryptos majeures',
     ],
-    riskLevel: 2,
-    timeframe: 'Long terme (1-5 ans)',
-    indicators: ['Prix moyen', 'Tendance générale'],
-    entryConditions: ['Jour fixe de la semaine', 'Montant fixe'],
-    exitConditions: ['Objectif de profit atteint', 'Besoin de liquidités'],
-    riskManagement: {
-      stopLoss: 'Non applicable (stratégie long terme)',
-      takeProfit: 'Retrait progressif à +100%, +200%, +300%',
-      positionSize: '5-10% du capital par achat'
-    }
   },
   {
     id: 'swing-moderate',
     name: 'Swing Trading Modéré',
-    description: 'Capture les mouvements de prix sur plusieurs jours/semaines',
-    type: 'moderate',
+    description: 'Trading sur plusieurs jours/semaines',
+    riskLevel: 'medium',
     rules: [
-      'Suivre la tendance principale',
-      'Entrer sur les pullbacks',
-      'Respecter le ratio risque/récompense de 1:2 minimum'
+      'Utiliser les supports/résistances',
+      'Stop-loss à 5-10%',
+      'Take-profit à 15-25%',
     ],
-    riskLevel: 5,
-    timeframe: 'Moyen terme (jours à semaines)',
-    indicators: ['RSI', 'MACD', 'EMA 20/50', 'Support/Résistance'],
-    entryConditions: [
-      'RSI < 40 en tendance haussière',
-      'Prix rebondit sur EMA 20',
-      'MACD croise à la hausse'
-    ],
-    exitConditions: [
-      'RSI > 70',
-      'Prix atteint la résistance',
-      'MACD croise à la baisse'
-    ],
-    riskManagement: {
-      stopLoss: '5-8% sous le prix d\'entrée',
-      takeProfit: '10-20% au-dessus du prix d\'entrée',
-      positionSize: '2-5% du capital par trade'
-    }
   },
   {
-    id: 'breakout-aggressive',
-    name: 'Breakout Agressif',
-    description: 'Capture les cassures de niveaux clés avec effet de levier',
-    type: 'aggressive',
+    id: 'scalping-aggressive',
+    name: 'Scalping Agressif',
+    description: 'Trading à court terme haute fréquence',
+    riskLevel: 'high',
     rules: [
-      'Attendre la confirmation du breakout',
-      'Volume doit être supérieur à la moyenne',
-      'Stop loss serré obligatoire'
+      'Trades de quelques minutes à quelques heures',
+      'Stop-loss serré à 2-3%',
+      'Objectif de 1-3% par trade',
     ],
-    riskLevel: 8,
-    timeframe: 'Court terme (heures à jours)',
-    indicators: ['Volume', 'Bollinger Bands', 'ATR', 'Niveaux clés'],
-    entryConditions: [
-      'Prix casse la résistance avec volume',
-      'Bollinger Bands s\'écartent',
-      'ATR en augmentation'
-    ],
-    exitConditions: [
-      'Objectif atteint (1.5x ATR)',
-      'Volume diminue',
-      'Faux breakout détecté'
-    ],
-    riskManagement: {
-      stopLoss: '2-3% ou sous le niveau cassé',
-      takeProfit: '1.5-2x le risque pris',
-      positionSize: '1-2% du capital par trade'
-    }
   },
-  {
-    id: 'grid-trading',
-    name: 'Grid Trading Automatisé',
-    description: 'Achats et ventes automatiques sur une grille de prix',
-    type: 'moderate',
-    rules: [
-      'Définir une range de prix (haut/bas)',
-      'Placer des ordres à intervalles réguliers',
-      'Profiter de la volatilité latérale'
-    ],
-    riskLevel: 4,
-    timeframe: 'Variable (adapté au marché)',
-    indicators: ['Support/Résistance', 'ATR', 'Volatilité historique'],
-    entryConditions: [
-      'Marché en range identifié',
-      'Volatilité modérée',
-      'Grille configurée'
-    ],
-    exitConditions: [
-      'Prix sort de la range',
-      'Profit cible atteint',
-      'Tendance forte détectée'
-    ],
-    riskManagement: {
-      stopLoss: 'Sortie si prix < bas de la grille -5%',
-      takeProfit: 'Accumulation des petits profits',
-      positionSize: 'Capital divisé par nombre de niveaux'
-    }
-  },
-  {
-    id: 'fear-greed',
-    name: 'Stratégie Fear & Greed',
-    description: 'Acheter la peur, vendre la cupidité',
-    type: 'moderate',
-    rules: [
-      'Acheter quand Fear & Greed < 25 (Extreme Fear)',
-      'Vendre quand Fear & Greed > 75 (Extreme Greed)',
-      'Patience et discipline'
-    ],
-    riskLevel: 5,
-    timeframe: 'Moyen à long terme',
-    indicators: ['Fear & Greed Index', 'RSI', 'Sentiment social'],
-    entryConditions: [
-      'Fear & Greed Index < 25',
-      'RSI < 30',
-      'News négatives dominantes'
-    ],
-    exitConditions: [
-      'Fear & Greed Index > 75',
-      'RSI > 70',
-      'Euphorie généralisée'
-    ],
-    riskManagement: {
-      stopLoss: '15-20% (stratégie contrarian)',
-      takeProfit: 'Vente progressive par paliers',
-      positionSize: '10-20% du capital par zone de peur'
-    }
-  }
 ];
 
-/**
- * Obtenir un template de stratégie par ID
- */
-export function getTradingTemplate(id: string): TradingTemplate | undefined {
+export function getTradingTemplate(id: string): typeof tradingTemplates[0] | undefined {
   return tradingTemplates.find(t => t.id === id);
 }
 
-/**
- * Obtenir les templates par type de risque
- */
-export function getTemplatesByRisk(type: 'conservative' | 'moderate' | 'aggressive'): TradingTemplate[] {
-  return tradingTemplates.filter(t => t.type === type);
+export function formatTemplateForDisplay(template: typeof tradingTemplates[0]): string {
+  let output = `## ${template.name}\n\n`;
+  output += `*${template.description}*\n\n`;
+  output += `**Niveau de risque:** ${template.riskLevel}\n\n`;
+  output += `### Règles\n\n`;
+  template.rules.forEach((rule, i) => {
+    output += `${i + 1}. ${rule}\n`;
+  });
+  return output;
 }
 
-/**
- * Formater un template pour l'affichage
- */
-export function formatTemplateForDisplay(template: TradingTemplate): string {
-  return `
-## 📊 ${template.name}
-
-**Description**: ${template.description}
-
-**Type**: ${template.type === 'conservative' ? '🟢 Conservateur' : template.type === 'moderate' ? '🟡 Modéré' : '🔴 Agressif'}
-**Niveau de risque**: ${'⚠️'.repeat(Math.ceil(template.riskLevel / 2))} (${template.riskLevel}/10)
-**Timeframe**: ${template.timeframe}
-
-### 📏 Règles
-${template.rules.map(r => `- ${r}`).join('\n')}
-
-### 📈 Indicateurs utilisés
-${template.indicators.map(i => `- ${i}`).join('\n')}
-
-### ✅ Conditions d'entrée
-${template.entryConditions.map(c => `- ${c}`).join('\n')}
-
-### ❌ Conditions de sortie
-${template.exitConditions.map(c => `- ${c}`).join('\n')}
-
-### 🛡️ Gestion du risque
-- **Stop Loss**: ${template.riskManagement.stopLoss}
-- **Take Profit**: ${template.riskManagement.takeProfit}
-- **Taille de position**: ${template.riskManagement.positionSize}
-`;
-}
-
-// ============================================================================
-// COMPARAISON MULTI-CRYPTO
-// ============================================================================
-
-import { getCryptoPrice, generateTechnicalAnalysis, CryptoPrice } from './cryptoExpert';
-
-export interface CryptoComparison {
-  cryptos: Array<{
-    id: string;
-    name: string;
-    price: number;
-    change24h: number;
-    marketCap: number;
-    volume: number;
-    rsi?: number;
-    recommendation: 'buy' | 'hold' | 'sell';
-  }>;
-  winner: string;
-  analysis: string;
-}
-
-/**
- * Compare plusieurs cryptos
- */
-export async function compareMultipleCryptos(cryptoIds: string[]): Promise<CryptoComparison> {
-  const results: CryptoComparison['cryptos'] = [];
-  
-  for (const id of cryptoIds.slice(0, 5)) { // Max 5 cryptos
-    try {
-      const [price, technical] = await Promise.all([
-        getCryptoPrice(id),
-        generateTechnicalAnalysis(id).catch(() => null)
-      ]);
-      
-      if (price) {
-        let recommendation: 'buy' | 'hold' | 'sell' = 'hold';
-        const rsi = technical?.rsi;
-        
-        if (rsi) {
-          if (rsi < 30 && price.price_change_percentage_24h < 0) recommendation = 'buy';
-          else if (rsi > 70 && price.price_change_percentage_24h > 10) recommendation = 'sell';
-        }
-        
-        results.push({
-          id: price.id,
-          name: price.name,
-          price: price.current_price,
-          change24h: price.price_change_percentage_24h,
-          marketCap: price.market_cap,
-          volume: price.total_volume,
-          rsi: rsi,
-          recommendation
-        });
-      }
-    } catch (error) {
-      console.error(`[InnovativeFeatures] Error fetching ${id}:`, error);
-    }
-  }
-  
-  // Déterminer le "gagnant" basé sur plusieurs critères
-  let winner = '';
-  let bestScore = -Infinity;
-  
-  for (const crypto of results) {
-    let score = 0;
-    // Score basé sur la performance 24h (normalisé)
-    score += crypto.change24h * 2;
-    // Score basé sur le RSI (favoriser les oversold)
-    if (crypto.rsi && crypto.rsi < 40) score += (40 - crypto.rsi);
-    // Score basé sur le volume relatif au market cap
-    score += (crypto.volume / crypto.marketCap) * 100;
-    
-    if (score > bestScore) {
-      bestScore = score;
-      winner = crypto.name;
-    }
-  }
-  
-  // Générer l'analyse
-  const analysis = generateComparisonAnalysis(results, winner);
-  
-  return { cryptos: results, winner, analysis };
-}
-
-function generateComparisonAnalysis(
-  cryptos: CryptoComparison['cryptos'],
-  winner: string
-): string {
-  let analysis = `## 📊 Comparaison Multi-Crypto\n\n`;
-  analysis += `| Crypto | Prix | 24h | RSI | Recommandation |\n`;
-  analysis += `|--------|------|-----|-----|----------------|\n`;
-  
-  for (const c of cryptos) {
-    const changeEmoji = c.change24h >= 0 ? '🟢' : '🔴';
-    const recEmoji = c.recommendation === 'buy' ? '💚' : c.recommendation === 'sell' ? '❤️' : '💛';
-    analysis += `| ${c.name} | $${c.price.toLocaleString()} | ${changeEmoji} ${c.change24h.toFixed(2)}% | ${c.rsi?.toFixed(0) || 'N/A'} | ${recEmoji} ${c.recommendation.toUpperCase()} |\n`;
-  }
-  
-  analysis += `\n### 🏆 Meilleur choix actuel: **${winner}**\n`;
-  analysis += `\n*Analyse basée sur: performance 24h, RSI, et ratio volume/market cap*`;
-  
-  return analysis;
-}
-
-// ============================================================================
-// SUGGESTIONS INTELLIGENTES
-// ============================================================================
-
-export interface SmartSuggestion {
-  type: 'action' | 'question' | 'tip';
-  text: string;
-  priority: number;
-  context?: string;
-}
-
-/**
- * Génère des suggestions intelligentes basées sur le contexte
- */
-export function generateSmartSuggestions(
-  userMessage: string,
-  previousMessages: string[] = []
-): SmartSuggestion[] {
-  const suggestions: SmartSuggestion[] = [];
-  const lowerMessage = userMessage.toLowerCase();
-  
-  // Suggestions crypto
-  if (lowerMessage.includes('bitcoin') || lowerMessage.includes('btc')) {
-    suggestions.push({
-      type: 'question',
-      text: 'Voulez-vous voir l\'analyse technique complète du Bitcoin ?',
-      priority: 1
-    });
-    suggestions.push({
-      type: 'action',
-      text: 'Comparer Bitcoin avec Ethereum et Solana',
-      priority: 2
-    });
-  }
-  
-  // Suggestions trading
-  if (lowerMessage.includes('stratégie') || lowerMessage.includes('trading')) {
-    suggestions.push({
-      type: 'tip',
-      text: 'Conseil: Commencez par une stratégie DCA si vous débutez',
-      priority: 1
-    });
-    suggestions.push({
-      type: 'action',
-      text: 'Voir les templates de stratégies disponibles',
-      priority: 2
-    });
-  }
-  
-  // Suggestions code
-  if (lowerMessage.includes('code') || lowerMessage.includes('script')) {
-    suggestions.push({
-      type: 'tip',
-      text: 'Je peux exécuter du Python et JavaScript en temps réel',
-      priority: 1
-    });
-  }
-  
-  // Suggestions météo
-  if (lowerMessage.includes('météo') || lowerMessage.includes('temps')) {
-    suggestions.push({
-      type: 'question',
-      text: 'Voulez-vous les prévisions pour les prochains jours ?',
-      priority: 2
-    });
-  }
-  
-  return suggestions.sort((a, b) => a.priority - b.priority);
-}
-
-// ============================================================================
-// EXPORT DES ANALYSES EN MARKDOWN
-// ============================================================================
-
-export interface ExportOptions {
-  format: 'markdown' | 'json';
-  includeTimestamp: boolean;
-  includeDisclaimer: boolean;
-}
-
-/**
- * Exporte une analyse en format structuré
- */
 export function exportAnalysis(
   title: string,
   content: string,
-  options: ExportOptions = { format: 'markdown', includeTimestamp: true, includeDisclaimer: true }
+  options: {
+    format: 'markdown' | 'json' | 'text';
+    includeTimestamp?: boolean;
+    includeDisclaimer?: boolean;
+  }
 ): string {
-  let output = '';
+  const { format, includeTimestamp = true, includeDisclaimer = true } = options;
   
-  if (options.format === 'markdown') {
-    output += `# ${title}\n\n`;
-    
-    if (options.includeTimestamp) {
-      output += `*Généré le ${new Date().toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })}*\n\n`;
-    }
-    
-    output += content;
-    
-    if (options.includeDisclaimer) {
-      output += `\n\n---\n\n`;
-      output += `⚠️ **Avertissement**: Cette analyse est fournie à titre informatif uniquement. `;
-      output += `Elle ne constitue pas un conseil financier. Faites toujours vos propres recherches `;
-      output += `avant de prendre des décisions d'investissement.`;
-    }
-  } else {
-    output = JSON.stringify({
+  if (format === 'json') {
+    return JSON.stringify({
       title,
       content,
-      timestamp: options.includeTimestamp ? new Date().toISOString() : undefined,
-      disclaimer: options.includeDisclaimer ? 'Cette analyse est fournie à titre informatif uniquement.' : undefined
+      timestamp: includeTimestamp ? new Date().toISOString() : undefined,
+      disclaimer: includeDisclaimer ? 'Ceci n\'est pas un conseil financier.' : undefined,
     }, null, 2);
   }
   
-  return output;
+  if (format === 'markdown') {
+    let md = `# ${title}\n\n`;
+    if (includeTimestamp) {
+      md += `*Généré le ${new Date().toLocaleDateString('fr-FR')}*\n\n`;
+    }
+    md += content + '\n\n';
+    if (includeDisclaimer) {
+      md += `---\n\n**Avertissement:** Ceci n'est pas un conseil financier.\n`;
+    }
+    return md;
+  }
+  
+  let text = `${title}\n${'='.repeat(title.length)}\n\n`;
+  if (includeTimestamp) {
+    text += `Généré le ${new Date().toLocaleDateString('fr-FR')}\n\n`;
+  }
+  text += content + '\n\n';
+  if (includeDisclaimer) {
+    text += `Avertissement: Ceci n'est pas un conseil financier.\n`;
+  }
+  return text;
+}
+
+
+// Fonctions supplémentaires pour la compatibilité avec cryptoExpertRouter
+
+export function getTemplatesByRisk(riskLevel: string): typeof tradingTemplates {
+  return tradingTemplates.filter(t => t.riskLevel === riskLevel);
+}
+
+export async function compareMultipleCryptos(cryptoIds: string[]): Promise<{
+  comparison: string;
+  rankings: { id: string; score: number }[];
+}> {
+  // Placeholder - sera implémenté avec les vraies données crypto
+  return {
+    comparison: `Comparaison de ${cryptoIds.length} cryptomonnaies`,
+    rankings: cryptoIds.map((id, i) => ({ id, score: 100 - i * 10 })),
+  };
+}
+
+export async function summarizeConversation(messages: { role: string; content: string }[]): Promise<string> {
+  // Résumé simple de la conversation
+  const userMessages = messages.filter(m => m.role === 'user');
+  if (userMessages.length === 0) return 'Aucune conversation à résumer.';
+  return `Conversation de ${userMessages.length} messages utilisateur.`;
 }
