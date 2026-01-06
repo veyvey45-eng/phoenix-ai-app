@@ -14,6 +14,7 @@ import { PhoenixShowcase } from "./pages/PhoenixShowcase";
 import About from "./pages/About";
 import { OfflineBanner } from "./components/ConnectionStatus";
 import CryptoExpert from "./pages/CryptoExpert";
+import { CommandPalette } from "./components/CommandPalette";
 
 function Router() {
   return (
@@ -39,6 +40,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <OfflineBanner />
+          <CommandPalette />
           <header role="banner">
             <Navigation />
           </header>

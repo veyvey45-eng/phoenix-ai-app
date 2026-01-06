@@ -560,3 +560,40 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - Ajout de la date actuelle (janvier 2026) dans le prompt système
 - Clarification que Phoenix a accès aux données EN TEMPS RÉEL via CoinGecko
 - Test réussi: Phoenix donne maintenant les données de janvier 2025 à janvier 2026
+
+
+---
+
+## Phase 48: Branding et Section Découvrir
+
+### Tâches
+- [x] Changer "Adaga" en "Propriété Adaga Veysel Artur" sur la page d'accueil
+- [ ] Créer une section/page "Découvrir" avec:
+  - [ ] Cas d'usage précis pour traders crypto
+  - [ ] Proposition de valeur unique
+  - [ ] Ce que Phoenix fait réellement (analyse + exécution code)
+  - [ ] Pourquoi payer pour Phoenix vs autres outils
+  - [ ] Fonctionnalités clés mises en avant
+
+
+---
+
+## Phase 49: Optimisation UI/UX et Fonctionnalités Indispensables
+
+### 1. Nettoyage UI
+- [x] Supprimer les boutons répétés dans l'interface
+- [x] Harmoniser la navigation entre les pages
+- [x] Simplifier les menus
+
+### 2. SEO Amélioré
+- [x] Ajouter section marketing traders crypto sur page About
+- [x] Optimiser les meta tags
+
+### 3. Fonctionnalités Indispensables
+- [x] Recherche dans l'historique des conversations (Command Palette Ctrl+K)
+- [x] Raccourcis clavier (Ctrl+K recherche, Ctrl+N nouvelle conv, etc.)
+- [ ] Export des analyses en PDF
+- [ ] Favoris/Bookmarks pour conversations importantes
+- [ ] Mode focus (masquer sidebar)
+- [ ] Suggestions intelligentes basées sur l'historique
+
