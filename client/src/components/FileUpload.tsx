@@ -8,7 +8,8 @@ import {
   X, 
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -56,8 +57,9 @@ export function FileUpload({
   compact = false 
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState<Map<string, number>>(new Map());
+  const [uploadingFiles, setUploadingFiles] = useState<Map<string, { progress: number; status: string }>>(new Map());
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: supportedTypes } = trpc.files.supportedTypes.useQuery();
@@ -68,8 +70,6 @@ export function FileUpload({
   // Charger les fichiers persistés depuis la base de données
   useEffect(() => {
     if (persistedFiles && persistedFiles.length > 0) {
-      // Charger les fichiers avec un marqueur pour indiquer qu'ils ont du texte extrait
-      // Le contenu complet sera chargé à la demande via loadFileContent
       setUploadedFiles(persistedFiles.map(f => ({
         id: f.id.toString(),
         originalName: f.originalName,
@@ -102,7 +102,6 @@ export function FileUpload({
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     handleFiles(files);
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -129,14 +128,12 @@ export function FileUpload({
 
       // Start upload
       const tempId = `temp-${Date.now()}-${file.name}`;
-      setUploadingFiles(prev => new Map(prev).set(tempId, 0));
+      setUploadingFiles(prev => new Map(prev).set(tempId, { progress: 10, status: 'Lecture du fichier...' }));
 
       try {
         // Convert to base64
         const base64 = await fileToBase64(file);
-        
-        // Simulate progress
-        setUploadingFiles(prev => new Map(prev).set(tempId, 50));
+        setUploadingFiles(prev => new Map(prev).set(tempId, { progress: 30, status: 'Upload en cours...' }));
 
         // Upload
         const result = await uploadMutation.mutateAsync({
@@ -144,6 +141,11 @@ export function FileUpload({
           mimeType: file.type,
           base64Content: base64
         });
+
+        setUploadingFiles(prev => new Map(prev).set(tempId, { progress: 70, status: 'Extraction du contenu...' }));
+
+        // Wait a bit for extraction to complete
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         setUploadingFiles(prev => {
           const newMap = new Map(prev);
@@ -162,26 +164,34 @@ export function FileUpload({
 
         setUploadedFiles(prev => [...prev, uploadedFile]);
         
-        // Appeler le callback avec le fichier uploadé
-        onFileUploaded?.(uploadedFile);
+        // Log extraction result
+        console.log('[FileUpload] Upload result:', {
+          id: result.id,
+          name: result.originalName,
+          hasExtractedText: !!result.extractedText,
+          extractedTextLength: result.extractedText?.length || 0
+        });
+
+        // If we got extracted text directly, use it
+        if (result.extractedText && result.extractedText.length > 0) {
+          onFileUploaded?.(uploadedFile);
+          onFileSelected?.(uploadedFile);
+          toast.success(`${file.name} uploadé et analysé (${result.extractedText.length} caractères extraits)`);
+        } else {
+          // Try to load content from server
+          toast.info(`${file.name} uploadé, chargement du contenu...`);
+          await loadAndSelectFile(uploadedFile);
+        }
         
-        // Attendre que l'extraction soit complète
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Recharger depuis la base de données pour obtenir le contenu extrait
         await refetchFiles();
-        
-        // Sélectionner automatiquement le fichier avec le contenu complet
-        await selectFile(uploadedFile);
-        
-        toast.success(`${file.name} uploadé avec succès`);
       } catch (error) {
+        console.error('[FileUpload] Upload error:', error);
         setUploadingFiles(prev => {
           const newMap = new Map(prev);
           newMap.delete(tempId);
           return newMap;
         });
-        toast.error(`Erreur lors de l'upload de ${file.name}`);
+        toast.error(`Erreur lors de l'upload de ${file.name}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
       }
     }
   };
@@ -191,7 +201,6 @@ export function FileUpload({
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove data URL prefix
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -201,7 +210,6 @@ export function FileUpload({
   };
 
   const removeFile = async (fileId: string) => {
-    // Supprimer de la base de données
     try {
       await deleteMutation.mutateAsync({ fileId });
       setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
@@ -212,52 +220,81 @@ export function FileUpload({
     }
   };
 
-  const selectFile = async (file: UploadedFile) => {
-    // Charger le contenu complet du fichier depuis le serveur
+  const loadAndSelectFile = async (file: UploadedFile) => {
+    setLoadingFileId(file.id);
     try {
       console.log('[FileUpload] Loading content for file:', file.id, file.originalName);
       const fullContent = await loadFileContent(file.id);
       console.log('[FileUpload] Content loaded:', fullContent ? `${fullContent.length} chars` : 'null');
-      if (fullContent) {
-        // Mettre à jour le fichier local avec le contenu complet
+      
+      if (fullContent && fullContent.length > 0) {
+        const updatedFile = { ...file, extractedText: fullContent };
         setUploadedFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, extractedText: fullContent } : f
+          f.id === file.id ? updatedFile : f
         ));
-        onFileSelected?.({
-          ...file,
-          extractedText: fullContent
-        });
+        onFileSelected?.(updatedFile);
+        toast.success(`${file.originalName} prêt (${fullContent.length} caractères)`);
       } else {
         console.warn('[FileUpload] No content found for file:', file.id);
+        toast.warning(`Impossible d'extraire le contenu de ${file.originalName}`);
         onFileSelected?.(file);
       }
     } catch (error) {
       console.error('[FileUpload] Error loading file content:', error);
+      toast.error(`Erreur lors du chargement de ${file.originalName}`);
       onFileSelected?.(file);
+    } finally {
+      setLoadingFileId(null);
     }
   };
+
+  const selectFile = async (file: UploadedFile) => {
+    // If already has content, use it directly
+    if (file.extractedText && file.extractedText !== '__HAS_CONTENT__' && file.extractedText.length > 0) {
+      onFileSelected?.(file);
+      toast.success(`${file.originalName} sélectionné`);
+      return;
+    }
+    
+    // Otherwise load from server
+    await loadAndSelectFile(file);
+  };
   
-  const loadFileContent = async (fileId: string, retries = 3): Promise<string | null> => {
+  const loadFileContent = async (fileId: string, retries = 5): Promise<string | null> => {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        console.log(`[FileUpload] Loading file content, attempt ${attempt}/${retries}`);
         const response = await fetch(`/api/files/${fileId}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          signal: AbortSignal.timeout(10000)
+          signal: AbortSignal.timeout(15000)
         });
+        
         if (!response.ok) {
+          console.warn(`[FileUpload] Response not OK: ${response.status}`);
           if (attempt === retries) return null;
           await new Promise(r => setTimeout(r, 1000 * attempt));
           continue;
         }
+        
         const fullFile = await response.json();
-        if (fullFile.extractedText) return fullFile.extractedText;
+        console.log('[FileUpload] File response:', {
+          id: fullFile.id,
+          hasExtractedText: !!fullFile.extractedText,
+          extractedTextLength: fullFile.extractedText?.length || 0
+        });
+        
+        if (fullFile.extractedText && fullFile.extractedText.length > 0) {
+          return fullFile.extractedText;
+        }
+        
         if (attempt === retries) return null;
-        await new Promise(r => setTimeout(r, 1000 * attempt));
+        console.log(`[FileUpload] No content yet, waiting before retry...`);
+        await new Promise(r => setTimeout(r, 1500 * attempt));
       } catch (error) {
+        console.error(`[FileUpload] Attempt ${attempt} failed:`, error);
         if (attempt === retries) return null;
-        console.warn(`Attempt ${attempt} failed, retrying...`);
         await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
@@ -333,25 +370,28 @@ export function FileUpload({
             <span className="text-muted-foreground"> ou glissez-déposez</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            PDF, TXT, MD, JSON, Images (max 10MB)
+            PDF, TXT, MD, JSON, DOCX, Images (max 10MB)
           </p>
         </motion.div>
       </div>
 
-      {/* Uploading Files */}
+      {/* Uploading files */}
       <AnimatePresence>
-        {Array.from(uploadingFiles.entries()).map(([id, progress]) => (
+        {Array.from(uploadingFiles.entries()).map(([tempId, { progress, status }]) => (
           <motion.div
-            key={id}
+            key={tempId}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
             <Card className="p-3">
               <div className="flex items-center gap-3">
-                <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Upload en cours...</p>
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {tempId.replace(/^temp-\d+-/, '')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{status}</p>
                   <Progress value={progress} className="h-1 mt-1" />
                 </div>
               </div>
@@ -360,68 +400,82 @@ export function FileUpload({
         ))}
       </AnimatePresence>
 
-      {/* Uploaded Files */}
-      <AnimatePresence>
-        {uploadedFiles.map((file) => {
-          const Icon = FileIcon(file.mimeType);
-          return (
-            <motion.div
-              key={file.id}
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-            >
-              <Card 
-                className="p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={async () => {
-                  await selectFile(file);
-                }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-primary/10">
-                    <Icon className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.originalName}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{formatFileSize(file.size)}</span>
-                      {file.extractedText && (
-                        <>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3 text-green-500" />
-                            Texte extrait
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void removeFile(file.id);
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-
-      {/* File Count */}
+      {/* Uploaded files */}
       {uploadedFiles.length > 0 && (
-        <p className="text-xs text-muted-foreground text-center">
-          {uploadedFiles.length}/{maxFiles} fichiers
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            Fichiers uploadés ({uploadedFiles.length})
+          </p>
+          {uploadedFiles.map((file) => {
+            const Icon = FileIcon(file.mimeType);
+            const hasContent = file.extractedText && file.extractedText !== '__HAS_CONTENT__' && file.extractedText.length > 0;
+            const isLoading = loadingFileId === file.id;
+            
+            return (
+              <motion.div
+                key={file.id}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <Card 
+                  className={`p-3 cursor-pointer transition-colors ${hasContent ? 'hover:bg-accent/50 border-green-500/30' : 'hover:bg-muted/50'}`}
+                  onClick={() => !isLoading && selectFile(file)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${hasContent ? 'bg-green-500/10' : 'bg-muted'}`}>
+                      <Icon className={`h-5 w-5 ${hasContent ? 'text-green-500' : 'text-muted-foreground'}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{file.originalName}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{formatFileSize(file.size)}</span>
+                        {hasContent && (
+                          <>
+                            <span>•</span>
+                            <span className="text-green-500 flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              {file.extractedText!.length} caractères
+                            </span>
+                          </>
+                        )}
+                        {!hasContent && !isLoading && (
+                          <>
+                            <span>•</span>
+                            <span className="text-amber-500 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Cliquez pour charger
+                            </span>
+                          </>
+                        )}
+                        {isLoading && (
+                          <>
+                            <span>•</span>
+                            <span className="text-blue-500 flex items-center gap-1">
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                              Chargement...
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(file.id);
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
 }
-
-export default FileUpload;

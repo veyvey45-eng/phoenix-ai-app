@@ -216,12 +216,26 @@ export class FileProcessor {
     }
   }
 
-  // Extraction depuis PDF
+  // Extraction depuis PDF - utilise le module robuste avec fallbacks multiples
   private async extractFromPdf(buffer: Buffer): Promise<FileExtractionResult> {
     try {
-      const { extractPDFText } = await import('./pdfExtractor');
+      console.log('[FileProcessor] Starting PDF extraction, buffer size:', buffer.length);
       
-      const extracted = await extractPDFText(buffer);
+      // Use the robust extractor with multiple fallback methods
+      const { extractPDFTextRobust } = await import('./pdfExtractorRobust');
+      const extracted = await extractPDFTextRobust(buffer);
+      
+      console.log('[FileProcessor] PDF extraction result:', {
+        textLength: extracted.text.length,
+        pages: extracted.pages,
+        method: extracted.extractionMethod,
+        confidence: extracted.confidence
+      });
+      
+      // Check if extraction was successful
+      if (extracted.confidence === 0) {
+        console.warn('[FileProcessor] PDF extraction had low confidence');
+      }
       
       return {
         success: true,
@@ -234,10 +248,12 @@ export class FileProcessor {
           title: extracted.metadata.title,
           author: extracted.metadata.author,
           subject: extracted.metadata.subject,
-          extractionMethod: 'pdf-parse'
+          extractionMethod: extracted.extractionMethod,
+          confidence: extracted.confidence
         }
       };
     } catch (error) {
+      console.error('[FileProcessor] PDF extraction error:', error);
       return {
         success: false,
         error: `Erreur lors de l'extraction du PDF: ${error instanceof Error ? error.message : 'Unknown error'}`

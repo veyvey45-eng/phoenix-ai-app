@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { extractPDFText, extractPDFPage, searchInPDF, summarizePDF } from './pdfExtractor';
+import { extractPDFTextRobust, extractPDFPage, searchInPDF, summarizePDF } from './pdfExtractorRobust';
+import * as fs from 'fs';
 
 // Mock PDF buffer (simple PDF with text)
 const createMockPDFBuffer = (): Buffer => {
@@ -48,7 +49,7 @@ describe('PDF Extractor Module', () => {
   describe('extractPDFText', () => {
     it('should extract text from a valid PDF', async () => {
       const buffer = createMockPDFBuffer();
-      const result = await extractPDFText(buffer);
+      const result = await extractPDFTextRobust(buffer);
       
       expect(result).toBeDefined();
       expect(result.pages).toBeGreaterThan(0);
@@ -57,7 +58,7 @@ describe('PDF Extractor Module', () => {
 
     it('should return metadata from PDF', async () => {
       const buffer = createMockPDFBuffer();
-      const result = await extractPDFText(buffer);
+      const result = await extractPDFTextRobust(buffer);
       
       expect(result.metadata).toBeDefined();
       expect(typeof result.metadata).toBe('object');
@@ -67,7 +68,7 @@ describe('PDF Extractor Module', () => {
       const invalidBuffer = Buffer.from('This is not a PDF');
       
       try {
-        await extractPDFText(invalidBuffer);
+        await extractPDFTextRobust(invalidBuffer);
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeDefined();
@@ -77,7 +78,7 @@ describe('PDF Extractor Module', () => {
 
     it('should return page count', async () => {
       const buffer = createMockPDFBuffer();
-      const result = await extractPDFText(buffer);
+      const result = await extractPDFTextRobust(buffer);
       
       expect(result.pages).toBeGreaterThanOrEqual(0);
       expect(typeof result.pages).toBe('number');
@@ -214,7 +215,7 @@ describe('PDF Extractor Module', () => {
       const emptyBuffer = Buffer.from('');
       
       try {
-        await extractPDFText(emptyBuffer);
+        await extractPDFTextRobust(emptyBuffer);
         expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error).toBeDefined();
@@ -225,7 +226,7 @@ describe('PDF Extractor Module', () => {
       const corruptedBuffer = Buffer.from('%PDF-1.4\n[corrupted data]');
       
       try {
-        await extractPDFText(corruptedBuffer);
+        await extractPDFTextRobust(corruptedBuffer);
         // May or may not throw depending on pdf-parse robustness
       } catch (error) {
         expect(error).toBeDefined();
