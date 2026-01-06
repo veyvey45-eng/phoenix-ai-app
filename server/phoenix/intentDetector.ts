@@ -131,21 +131,18 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
     }
   }
   
-  // Vérifier les demandes de génération d'image
-  for (const pattern of IMAGE_GENERATION_PATTERNS) {
+  // PRIORITÉ 1: Vérifier les demandes crypto EN PREMIER (avant images)
+  for (const pattern of CRYPTO_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       return {
-        type: 'image_generation',
-        confidence: 0.95,
-        details: { 
-          keywords: extractKeywords(normalizedMessage, pattern),
-          imagePrompt: extractImagePrompt(message)
-        }
+        type: 'crypto',
+        confidence: 0.9,
+        details: { keywords: extractKeywords(normalizedMessage, pattern) }
       };
     }
   }
   
-  // Vérifier les demandes météo
+  // PRIORITÉ 2: Vérifier les demandes météo
   for (const pattern of WEATHER_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       return {
@@ -156,14 +153,23 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
     }
   }
   
-  // Vérifier les demandes crypto
-  for (const pattern of CRYPTO_PATTERNS) {
-    if (pattern.test(normalizedMessage)) {
-      return {
-        type: 'crypto',
-        confidence: 0.9,
-        details: { keywords: extractKeywords(normalizedMessage, pattern) }
-      };
+  // PRIORITÉ 3: Vérifier les demandes de génération d'image
+  // MAIS exclure si le message contient des mots-clés de données/analyse
+  const dataKeywords = /(?:table|tableau|données|data|analyse|analysis|prix|price|api|statistiques|stats|graphique|chart|rapport|report|expert|avis)/i;
+  const isDataRequest = dataKeywords.test(normalizedMessage);
+  
+  if (!isDataRequest) {
+    for (const pattern of IMAGE_GENERATION_PATTERNS) {
+      if (pattern.test(normalizedMessage)) {
+        return {
+          type: 'image_generation',
+          confidence: 0.95,
+          details: { 
+            keywords: extractKeywords(normalizedMessage, pattern),
+            imagePrompt: extractImagePrompt(message)
+          }
+        };
+      }
     }
   }
   

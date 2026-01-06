@@ -944,3 +944,22 @@ Phoenix dit "je n'ai pas la capacité de générer des images" alors que la fonc
 Prompt nettoyé: "avion de chasse avec l'emblème de la Turquie dessus"
 Image générée avec succès!
 
+
+
+---
+
+## Phase 57: Correction Bug Faux Positif Image - COMPLÉTÉE ✅
+
+### Problème
+Phoenix détectait "image_generation" quand l'utilisateur demandait une analyse crypto avec "créer une table".
+
+### Solution
+1. Réorganisation de l'ordre de détection: Crypto et Météo AVANT Images
+2. Ajout d'exclusions pour les mots-clés de données (table, analyse, prix, API, etc.)
+
+### Tâches
+- [x] Analyser l'ordre de priorité des patterns
+- [x] Ajouter des exclusions pour "table", "données", "analyse", "prix", "API", etc.
+- [x] Mettre la détection crypto AVANT la détection d'images
+- [x] Tester avec le message original - Phoenix répond maintenant en mode crypto ✅
+
