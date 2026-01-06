@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
 <!-- SEO Primary Meta Tags -->
 <title>Phoenix AI - Assistant IA Autonome & Expert Crypto</title>
@@ -12,6 +12,29 @@
 <meta name="author" content="Phoenix AI" />
 <meta name="robots" content="index, follow" />
 <link rel="canonical" href="https://phoenix-ai.manus.space/" />
+
+<!-- PWA Meta Tags -->
+<link rel="manifest" href="/manifest.json" />
+<meta name="theme-color" content="#10b981" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="application-name" content="Phoenix AI" />
+
+<!-- iOS PWA Meta Tags -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Phoenix AI" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png" />
+
+<!-- iOS Splash Screens -->
+<link rel="apple-touch-startup-image" href="/icons/icon-512x512.png" />
+
+<!-- Windows PWA -->
+<meta name="msapplication-TileColor" content="#0f172a" />
+<meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
+<meta name="msapplication-config" content="/browserconfig.xml" />
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website" />
@@ -29,15 +52,11 @@
 <meta name="twitter:description" content="Phoenix est votre assistant IA autonome expert en crypto-monnaies, capable d'exécuter du code Python et JavaScript en temps réel." />
 <meta name="twitter:image" content="/og-image.svg" />
 
-<!-- Additional SEO -->
-<meta name="theme-color" content="#0f172a" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Phoenix AI" />
-
 <!-- Favicon -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-72x72.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72x72.png" />
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -53,7 +72,7 @@
   "description": "Assistant IA autonome expert en crypto-monnaies avec exécution de code Python et JavaScript",
   "url": "https://phoenix-ai.manus.space/",
   "applicationCategory": "BusinessApplication",
-  "operatingSystem": "Web",
+  "operatingSystem": "Web, iOS, Android",
   "offers": {
     "@type": "Offer",
     "price": "0",
@@ -64,7 +83,8 @@
     "Exécution de code Python",
     "Exécution de code JavaScript",
     "Stratégies de trading",
-    "Données de marché en temps réel"
+    "Données de marché en temps réel",
+    "Installation sur mobile (PWA)"
   ],
   "author": {
     "@type": "Organization",
@@ -76,5 +96,53 @@
 <body>
 <div id="root"></div>
 <script type="module" src="/src/main.tsx"></script>
+
+<!-- Service Worker Registration -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('✅ Service Worker enregistré:', registration.scope);
+          
+          // Vérifier les mises à jour
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            console.log('🔄 Nouvelle version du Service Worker détectée');
+            
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // Nouvelle version disponible
+                console.log('📦 Nouvelle version disponible!');
+                // Optionnel: afficher une notification à l'utilisateur
+              }
+            });
+          });
+        })
+        .catch((error) => {
+          console.error('❌ Erreur Service Worker:', error);
+        });
+    });
+  }
+  
+  // Gérer le prompt d'installation PWA
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Empêcher le prompt automatique
+    e.preventDefault();
+    // Sauvegarder l'événement pour plus tard
+    deferredPrompt = e;
+    console.log('📱 PWA installable détectée');
+    
+    // Dispatch un événement custom pour l'UI
+    window.dispatchEvent(new CustomEvent('pwa-installable', { detail: { prompt: deferredPrompt } }));
+  });
+  
+  // Détecter quand l'app est installée
+  window.addEventListener('appinstalled', () => {
+    console.log('🎉 Phoenix AI installé avec succès!');
+    deferredPrompt = null;
+  });
+</script>
 </body>
 </html>
