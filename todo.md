@@ -535,3 +535,28 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - [x] Appliquer les 16 axiomes aux analyses crypto
 - [x] Formater les réponses avec données en temps réel (prix: $93,907.69, -8.14%)
 - [x] Tester avec des questions crypto variées (Bitcoin analysé avec succès)
+
+
+---
+
+## Phase 46: Bug - Page qui charge indéfiniment
+
+### Problème Signalé
+- [ ] La page charge indéfiniment et ne s'ouvre pas pour l'utilisateur
+- [ ] Identifier la cause du blocage
+- [ ] Corriger le problème
+
+
+---
+
+## Phase 47: Bug - Phoenix dit ne pas avoir accès aux données récentes
+
+### Problème Résolu
+- [x] Phoenix dit qu'il n'a accès qu'aux données jusqu'en 2024 - CORRIGÉ
+- [x] Le LLM ne sait pas qu'il a accès aux données en temps réel via CoinGecko - CORRIGÉ
+- [x] Corriger le prompt système pour indiquer la date actuelle et l'accès aux APIs - CORRIGÉ
+
+### Solution Appliquée
+- Ajout de la date actuelle (janvier 2026) dans le prompt système
+- Clarification que Phoenix a accès aux données EN TEMPS RÉEL via CoinGecko
+- Test réussi: Phoenix donne maintenant les données de janvier 2025 à janvier 2026

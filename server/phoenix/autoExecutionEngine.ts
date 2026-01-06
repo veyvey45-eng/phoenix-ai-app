@@ -93,8 +93,27 @@ export async function analyzeAndExecuteAutomatically(context: AutoExecutionConte
  */
 export function createEnrichedSystemPrompt(basePrompt: string): string {
   const sixteenPointsPrompt = createSixteenPointsPrompt();
+  
+  // Ajouter la date actuelle pour que Phoenix sache qu'il a accès aux données récentes
+  const currentDate = new Date().toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Paris'
+  });
 
   return `${basePrompt}
+
+## ⚡ INFORMATION TEMPORELLE CRITIQUE
+
+**DATE ET HEURE ACTUELLES: ${currentDate}**
+
+Tu es en janvier 2026. Tu as accès à des données EN TEMPS RÉEL via des APIs (CoinGecko pour les cryptos, etc.). Les données que tu reçois dans le contexte sont ACTUELLES et FRAÎCHES. Tu n'es PAS limité aux données de 2024.
+
+**IMPORTANT**: Ne dis JAMAIS que tu n'as pas accès aux données récentes (2025, 2026). Utilise les données fournies dans le contexte car elles sont en temps réel.
 
 ${sixteenPointsPrompt}
 
