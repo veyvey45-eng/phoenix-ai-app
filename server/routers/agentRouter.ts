@@ -1,26 +1,30 @@
 /**
- * Agent Router - Routes pour le système d'agent autonome
+ * Agent Router - Routes pour le système d'agent autonome Phoenix
+ * Utilise le nouveau AgentCore avec ToolRegistry
  */
 
 import { router, protectedProcedure } from "../_core/trpc";
 import { z } from "zod";
 import { 
-  createAgentTask, 
-  getAgentTask, 
-  listAgentTasks, 
-  runAgentLoop, 
-  confirmAgentAction, 
-  cancelAgentTask,
-  deleteAgentTask,
-  executeQuickTask,
-  AgentTask,
-  AgentStep
-} from "../phoenix/agentEngine";
+  createAgent, 
+  getAgent, 
+  listAgents, 
+  runAgent, 
+  quickRun,
+  cancelAgent,
+  deleteAgent,
+  AgentState,
+  AgentEvent
+} from "../phoenix/agentCore";
 import { observable } from '@trpc/server/observable';
 import { EventEmitter } from 'events';
 
 // Event emitter pour les mises à jour en temps réel
 const agentEvents = new EventEmitter();
+agentEvents.setMaxListeners(100);
+
+// Store pour les callbacks d'événements par agent
+const agentCallbacks: Map<string, (event: AgentEvent) => void> = new Map();
 
 export const agentRouter = router({
   /**
@@ -28,194 +32,288 @@ export const agentRouter = router({
    */
   createTask: protectedProcedure
     .input(z.object({
-      goal: z.string().min(1).max(2000)
+      goal: z.string().min(1).max(5000),
+      config: z.object({
+        maxIterations: z.number().min(1).max(50).optional(),
+        maxToolCalls: z.number().min(1).max(100).optional(),
+        requireConfirmation: z.boolean().optional(),
+        verbose: z.boolean().optional()
+      }).optional()
     }))
     .mutation(async ({ ctx, input }) => {
-      const task = await createAgentTask(input.goal, ctx.user.openId);
+      const agent = createAgent(input.goal, input.config);
       return {
         success: true,
         task: {
-          id: task.id,
-          goal: task.goal,
-          status: task.status,
-          createdAt: task.createdAt
+          id: agent.id,
+          goal: agent.goal,
+          status: agent.status,
+          createdAt: agent.createdAt
         }
       };
     }),
 
   /**
-   * Obtenir une tâche par son ID
+   * Obtenir un agent par son ID
    */
   getTask: protectedProcedure
     .input(z.object({
       taskId: z.string()
     }))
     .query(async ({ input }) => {
-      const task = getAgentTask(input.taskId);
-      if (!task) {
-        return { success: false, error: 'Task not found' };
+      const agent = getAgent(input.taskId);
+      if (!agent) {
+        return { success: false, error: 'Agent not found' };
       }
-      return { success: true, task };
+      return { 
+        success: true, 
+        task: {
+          id: agent.id,
+          goal: agent.goal,
+          status: agent.status,
+          currentPhase: agent.currentPhase,
+          steps: agent.steps.map(s => ({
+            id: s.id,
+            type: s.type,
+            content: s.content,
+            status: s.status,
+            toolName: s.toolName,
+            toolArgs: s.toolArgs,
+            toolResult: s.toolResult ? {
+              success: s.toolResult.success,
+              output: s.toolResult.output?.substring(0, 1000),
+              error: s.toolResult.error,
+              artifacts: s.toolResult.artifacts
+            } : undefined,
+            startedAt: s.startedAt,
+            completedAt: s.completedAt,
+            duration: s.duration
+          })),
+          result: agent.result,
+          error: agent.error,
+          artifacts: agent.context.artifacts,
+          createdAt: agent.createdAt,
+          updatedAt: agent.updatedAt
+        }
+      };
     }),
 
   /**
-   * Lister toutes les tâches
+   * Lister tous les agents
    */
   listTasks: protectedProcedure
     .query(async () => {
-      const tasks = listAgentTasks();
+      const agents = listAgents();
       return {
         success: true,
-        tasks: tasks.map(t => ({
-          id: t.id,
-          goal: t.goal,
-          status: t.status,
-          stepsCount: t.steps.length,
-          createdAt: t.createdAt,
-          updatedAt: t.updatedAt
+        tasks: agents.map(a => ({
+          id: a.id,
+          goal: a.goal,
+          status: a.status,
+          currentPhase: a.currentPhase,
+          stepsCount: a.steps.length,
+          createdAt: a.createdAt,
+          updatedAt: a.updatedAt
         }))
       };
     }),
 
   /**
-   * Exécuter une tâche (démarrer la boucle d'agent)
+   * Exécuter un agent (démarrer la boucle)
    */
   runTask: protectedProcedure
     .input(z.object({
       taskId: z.string(),
       config: z.object({
         maxIterations: z.number().min(1).max(50).optional(),
-        requireConfirmationForHighRisk: z.boolean().optional(),
-        autoExecuteLowRisk: z.boolean().optional()
+        maxToolCalls: z.number().min(1).max(100).optional(),
+        requireConfirmation: z.boolean().optional()
       }).optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
-        const completedTask = await runAgentLoop(
-          input.taskId,
-          input.config || {},
-          (step) => {
-            // Émettre un événement pour chaque étape complétée
-            agentEvents.emit(`task:${input.taskId}:step`, step);
-          }
-        );
+        // Créer le callback pour émettre les événements
+        const onEvent = (event: AgentEvent) => {
+          agentEvents.emit(`agent:${input.taskId}`, event);
+        };
         
-        return {
-          success: true,
-          task: completedTask
+        agentCallbacks.set(input.taskId, onEvent);
+
+        // Exécuter l'agent de manière asynchrone
+        const sessionId = `session-${ctx.user.openId}-${Date.now()}`;
+        
+        // Lancer l'exécution en arrière-plan
+        runAgent(input.taskId, ctx.user.openId, sessionId, onEvent)
+          .then((completedAgent) => {
+            console.log(`[AgentRouter] Agent ${input.taskId} terminé avec statut: ${completedAgent.status}`);
+            agentCallbacks.delete(input.taskId);
+          })
+          .catch((error) => {
+            console.error(`[AgentRouter] Erreur agent ${input.taskId}:`, error);
+            agentCallbacks.delete(input.taskId);
+          });
+
+        return { 
+          success: true, 
+          message: 'Agent démarré',
+          taskId: input.taskId
         };
       } catch (error: any) {
-        return {
-          success: false,
-          error: error.message
+        return { 
+          success: false, 
+          error: error.message 
         };
       }
     }),
 
   /**
-   * Exécuter une tâche rapide (one-shot)
+   * Exécuter une tâche rapide (création + exécution en une fois)
    */
   quickTask: protectedProcedure
     .input(z.object({
-      goal: z.string().min(1).max(2000)
+      goal: z.string().min(1).max(5000),
+      config: z.object({
+        maxIterations: z.number().min(1).max(50).optional(),
+        maxToolCalls: z.number().min(1).max(100).optional()
+      }).optional()
     }))
     .mutation(async ({ ctx, input }) => {
-      const result = await executeQuickTask(
-        input.goal,
-        ctx.user.openId,
-        (message) => {
-          agentEvents.emit(`user:${ctx.user.openId}:progress`, message);
-        }
-      );
-      
-      return result;
-    }),
+      try {
+        const sessionId = `session-${ctx.user.openId}-${Date.now()}`;
+        
+        const agent = await quickRun(
+          input.goal,
+          ctx.user.openId,
+          sessionId,
+          input.config,
+          (event) => {
+            agentEvents.emit(`agent:${event.data?.agentId || 'quick'}`, event);
+          }
+        );
 
-  /**
-   * Confirmer ou refuser une action en attente
-   */
-  confirmAction: protectedProcedure
-    .input(z.object({
-      taskId: z.string(),
-      stepId: z.string(),
-      confirmed: z.boolean()
-    }))
-    .mutation(async ({ input }) => {
-      const task = await confirmAgentAction(
-        input.taskId,
-        input.stepId,
-        input.confirmed
-      );
-      
-      if (!task) {
-        return { success: false, error: 'Task or step not found' };
+        return {
+          success: true,
+          task: {
+            id: agent.id,
+            goal: agent.goal,
+            status: agent.status,
+            result: agent.result,
+            error: agent.error,
+            steps: agent.steps.map(s => ({
+              id: s.id,
+              type: s.type,
+              content: s.content,
+              status: s.status,
+              toolName: s.toolName,
+              duration: s.duration
+            })),
+            artifacts: agent.context.artifacts
+          }
+        };
+      } catch (error: any) {
+        return { 
+          success: false, 
+          error: error.message 
+        };
       }
-      
-      return { success: true, task };
     }),
 
   /**
-   * Annuler une tâche en cours
+   * Annuler un agent en cours
    */
   cancelTask: protectedProcedure
     .input(z.object({
       taskId: z.string()
     }))
     .mutation(async ({ input }) => {
-      const success = cancelAgentTask(input.taskId);
+      const success = cancelAgent(input.taskId);
+      agentCallbacks.delete(input.taskId);
       return { success };
     }),
 
   /**
-   * Supprimer une tâche terminée
+   * Supprimer un agent
    */
   deleteTask: protectedProcedure
     .input(z.object({
       taskId: z.string()
     }))
     .mutation(async ({ input }) => {
-      const success = deleteAgentTask(input.taskId);
+      const success = deleteAgent(input.taskId);
+      agentCallbacks.delete(input.taskId);
       return { success };
     }),
 
   /**
-   * Souscrire aux mises à jour d'une tâche (SSE)
+   * S'abonner aux événements d'un agent (SSE)
    */
-  onTaskUpdate: protectedProcedure
+  subscribeToTask: protectedProcedure
     .input(z.object({
       taskId: z.string()
     }))
     .subscription(({ input }) => {
-      return observable<AgentStep>((emit) => {
-        const handler = (step: AgentStep) => {
-          emit.next(step);
+      return observable<AgentEvent>((emit) => {
+        const handler = (event: AgentEvent) => {
+          emit.next(event);
         };
-        
-        agentEvents.on(`task:${input.taskId}:step`, handler);
-        
+
+        agentEvents.on(`agent:${input.taskId}`, handler);
+
         return () => {
-          agentEvents.off(`task:${input.taskId}:step`, handler);
+          agentEvents.off(`agent:${input.taskId}`, handler);
         };
       });
     }),
 
   /**
-   * Souscrire aux messages de progression
+   * Obtenir les outils disponibles
    */
-  onProgress: protectedProcedure
-    .subscription(({ ctx }) => {
-      return observable<string>((emit) => {
-        const handler = (message: string) => {
-          emit.next(message);
-        };
-        
-        agentEvents.on(`user:${ctx.user.openId}:progress`, handler);
-        
-        return () => {
-          agentEvents.off(`user:${ctx.user.openId}:progress`, handler);
-        };
-      });
+  getAvailableTools: protectedProcedure
+    .query(async () => {
+      const { toolRegistry } = await import('../phoenix/toolRegistry');
+      const tools = toolRegistry.listAll();
+      
+      return {
+        success: true,
+        tools: tools.map(t => ({
+          name: t.name,
+          description: t.description,
+          category: t.category,
+          parameters: t.parameters
+        }))
+      };
     }),
+
+  /**
+   * Tester un outil directement
+   */
+  testTool: protectedProcedure
+    .input(z.object({
+      toolName: z.string(),
+      args: z.record(z.string(), z.any())
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { toolRegistry } = await import('../phoenix/toolRegistry');
+      
+      const toolContext = {
+        userId: ctx.user.openId,
+        sessionId: `test-${Date.now()}`
+      };
+      
+      const result = await toolRegistry.execute(
+        input.toolName,
+        input.args,
+        toolContext
+      );
+
+      return {
+        success: result.success,
+        output: result.output,
+        error: result.error,
+        artifacts: result.artifacts,
+        metadata: result.metadata
+      };
+    })
 });
 
 export default agentRouter;

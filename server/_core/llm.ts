@@ -312,6 +312,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
+  console.log('[LLM] Sending request to:', resolveApiUrl());
+  
   const response = await fetch(resolveApiUrl(), {
     method: "POST",
     headers: {
@@ -323,10 +325,20 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error('[LLM] Error response:', response.status, errorText);
     throw new Error(
       `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
     );
   }
 
-  return (await response.json()) as InvokeResult;
+  const result = (await response.json()) as InvokeResult;
+  
+  // Vérifier que la réponse contient des choices
+  if (!result.choices || result.choices.length === 0) {
+    console.error('[LLM] Empty choices in response:', JSON.stringify(result));
+    throw new Error('LLM returned empty choices');
+  }
+  
+  console.log('[LLM] Response received, choices:', result.choices.length);
+  return result;
 }
