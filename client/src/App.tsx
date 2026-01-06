@@ -11,6 +11,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import { CodeExecutorPage } from "./pages/CodeExecutorPage";
 import WebPageGeneratorPage from "./pages/WebPageGenerator";
 import { PhoenixShowcase } from "./pages/PhoenixShowcase";
+import About from "./pages/About";
+import { OfflineBanner } from "./components/ConnectionStatus";
 
 function Router() {
   return (
@@ -21,6 +23,7 @@ function Router() {
       <Route path="/web-generator" component={WebPageGeneratorPage} />
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/showcase" component={PhoenixShowcase} />
+      <Route path="/about" component={About} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -30,9 +33,10 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme="dark" switchable={true}>
         <TooltipProvider>
           <Toaster />
+          <OfflineBanner />
           <Navigation />
           <Router />
         </TooltipProvider>

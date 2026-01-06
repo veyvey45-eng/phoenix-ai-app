@@ -6,14 +6,18 @@ import React from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X, Sparkles, Sun, Moon, Info } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useState } from 'react';
 import { getLoginUrl } from '@/const';
+import { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+import { ConnectionStatus } from './ConnectionStatus';
 
 export function Navigation() {
   const { user, logout } = useAuth();
   const [, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { theme, toggleTheme, switchable } = useTheme();
 
   const handleLogout = async () => {
     await logout();
@@ -24,7 +28,9 @@ export function Navigation() {
     { label: 'Conversation', icon: MessageSquare, href: '/dashboard' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
     { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
-  ] : [];
+  ] : [
+    { label: 'À propos', icon: Info, href: '/about' },
+  ];
 
   return (
     <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
@@ -55,7 +61,29 @@ export function Navigation() {
           </div>
 
           {/* User Menu */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {/* Connection Status */}
+            <ConnectionStatus showLabel={false} />
+            
+            {/* Keyboard Shortcuts */}
+            <KeyboardShortcutsHelp />
+            
+            {/* Theme Toggle */}
+            {switchable && toggleTheme && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-9 w-9"
+                title={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-yellow-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-blue-500" />
+                )}
+              </Button>
+            )}
             {user ? (
               <>
                 <span className="text-sm text-muted-foreground hidden sm:inline">

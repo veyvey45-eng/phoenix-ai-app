@@ -351,3 +351,34 @@ Transformer Phoenix en entité autonome qui vit dans le serveur, pas juste une b
 - [x] Ajouter des titres H2 pour structurer le contenu - Déjà présents (Architecture, Comment ça fonctionne, 7 Objets)
 - [x] Ajouter des mots-clés pertinents - 10 mots-clés ajoutés dans index.html
 - [x] Ajouter les meta Open Graph et Twitter Cards
+
+
+---
+
+## Phase 43: Améliorations Globales (2026-01-06)
+
+### UX & Design
+- [x] Toggle mode sombre/clair dans le header
+- [x] Favicon personnalisé Phoenix (SVG gradient vert-bleu)
+- [x] Animations de transition entre pages (fadeIn, slideUp, etc.)
+- [x] Micro-interactions sur les boutons (hover-lift, hover-glow, press-effect)
+- [x] Skeleton loaders pour le chargement (composant skeleton-loader.tsx)
+- [x] Toast notifications améliorées (via Sonner)
+
+### Navigation & Pages
+- [x] Page À propos avec présentation de Phoenix (/about)
+- [x] Lien À propos dans la navigation pour utilisateurs non connectés
+- [x] Raccourcis clavier (Ctrl+? pour aide, Ctrl+K recherche, etc.)
+
+### Performance & Accessibilité
+- [x] Animations CSS optimisées (GPU-accelerated)
+- [x] Focus visible amélioré (classe focus-ring)
+- [x] Scrollbar personnalisée
+- [x] Sélection de texte stylisée
+
+### Fonctionnalités Bonus
+- [x] Indicateur de statut de connexion (ConnectionStatus)
+- [x] Bannière hors ligne (OfflineBanner)
+- [x] Export des conversations en Markdown/TXT/JSON
+- [x] Aide raccourcis clavier (KeyboardShortcutsHelp)
+- [x] Composant d'export de conversations (ExportConversation)
