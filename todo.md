@@ -991,3 +991,42 @@ Ajouter des fonctionnalités vocales à Phoenix pour une expérience plus intera
 - client/src/components/SpeakButton.tsx - Bouton Écouter
 - client/src/components/VoiceLiveMode.tsx - Mode conversation Live
 
+
+
+---
+
+## Phase 59: Bug Données Crypto Inventées - COMPLÉTÉE ✅
+
+### Problème
+Quand l'utilisateur demande un tableau Python avec les prix réels d'Ethereum jour pour jour, Phoenix génère du code avec des données INVENTÉES.
+
+### Solution
+Modifié smartCodeExecutor.ts pour détecter les demandes de données crypto et récupérer les vraies données AVANT de générer le code.
+
+### Tâches
+- [x] Analyser le flux de génération de code dans smartCodeExecutor.ts
+- [x] Ajouter detectCryptoDataNeed() pour détecter les demandes crypto
+- [x] Ajouter fetchRealCryptoData() pour récupérer les vraies données
+- [x] Injecter les vraies données dans le prompt de génération de code
+- [x] Tester avec "tableau Python prix Ethereum décembre 2025" ✅
+
+
+---
+
+## Phase 60: APIs Crypto Fallback - COMPLÉTÉE ✅
+
+### Objectif
+Ajouter CryptoCompare et Binance comme APIs de fallback quand CoinGecko est bloqué (rate limit 429).
+
+### Tâches
+- [x] Ajouter l'API CryptoCompare (gratuite, pas de clé requise pour usage basique)
+- [x] Ajouter l'API Binance (gratuite, pas de clé requise)
+- [x] Implémenter la logique de fallback automatique (CoinGecko → CryptoCompare → Binance)
+- [x] Tester les APIs de fallback ✅
+- [x] Mettre à jour le smartCodeExecutor pour utiliser le fallback
+
+### Résultat du test
+Phoenix a récupéré les VRAIS prix Ethereum décembre 2025 via CryptoCompare (fallback):
+- 06/12/2025: 3060.97 USD
+- 31/12/2025: 3000.79 USD
+

@@ -188,27 +188,174 @@ export async function getOHLCData(cryptoId: string, days: number = 30): Promise<
   }
 }
 
+// Mapping des IDs pour différentes APIs
+const CRYPTO_SYMBOL_MAP: Record<string, { symbol: string; binanceSymbol: string }> = {
+  'bitcoin': { symbol: 'BTC', binanceSymbol: 'BTCUSDT' },
+  'ethereum': { symbol: 'ETH', binanceSymbol: 'ETHUSDT' },
+  'solana': { symbol: 'SOL', binanceSymbol: 'SOLUSDT' },
+  'cardano': { symbol: 'ADA', binanceSymbol: 'ADAUSDT' },
+  'ripple': { symbol: 'XRP', binanceSymbol: 'XRPUSDT' },
+  'polkadot': { symbol: 'DOT', binanceSymbol: 'DOTUSDT' },
+  'dogecoin': { symbol: 'DOGE', binanceSymbol: 'DOGEUSDT' },
+  'avalanche-2': { symbol: 'AVAX', binanceSymbol: 'AVAXUSDT' },
+  'matic-network': { symbol: 'MATIC', binanceSymbol: 'MATICUSDT' },
+  'chainlink': { symbol: 'LINK', binanceSymbol: 'LINKUSDT' },
+};
+
 /**
- * Récupère l'historique des prix
+ * Récupère l'historique des prix via CoinGecko
  */
-export async function getPriceHistory(cryptoId: string, days: number = 30): Promise<{timestamp: number; price: number}[]> {
+async function getPriceHistoryFromCoinGecko(cryptoId: string, days: number): Promise<{timestamp: number; price: number}[]> {
   try {
+    console.log(`[CryptoExpert] Trying CoinGecko for ${cryptoId}...`);
     const response = await fetch(
       `${COINGECKO_BASE_URL}/coins/${cryptoId}/market_chart?vs_currency=usd&days=${days}`,
       { signal: AbortSignal.timeout(10000) }
     );
     
-    if (!response.ok) return [];
+    if (!response.ok) {
+      console.log(`[CryptoExpert] CoinGecko returned ${response.status}`);
+      return [];
+    }
     
     const data = await response.json();
+    if (data.status?.error_code === 429) {
+      console.log('[CryptoExpert] CoinGecko rate limited');
+      return [];
+    }
+    
+    console.log(`[CryptoExpert] CoinGecko success: ${data.prices?.length || 0} prices`);
     return data.prices.map((item: number[]) => ({
       timestamp: item[0],
       price: item[1]
     }));
   } catch (error) {
-    console.error('[CryptoExpert] getPriceHistory error:', error);
+    console.error('[CryptoExpert] CoinGecko error:', error);
     return [];
   }
+}
+
+/**
+ * Récupère l'historique des prix via CryptoCompare (GRATUIT)
+ */
+async function getPriceHistoryFromCryptoCompare(cryptoId: string, days: number): Promise<{timestamp: number; price: number}[]> {
+  try {
+    const symbolInfo = CRYPTO_SYMBOL_MAP[cryptoId];
+    if (!symbolInfo) {
+      console.log(`[CryptoExpert] Unknown crypto ID for CryptoCompare: ${cryptoId}`);
+      return [];
+    }
+    
+    console.log(`[CryptoExpert] Trying CryptoCompare for ${symbolInfo.symbol}...`);
+    
+    // CryptoCompare API gratuite - histoday pour données journalières
+    const response = await fetch(
+      `https://min-api.cryptocompare.com/data/v2/histoday?fsym=${symbolInfo.symbol}&tsym=USD&limit=${days}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    
+    if (!response.ok) {
+      console.log(`[CryptoExpert] CryptoCompare returned ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (data.Response === 'Error') {
+      console.log(`[CryptoExpert] CryptoCompare error: ${data.Message}`);
+      return [];
+    }
+    
+    const prices = data.Data?.Data || [];
+    console.log(`[CryptoExpert] CryptoCompare success: ${prices.length} prices`);
+    
+    return prices.map((item: { time: number; close: number }) => ({
+      timestamp: item.time * 1000, // Convertir en millisecondes
+      price: item.close
+    }));
+  } catch (error) {
+    console.error('[CryptoExpert] CryptoCompare error:', error);
+    return [];
+  }
+}
+
+/**
+ * Récupère l'historique des prix via Binance (GRATUIT)
+ */
+async function getPriceHistoryFromBinance(cryptoId: string, days: number): Promise<{timestamp: number; price: number}[]> {
+  try {
+    const symbolInfo = CRYPTO_SYMBOL_MAP[cryptoId];
+    if (!symbolInfo) {
+      console.log(`[CryptoExpert] Unknown crypto ID for Binance: ${cryptoId}`);
+      return [];
+    }
+    
+    console.log(`[CryptoExpert] Trying Binance for ${symbolInfo.binanceSymbol}...`);
+    
+    // Binance API gratuite - klines pour données historiques
+    // Interval: 1d = 1 jour, limit = nombre de jours
+    const response = await fetch(
+      `https://api.binance.com/api/v3/klines?symbol=${symbolInfo.binanceSymbol}&interval=1d&limit=${days}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    
+    if (!response.ok) {
+      console.log(`[CryptoExpert] Binance returned ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    if (!Array.isArray(data)) {
+      console.log('[CryptoExpert] Binance returned invalid data');
+      return [];
+    }
+    
+    console.log(`[CryptoExpert] Binance success: ${data.length} prices`);
+    
+    // Format Binance klines: [openTime, open, high, low, close, volume, closeTime, ...]
+    return data.map((item: any[]) => ({
+      timestamp: item[0], // openTime en millisecondes
+      price: parseFloat(item[4]) // close price
+    }));
+  } catch (error) {
+    console.error('[CryptoExpert] Binance error:', error);
+    return [];
+  }
+}
+
+/**
+ * Récupère l'historique des prix avec fallback automatique
+ * Ordre: CoinGecko → CryptoCompare → Binance
+ */
+export async function getPriceHistory(cryptoId: string, days: number = 30): Promise<{timestamp: number; price: number}[]> {
+  console.log(`[CryptoExpert] Getting price history for ${cryptoId}, ${days} days`);
+  
+  // 1. Essayer CoinGecko d'abord
+  let prices = await getPriceHistoryFromCoinGecko(cryptoId, days);
+  if (prices.length > 0) {
+    console.log('[CryptoExpert] Using CoinGecko data');
+    return prices;
+  }
+  
+  // 2. Fallback sur CryptoCompare
+  console.log('[CryptoExpert] CoinGecko failed, trying CryptoCompare...');
+  prices = await getPriceHistoryFromCryptoCompare(cryptoId, days);
+  if (prices.length > 0) {
+    console.log('[CryptoExpert] Using CryptoCompare data');
+    return prices;
+  }
+  
+  // 3. Fallback sur Binance
+  console.log('[CryptoExpert] CryptoCompare failed, trying Binance...');
+  prices = await getPriceHistoryFromBinance(cryptoId, days);
+  if (prices.length > 0) {
+    console.log('[CryptoExpert] Using Binance data');
+    return prices;
+  }
+  
+  console.error('[CryptoExpert] All APIs failed to get price history');
+  return [];
 }
 
 /**
