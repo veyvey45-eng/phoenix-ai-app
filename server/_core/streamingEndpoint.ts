@@ -8,6 +8,7 @@ import { streamChatResponse, formatMessagesForStreaming } from '../phoenix/strea
 import { phoenix, PhoenixContext } from '../phoenix/core';
 import { contextEnricher } from '../phoenix/contextEnricher';
 import { detectIntent, generateSystemPromptForIntent, DetectedIntent } from '../phoenix/intentDetector';
+import { autonomousBrowser } from '../phoenix/autonomousBrowser';
 import { getMemoriesByUser, getRecentUtterances, getActiveIssues, getActiveCriteria, getOrCreatePhoenixState, getDb } from '../db';
 import { getFileProcessor } from '../phoenix/fileProcessor';
 import { phoenixState, conversationMessages } from '../../drizzle/schema';
@@ -116,6 +117,12 @@ Utilise ce contenu pour répondre aux questions de l'utilisateur.`;
       return;
     }
 
+    // Traitement spécial pour la navigation web
+    if (intent.type === 'web_browse') {
+      await handleWebBrowse(res, message);
+      return;
+    }
+
     // Stream la réponse
     try {
       const messages = formatMessagesForStreaming(systemPrompt, userMessageWithContext);
@@ -193,6 +200,80 @@ async function handleImageGeneration(res: Response, intent: DetectedIntent, mess
   } catch (error) {
     console.error('[StreamingEndpoint] Error in image generation handler:', error);
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'Image generation failed' })}\n\n`);
+    res.end();
+  }
+}
+
+/**
+ * Gère la navigation web directe
+ */
+async function handleWebBrowse(res: Response, message: string) {
+  console.log('[handleWebBrowse] Démarrage avec message:', message);
+  
+  try {
+    // Extraire l'URL du message
+    const urlMatch = message.match(/https?:\/\/[^\s]+|(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?/i);
+    let url = urlMatch ? urlMatch[0] : '';
+    
+    console.log('[handleWebBrowse] URL extraite:', url);
+    
+    // Ajouter https:// si nécessaire
+    if (url && !url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    
+    if (!url) {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: "Je n'ai pas trouvé d'URL dans ta demande. Peux-tu préciser le site web ?" })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+    
+    // Envoyer le message initial
+    const initialMsg = `🌐 Navigation vers ${url} avec Browserless.io (vrai Chrome cloud)...\n\n`;
+    res.write(`data: ${JSON.stringify({ type: 'token', content: initialMsg })}\n\n`);
+    console.log('[handleWebBrowse] Message initial envoyé');
+    
+    const startTime = Date.now();
+    
+    try {
+      console.log('[handleWebBrowse] Appel de executeBrowsingSession...');
+      
+      // Utiliser Browserless pour naviguer (signature: url, extractionGoal, userId, takeScreenshot)
+      const result = await autonomousBrowser.executeBrowsingSession(
+        url,
+        `Extraire le contenu principal de ${url}`,
+        'default',
+        false
+      );
+      
+      console.log('[handleWebBrowse] Résultat reçu:', { success: result.success, method: result.method, contentLength: result.content?.length });
+      
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      
+      if (result.success && result.content) {
+        const content = result.content.slice(0, 8000); // Limiter la taille
+        const responseMsg = `${content}\n\n---\n*Extrait via ${result.method} en ${duration}s*`;
+        console.log('[handleWebBrowse] Envoi du contenu, longueur:', responseMsg.length);
+        res.write(`data: ${JSON.stringify({ type: 'token', content: responseMsg })}\n\n`);
+        console.log('[handleWebBrowse] Contenu envoyé');
+      } else {
+        const errorMsg = `⚠️ Impossible d'accéder à ${url}. ${result.error || 'Le site peut être inaccessible.'}`;
+        console.log('[handleWebBrowse] Erreur:', errorMsg);
+        res.write(`data: ${JSON.stringify({ type: 'token', content: errorMsg })}\n\n`);
+      }
+    } catch (browseError) {
+      console.error('[handleWebBrowse] Browse error:', browseError);
+      res.write(`data: ${JSON.stringify({ type: 'token', content: `⚠️ Erreur lors de la navigation: ${browseError instanceof Error ? browseError.message : 'Erreur inconnue'}` })}\n\n`);
+    }
+    
+    console.log('[handleWebBrowse] Envoi de [DONE]');
+    res.write('data: [DONE]\n\n');
+    res.end();
+    console.log('[handleWebBrowse] Terminé');
+  } catch (error) {
+    console.error('[handleWebBrowse] Error in web browse handler:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Web browse failed' })}\n\n`);
     res.end();
   }
 }

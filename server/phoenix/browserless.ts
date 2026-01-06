@@ -55,8 +55,9 @@ export class BrowserlessModule {
   /**
    * Récupère le contenu HTML rendu (avec JavaScript exécuté)
    */
-  async getContent(url: string): Promise<BrowserlessResult> {
+  async getContent(url: string, retryCount: number = 0): Promise<BrowserlessResult> {
     const startTime = Date.now();
+    const maxRetries = 2;
 
     if (!this.isConfigured()) {
       return {
@@ -69,7 +70,12 @@ export class BrowserlessModule {
     }
 
     try {
-      console.log('[Browserless] Récupération du contenu:', url);
+      console.log(`[Browserless] Récupération du contenu (tentative ${retryCount + 1}):`, url);
+
+      // Petit délai avant retry pour éviter les problèmes TLS
+      if (retryCount > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
 
       const response = await fetch(`${this.baseUrl}/content?token=${this.apiToken}`, {
         method: 'POST',
@@ -114,6 +120,14 @@ export class BrowserlessModule {
       };
     } catch (error) {
       console.error('[Browserless] Erreur:', error);
+      
+      // Retry sur erreur TLS/socket
+      const errorStr = String(error);
+      if (retryCount < maxRetries && (errorStr.includes('socket') || errorStr.includes('TLS') || errorStr.includes('fetch failed'))) {
+        console.log(`[Browserless] Retry ${retryCount + 1}/${maxRetries} après erreur réseau...`);
+        return this.getContent(url, retryCount + 1);
+      }
+      
       return {
         success: false,
         url,

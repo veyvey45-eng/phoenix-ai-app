@@ -1237,3 +1237,28 @@ L'Agent Loop se déclenche automatiquement pour:
 - [x] Configurer browserconfig.xml pour Windows
 - [x] Tester l'installation sur mobile
 - [x] Sauvegarder checkpoint
+
+
+---
+
+## Phase 64: Bug - Phoenix simule au lieu d'utiliser Browserless - EN COURS
+
+- [ ] Analyser pourquoi Phoenix génère du code Python au lieu d'utiliser Browserless
+- [ ] Corriger la détection des demandes de navigation web
+- [ ] Forcer l'utilisation de Browserless pour toute demande de navigation
+- [ ] Tester la correction
+- [ ] Sauvegarder checkpoint
+
+
+---
+
+## Phase 63: Amélioration de la détection de navigation web (2026-01-07)
+
+### Problème
+Phoenix génère du code Python au lieu d'utiliser Browserless.io quand l'utilisateur demande d'ouvrir "une page web" sans URL spécifique.
+
+### Tâches
+- [x] Améliorer les patterns de détection pour les demandes naturelles sans URL
+- [x] Permettre à Phoenix de proposer une URL quand l'utilisateur demande d'ouvrir "une page web" sans préciser
+- [x] Tester avec différentes formulations
+

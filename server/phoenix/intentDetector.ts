@@ -8,6 +8,7 @@ export type IntentType =
   | 'code_request'      // Demande explicite de code
   | 'code_execution'    // Demande d'exécuter du code
   | 'image_generation'  // Demande de générer une image
+  | 'web_browse'        // Navigation web directe
   | 'web_search'        // Besoin de recherche web
   | 'weather'           // Demande météo
   | 'crypto'            // Demande crypto/prix
@@ -153,9 +154,24 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
     }
   }
   
-  // PRIORITÉ 3: Vérifier les demandes de génération d'image
-  // MAIS exclure si le message contient des mots-clés de données/analyse
-  const dataKeywords = /(?:table|tableau|données|data|analyse|analysis|prix|price|api|statistiques|stats|graphique|chart|rapport|report|expert|avis)/i;
+  // PRIORITÉ 3: Vérifier les demandes de NAVIGATION WEB (avant les images)
+  const browseKeywords = /(?:va\s+sur|vas\s+sur|aller\s+sur|visite|visiter|ouvre|ouvrir|navigue|naviguer|go\s+to|visit|open|navigate|browse|page\s+web|site\s+web|website|webpage|\.com|\.fr|\.org|\.net|\.io)/i;
+  const isBrowseRequest = browseKeywords.test(normalizedMessage);
+  
+  if (isBrowseRequest) {
+    return {
+      type: 'web_search',  // Utiliser web_search pour déclencher la navigation
+      confidence: 0.95,
+      details: { 
+        keywords: ['browse', 'navigate'],
+        searchQuery: message
+      }
+    };
+  }
+  
+  // PRIORITÉ 4: Vérifier les demandes de génération d'image
+  // MAIS exclure si le message contient des mots-clés de données/analyse/navigation
+  const dataKeywords = /(?:table|tableau|données|data|analyse|analysis|prix|price|api|statistiques|stats|graphique|chart|rapport|report|expert|avis|contenu|content|page|site)/i;
   const isDataRequest = dataKeywords.test(normalizedMessage);
   
   if (!isDataRequest) {

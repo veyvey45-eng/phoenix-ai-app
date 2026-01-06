@@ -338,9 +338,14 @@ export class AutonomousBrowserModule {
       let extraction: ExtractionResult;
       let screenshot: string | undefined;
 
+      console.log(`[AutonomousBrowser] useBrowserless: ${this.useBrowserless}`);
+      console.log(`[AutonomousBrowser] useE2B: ${this.useE2B}`);
+
       // Utiliser Browserless si disponible
       if (this.useBrowserless) {
+        console.log(`[AutonomousBrowser] Appel browserless.executeBrowsingSession...`);
         const browserlessResult = await browserless.executeBrowsingSession(url, extractionGoal, takeScreenshot);
+        console.log(`[AutonomousBrowser] Résultat browserless:`, { success: browserlessResult.success, error: browserlessResult.result?.error });
         
         if (browserlessResult.success) {
           method = 'browserless-chrome';

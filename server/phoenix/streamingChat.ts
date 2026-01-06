@@ -10,6 +10,7 @@ import { analyzeAndExecuteAutomatically, createEnrichedSystemPrompt } from './au
 import { generateCryptoExpertContext, getCryptoExpertSystemPrompt, detectCryptoExpertQuery } from './cryptoExpertIntegration';
 import { multiSourceIntegration } from './multiSourceIntegration';
 import { shouldUseAgentLoop, processWithAgentLoop } from './agentLoop';
+import { autonomousBrowser } from './autonomousBrowser';
 
 interface StreamingOptions {
   temperature?: number;
@@ -47,6 +48,22 @@ export async function* streamChatResponse(
   try {
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // NOUVEAU: Vérifier si c'est une demande de navigation web directe
+    const browseRequest = detectBrowseRequest(userMessage);
+    if (browseRequest.shouldBrowse) {
+      console.log('[StreamingChat] Browse request detected:', browseRequest.url || 'general browse');
+      yield '🌐 Navigation web en cours avec Browserless.io (vrai Chrome cloud)...\n\n';
+      
+      try {
+        const browseResult = await executeBrowseRequest(browseRequest, userMessage);
+        yield browseResult;
+        return;
+      } catch (error) {
+        console.error('[StreamingChat] Browse error:', error);
+        yield `⚠️ Erreur de navigation: ${error instanceof Error ? error.message : 'Erreur inconnue'}\n\n`;
+      }
+    }
     
     // NOUVEAU: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
     if (shouldUseAgentLoop(userMessage)) {
@@ -302,5 +319,177 @@ async function* streamWithGoogleAI(
   } catch (error) {
     console.error('[StreamingChat] Google AI error:', error);
     throw error;
+  }
+}
+
+
+/**
+ * Détecte si le message est une demande de navigation web
+ */
+interface BrowseRequest {
+  shouldBrowse: boolean;
+  url?: string;
+  action: 'visit' | 'extract' | 'screenshot' | 'search';
+  query?: string;
+}
+
+function detectBrowseRequest(message: string): BrowseRequest {
+  const lowerMessage = message.toLowerCase();
+  
+  // Patterns pour détecter une demande de navigation
+  const browsePatterns = [
+    /va\s+sur|vas\s+sur|aller\s+sur|visite|visiter|ouvre|ouvrir|navigue|naviguer/i,
+    /go\s+to|visit|open|navigate\s+to|browse/i,
+    /montre[\s-]moi|show\s+me|affiche/i,
+    /regarde|regarder|voir|check|vérifier|vérifie/i,
+    /page\s+web|site\s+web|website|webpage/i,
+    /sur\s+internet|on\s+the\s+web/i,
+    // NOUVEAU: Patterns pour demandes naturelles sans URL
+    /(?:ouvre|ouvrir|fais|faire|fasses)\s+(?:une|un)?\s*(?:page|site|web)/i,
+    /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu)?\s*(?:ouvres?|visites?|navigues?|ailles?)/i,
+    /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:ouvrir|visiter|naviguer|aller\s+sur)/i,
+    /(?:accède|accéder|acceder)\s+(?:à|a)\s+(?:un|une)?\s*(?:page|site|web)/i
+  ];
+  
+  // Patterns pour extraire une URL
+  const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-z0-9-]+\.(com|fr|org|net|io|ai|dev|co|app)\b/i;
+  
+  // Patterns pour détecter une demande de screenshot
+  const screenshotPatterns = [
+    /capture|screenshot|écran|screen|image\s+de/i
+  ];
+  
+  // Vérifier si c'est une demande de navigation
+  const isBrowseRequest = browsePatterns.some(p => p.test(message));
+  const urlMatch = message.match(urlPattern);
+  const isScreenshotRequest = screenshotPatterns.some(p => p.test(message));
+  
+  // Si on détecte une URL ou une demande de navigation explicite
+  if (isBrowseRequest || urlMatch) {
+    let url = urlMatch ? urlMatch[0] : undefined;
+    
+    // Normaliser l'URL
+    if (url && !url.startsWith('http')) {
+      url = 'https://' + url;
+    }
+    
+    return {
+      shouldBrowse: true,
+      url,
+      action: isScreenshotRequest ? 'screenshot' : (url ? 'visit' : 'search'),
+      query: !url ? message : undefined
+    };
+  }
+  
+  return {
+    shouldBrowse: false,
+    action: 'visit'
+  };
+}
+
+/**
+ * Exécute une demande de navigation web avec Browserless
+ */
+async function executeBrowseRequest(request: BrowseRequest, originalMessage: string): Promise<string> {
+  console.log('[StreamingChat] Executing browse request:', request);
+  
+  // Si pas d'URL spécifique, proposer des sites populaires ou demander une URL
+  if (!request.url) {
+    // Détecter le type de site demandé
+    const lowerMessage = originalMessage.toLowerCase();
+    
+    // Détecter les catégories de sites
+    if (/news|actualit|info|journal/i.test(lowerMessage)) {
+      request.url = 'https://www.bbc.com';
+      console.log('[StreamingChat] Auto-selecting news site: bbc.com');
+    } else if (/météo|weather|temps/i.test(lowerMessage)) {
+      request.url = 'https://www.meteofrance.com';
+      console.log('[StreamingChat] Auto-selecting weather site: meteofrance.com');
+    } else if (/sport/i.test(lowerMessage)) {
+      request.url = 'https://www.lequipe.fr';
+      console.log('[StreamingChat] Auto-selecting sports site: lequipe.fr');
+    } else if (/tech|technologie|informatique/i.test(lowerMessage)) {
+      request.url = 'https://www.theverge.com';
+      console.log('[StreamingChat] Auto-selecting tech site: theverge.com');
+    } else if (/recherche|search|google/i.test(lowerMessage)) {
+      request.url = 'https://www.google.com';
+      console.log('[StreamingChat] Auto-selecting search site: google.com');
+    } else {
+      // Proposer des options
+      return `## 🌐 Navigation Web
+
+Je peux naviguer sur n'importe quel site web pour vous! Voici quelques suggestions:
+
+**Actualités:**
+- "Va sur bbc.com" - BBC News
+- "Ouvre lemonde.fr" - Le Monde
+
+**Technologie:**
+- "Visite theverge.com" - The Verge
+- "Ouvre github.com" - GitHub
+
+**Recherche:**
+- "Va sur google.com" - Google
+- "Ouvre wikipedia.org" - Wikipedia
+
+**Ou donnez-moi une URL spécifique:**
+- "Va sur https://example.com"
+- "Ouvre le site monsite.fr"
+
+Quel site voulez-vous que j'ouvre?`;
+    }
+  }
+  
+  try {
+    // Utiliser autonomousBrowser.executeBrowsingSession pour naviguer
+    const result = await autonomousBrowser.executeBrowsingSession(
+      request.url,
+      `Extraire le contenu principal de la page pour répondre à: ${originalMessage}`,
+      'default',
+      request.action === 'screenshot'
+    );
+    
+    if (!result.success) {
+      return `❌ Erreur lors de la navigation vers ${request.url}: ${result.error || 'Erreur inconnue'}`;
+    }
+    
+    // Formater la réponse
+    let response = `## 🌐 Navigation vers ${request.url}\n\n`;
+    response += `**Méthode utilisée:** ${result.method === 'browserless-chrome' ? 'Browserless.io (Chrome cloud réel)' : result.method}\n\n`;
+    
+    if (result.extraction?.title) {
+      response += `**Titre:** ${result.extraction.title}\n\n`;
+    }
+    
+    if (result.content) {
+      // Limiter le contenu à 3000 caractères
+      const content = result.content.length > 3000 
+        ? result.content.substring(0, 3000) + '...\n\n*[Contenu tronqué]*'
+        : result.content;
+      response += `### Contenu extrait:\n\n${content}\n\n`;
+    }
+    
+    if (result.extraction?.links && result.extraction.links.length > 0) {
+      response += `### Liens trouvés (${result.extraction.links.length}):\n`;
+      result.extraction.links.slice(0, 5).forEach((link: { text: string; href: string }) => {
+        response += `- [${link.text || link.href}](${link.href})\n`;
+      });
+      if (result.extraction.links.length > 5) {
+        response += `- ... et ${result.extraction.links.length - 5} autres liens\n`;
+      }
+      response += '\n';
+    }
+    
+    if (result.screenshot) {
+      response += `### Screenshot:\n![Screenshot](${result.screenshot})\n\n`;
+    }
+    
+    response += `---\n*Navigation effectuée avec ${result.method === 'browserless-chrome' ? 'Browserless.io - Vrai Chrome dans le cloud' : result.method}*`;
+    
+    return response;
+    
+  } catch (error) {
+    console.error('[StreamingChat] Browse execution error:', error);
+    return `❌ Erreur lors de la navigation: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
   }
 }
