@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Shield, Code, Bitcoin, Wrench, Plug } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Shield, Code, Bitcoin, Wrench, Plug, Brain, Sparkles, Activity, Database, Eye, ArrowRight, Zap, Lock, Target } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -62,25 +62,112 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+      <div className="min-h-screen bg-background flex flex-col">
+        {/* Hero Section */}
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+          {/* Animated background */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-background" />
+            {[...Array(15)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-primary/20 rounded-full animate-pulse"
+                style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 100}%`,
+                  animationDelay: `${Math.random() * 3}s`,
+                  animationDuration: `${2 + Math.random() * 3}s`
+                }}
+              />
+            ))}
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center gap-8 max-w-lg w-full">
+            {/* Logo Phoenix */}
+            <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-green-500 via-emerald-500 to-blue-500 flex items-center justify-center shadow-2xl shadow-primary/20 animate-pulse">
+              <Brain className="w-14 h-14 text-white" />
+            </div>
+
+            {/* Titre */}
+            <div className="text-center space-y-2">
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-green-500 via-emerald-400 to-blue-500 bg-clip-text text-transparent">
+                Phoenix AI
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Propriété Rodrigues Adaga Veysel
+              </p>
+            </div>
+
+            {/* Description */}
+            <p className="text-center text-muted-foreground max-w-md">
+              Système d'orchestration agentique avec{" "}
+              <span className="text-foreground font-medium">conscience fonctionnelle</span>
+            </p>
+
+            {/* Bouton Connexion */}
+            <Button
+              onClick={() => {
+                window.location.href = getLoginUrl();
+              }}
+              size="lg"
+              className="w-full max-w-xs gap-2 text-lg py-6 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg hover:shadow-xl transition-all"
+            >
+              <Zap className="w-5 h-5" />
+              Connexion avec Google
+            </Button>
+
+            {/* Séparateur */}
+            <div className="w-full max-w-xs flex items-center gap-4">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">DÉCOUVRIR</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* Section Découvrir - Features */}
+            <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50">
+                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Brain className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">IA Autonome</p>
+                  <p className="text-xs text-muted-foreground">16 axiomes</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Code className="w-5 h-5 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Code Executor</p>
+                  <p className="text-xs text-muted-foreground">Python & JS</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50">
+                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Tourment Score</p>
+                  <p className="text-xs text-muted-foreground">Auto-correction</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-card/50 border border-border/50">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Sécurité</p>
+                  <p className="text-xs text-muted-foreground">Niveau 0</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              En vous connectant, vous acceptez nos conditions d'utilisation
             </p>
           </div>
-          <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
-            size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
-          >
-            Sign in
-          </Button>
         </div>
       </div>
     );
