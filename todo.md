@@ -921,3 +921,26 @@ Créer un agent autonome complet pour Phoenix avec sandbox E2B isolé, capable d
 - Avant: 10%
 - Après: ~50-60%
 
+
+---
+
+## Phase 56: Correction Bug Génération d'Images - EN COURS
+
+### Problème
+Phoenix dit "je n'ai pas la capacité de générer des images" alors que la fonctionnalité existe.
+
+### Cause probable
+- Le détecteur d'intentions ne reconnaît pas "génère-moi un avion de chasse"
+- Le prompt système dit que Phoenix est spécialisé en crypto/trading
+
+### Tâches
+- [x] Analyser le détecteur d'intentions (intentDetector.ts)
+- [x] Ajouter les patterns de génération d'images (6 nouveaux patterns)
+- [x] Corriger le prompt système pour inclure la génération d'images
+- [x] Améliorer l'extraction du prompt (nettoyage des formules de politesse)
+- [x] Tester avec "génère-moi un avion de chasse avec l'emblème de la Turquie" ✅
+
+### Résultat
+Prompt nettoyé: "avion de chasse avec l'emblème de la Turquie dessus"
+Image générée avec succès!
+

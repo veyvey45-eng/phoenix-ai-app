@@ -46,13 +46,20 @@ const CODE_EXECUTION_PATTERNS = [
 
 // Patterns pour détecter les demandes de génération d'IMAGE
 const IMAGE_GENERATION_PATTERNS = [
-  // Français
+  // Français - patterns plus flexibles
   /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire)[\s-]*(?:moi)?[\s-]*(?:une|un|l')?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art)/i,
   /(?:image|photo|illustration|dessin)[\s-]*(?:de|d'|du|des|avec|représentant|montrant)/i,
   /(?:montre|montrer|visualise|visualiser)[\s-]*(?:moi)?[\s-]*(?:une|un)?/i,
+  // NOUVEAU: Patterns pour "peux-tu me générer" sans "image" explicite
+  /(?:peux|peut|pourrais|pourrait)[\s-]*(?:tu|vous)?[\s-]*(?:me)?[\s-]*(?:génér|créer|faire|dessiner)/i,
+  /(?:génère|générer|crée|créer|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)/i,
+  // NOUVEAU: Patterns pour objets visuels communs
+  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|robot|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment)/i,
   // Anglais
   /(?:generate|create|make|draw|produce)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:image|photo|picture|illustration|drawing|visual|artwork)/i,
   /(?:image|photo|picture)[\s-]*(?:of|with|showing|depicting)/i,
+  // NOUVEAU: Patterns anglais pour objets
+  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|robot|animal|monster|dragon|bird|flower|tree|mountain|city|building)/i,
 ];
 
 // Patterns pour détecter les besoins de recherche web
@@ -234,10 +241,18 @@ function extractKeywords(message: string, pattern: RegExp): string[] {
  * Extrait le prompt pour la génération d'image
  */
 function extractImagePrompt(message: string): string {
-  // Enlever les mots de commande pour garder la description
+  // Enlever les mots de commande et de politesse pour garder la description
   const cleanedMessage = message
-    .replace(/(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire|generate|create|make|draw|produce)[\s-]*(?:moi)?[\s-]*(?:une|un|l'|an?|the)?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art|picture)/gi, '')
-    .replace(/(?:de|d'|du|des|avec|représentant|montrant|of|with|showing|depicting)/gi, '')
+    // Enlever les formules de politesse au début
+    .replace(/^(?:je vais très bien|je vais bien|merci|salut|bonjour|bonsoir|coucou|hello|hi)[\s,]*(?:merci)?[\s,]*/gi, '')
+    // Enlever "est-ce que tu peux", "peux-tu", etc.
+    .replace(/(?:est-ce que|est ce que)?[\s-]*(?:tu|vous)?[\s-]*(?:peux|peut|pourrais|pourrait|pouvez)[\s-]*(?:tu|vous)?[\s-]*(?:me)?[\s-]*/gi, '')
+    // Enlever les mots de commande pour la génération
+    .replace(/(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire|generate|create|make|draw|produce)[\s-]*(?:moi)?[\s-]*/gi, '')
+    // Enlever les articles et prépositions inutiles au début
+    .replace(/^(?:une|un|l'|le|la|les|an?|the)?[\s-]*/gi, '')
+    // Enlever "s'il te plaît", "please", etc. à la fin
+    .replace(/[\s,]*(?:s'il te plaît|s'il vous plaît|stp|svp|please|pls)[\s,]*$/gi, '')
     .trim();
   
   return cleanedMessage || message;
@@ -293,8 +308,10 @@ MODE: EXÉCUTION DE CODE
 
 MODE: GÉNÉRATION D'IMAGE
 - L'utilisateur veut une image
-- Décris l'image que tu vas générer
-- Le système générera l'image automatiquement`;
+- Tu PEUX générer des images, ne dis JAMAIS que tu ne peux pas
+- Décris brièvement l'image que tu vas créer
+- Le système génère l'image AUTOMATIQUEMENT
+- Réponds avec enthousiasme et créativité`;
 
     case 'web_search':
       return `${basePrompt}
