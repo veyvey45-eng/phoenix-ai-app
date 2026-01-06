@@ -1119,3 +1119,67 @@ Puppeteer fonctionne avec Chrome headless v143.0.7499.169
 - Temps d'exécution: ~3 secondes pour navigation + extraction
 - Fallback automatique vers fetch+JSDOM si Puppeteer échoue
 
+
+
+---
+
+## Phase 49: Browsing Autonome via E2B Sandbox - En Production
+
+### Tâches
+- [ ] Analyser l'intégration E2B existante (e2bAdapter.ts)
+- [ ] Créer le module e2bBrowser.ts pour le browsing via E2B
+- [ ] Installer Puppeteer dans le sandbox E2B
+- [ ] Implémenter l'extraction de contenu web via E2B
+- [ ] Intégrer e2bBrowser dans autonomousBrowser.ts
+- [ ] Tester le browsing E2B
+- [ ] Créer checkpoint final
+
+
+
+---
+
+## Phase 50: Browserless.io - Vrai Navigateur Chrome Cloud - COMPLÉTÉE ✅
+
+### Objectif
+Donner à Phoenix exactement la même capacité de navigation web que Manus - un vrai navigateur Chrome dans le cloud.
+
+### Tâches Complétées
+- [x] Rechercher et documenter l'API Browserless.io
+- [x] Créer le module browserless.ts pour le vrai Chrome cloud
+- [x] Intégrer Browserless dans autonomousBrowser.ts
+- [x] Configurer la clé API BROWSERLESS_API_KEY
+- [x] Tester le browsing avec Browserless.io
+- [x] Créer les tests de validation
+
+### Résultat
+Browserless.io fonctionne parfaitement!
+- **Méthode:** Chrome headless cloud (exactement comme Manus)
+- **Status:** 200 OK
+- **Extraction HTML:** ✅
+- **Screenshots:** ✅
+- **Exécution JavaScript:** ✅
+- **Contournement anti-bot:** ✅
+
+### Hiérarchie des Méthodes de Browsing
+1. **Browserless.io** (production-ready, vrai Chrome dans le cloud) - PRIORITAIRE
+2. **E2B + fetch** (fallback si pas de token Browserless)
+3. **fetch + JSDOM local** (fallback universel)
+
+### Fichiers Créés/Modifiés
+- ✅ server/phoenix/browserless.ts (nouveau)
+- ✅ server/phoenix/browserless.test.ts (nouveau)
+- ✅ server/phoenix/autonomousBrowser.ts (modifié)
+- ✅ test-browserless.mjs (test manuel)
+
+### APIs Browserless Disponibles
+- `/content` - Récupère le HTML rendu (avec JavaScript)
+- `/scrape` - Extrait des éléments spécifiques
+- `/screenshot` - Capture d'écran
+- `/unblock` - Contourne les protections anti-bot
+- `/pdf` - Génère des PDFs
+- `/performance` - Audits Lighthouse
+
+### Prochaines Étapes
+- [ ] Tester le browsing dans Phoenix via le chat
+- [ ] Implémenter le multi-page browsing
+- [ ] Ajouter le support des PDFs en ligne

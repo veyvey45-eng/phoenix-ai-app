@@ -1,12 +1,14 @@
 /**
- * AUTONOMOUS BROWSER MODULE - Browsing Autonome avec Puppeteer RÉEL
+ * AUTONOMOUS BROWSER MODULE - Browsing Autonome Unifié
  * 
- * Navigation web réelle avec Chrome headless
- * Fallback vers fetch + JSDOM si Puppeteer échoue
- * Intégration complète avec le chat streaming
+ * Hiérarchie des méthodes:
+ * 1. Browserless.io (production-ready, vrai Chrome dans le cloud)
+ * 2. E2B + fetch (fallback si pas de token Browserless)
+ * 3. fetch + JSDOM local (fallback universel)
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer';
+import { browserless, BrowserlessResult } from './browserless';
+import { e2bBrowser } from './e2bBrowser';
 import { JSDOM } from 'jsdom';
 
 export interface BrowserAction {
@@ -27,7 +29,7 @@ export interface BrowserSession {
   actions: BrowserAction[];
   startTime: number;
   endTime?: number;
-  method: 'puppeteer' | 'fetch';
+  method: 'browserless-chrome' | 'e2b-playwright' | 'e2b-fetch' | 'fetch-jsdom';
 }
 
 export interface ExtractionResult {
@@ -41,72 +43,20 @@ export interface ExtractionResult {
 }
 
 export class AutonomousBrowserModule {
-  private browser: Browser | null = null;
   private sessions: Map<string, BrowserSession> = new Map();
   private complexityThreshold = 0.5;
-  private isInitialized = false;
-  private initializationPromise: Promise<void> | null = null;
+  private useBrowserless: boolean;
+  private useE2B: boolean;
 
-  /**
-   * Initialise le navigateur Puppeteer
-   */
-  async initialize(): Promise<void> {
-    if (this.isInitialized && this.browser) {
-      return;
-    }
-
-    // Éviter les initialisations multiples simultanées
-    if (this.initializationPromise) {
-      return this.initializationPromise;
-    }
-
-    this.initializationPromise = this._doInitialize();
-    return this.initializationPromise;
-  }
-
-  private async _doInitialize(): Promise<void> {
-    try {
-      console.log('[AutonomousBrowser] Initialisation de Puppeteer...');
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--single-process',
-          '--no-zygote',
-          '--window-size=1920,1080',
-        ],
-        timeout: 30000,
-      });
-      this.isInitialized = true;
-      console.log('[AutonomousBrowser] Puppeteer initialisé avec succès!');
-    } catch (error) {
-      console.error('[AutonomousBrowser] Erreur d\'initialisation Puppeteer:', error);
-      this.isInitialized = false;
-      this.browser = null;
-      throw error;
-    } finally {
-      this.initializationPromise = null;
-    }
-  }
-
-  /**
-   * Ferme le navigateur proprement
-   */
-  async close(): Promise<void> {
-    if (this.browser) {
-      try {
-        await this.browser.close();
-      } catch (e) {
-        console.error('[AutonomousBrowser] Erreur lors de la fermeture:', e);
-      }
-      this.browser = null;
-      this.isInitialized = false;
-      console.log('[AutonomousBrowser] Navigateur fermé');
-    }
+  constructor() {
+    // Vérifier les configurations disponibles
+    this.useBrowserless = browserless.isConfigured();
+    this.useE2B = !!process.env.E2B_API_KEY;
+    
+    console.log(`[AutonomousBrowser] Configuration:`);
+    console.log(`  - Browserless.io: ${this.useBrowserless ? '✅ Activé' : '❌ Non configuré'}`);
+    console.log(`  - E2B Sandbox: ${this.useE2B ? '✅ Disponible' : '❌ Non configuré'}`);
+    console.log(`  - Fallback JSDOM: ✅ Toujours disponible`);
   }
 
   /**
@@ -164,103 +114,71 @@ export class AutonomousBrowserModule {
   }
 
   /**
-   * Navigue vers une URL et extrait le contenu avec Puppeteer
+   * Navigue vers une URL et extrait le contenu
+   * Utilise Browserless en priorité, puis E2B, puis JSDOM local
    */
-  async navigateAndExtract(url: string, takeScreenshot: boolean = false): Promise<ExtractionResult> {
-    try {
-      // Essayer avec Puppeteer d'abord
-      return await this.extractWithPuppeteer(url, takeScreenshot);
-    } catch (error) {
-      console.warn('[AutonomousBrowser] Puppeteer a échoué, fallback vers fetch+JSDOM:', error);
-      // Fallback vers fetch + JSDOM
-      return await this.extractWithFetch(url);
-    }
-  }
-
-  /**
-   * Extraction avec Puppeteer (navigateur réel)
-   */
-  private async extractWithPuppeteer(url: string, takeScreenshot: boolean = false): Promise<ExtractionResult> {
-    await this.initialize();
-    
-    if (!this.browser) {
-      throw new Error('Browser not initialized');
-    }
-
-    const page = await this.browser.newPage();
-    
-    try {
-      // Configuration de la page
-      await page.setViewport({ width: 1920, height: 1080 });
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-      console.log(`[AutonomousBrowser] Navigation Puppeteer vers: ${url}`);
-      
-      // Navigation avec timeout
-      await page.goto(url, { 
-        waitUntil: 'networkidle2',
-        timeout: 30000 
-      });
-
-      // Attendre que le contenu soit chargé
-      await page.waitForSelector('body', { timeout: 10000 });
-
-      // Prendre un screenshot si demandé
-      let screenshot: string | undefined;
-      if (takeScreenshot) {
-        const screenshotBuffer = await page.screenshot({ 
-          encoding: 'base64',
-          fullPage: false 
-        });
-        screenshot = `data:image/png;base64,${screenshotBuffer}`;
-      }
-
-      // Extraire les données
-      const result = await page.evaluate(() => {
-        const title = document.title || '';
-        const currentUrl = window.location.href;
+  async navigateAndExtract(
+    url: string, 
+    userId: string = 'default',
+    takeScreenshot: boolean = false
+  ): Promise<ExtractionResult> {
+    // Méthode 1: Browserless.io (vrai Chrome dans le cloud)
+    if (this.useBrowserless) {
+      try {
+        console.log('[AutonomousBrowser] Utilisation de Browserless.io');
+        const result = await browserless.getContent(url);
         
-        // Extraire le contenu textuel principal
-        const mainContent = document.body.innerText.substring(0, 10000);
-        
-        // Extraire les liens
-        const links = Array.from(document.querySelectorAll('a[href]'))
-          .slice(0, 50)
-          .map(a => ({
-            text: (a as HTMLAnchorElement).innerText.trim().substring(0, 100),
-            href: (a as HTMLAnchorElement).href
-          }))
-          .filter(l => l.text && l.href.startsWith('http'));
-
-        // Extraire les images
-        const images = Array.from(document.querySelectorAll('img[src]'))
-          .slice(0, 20)
-          .map(img => (img as HTMLImageElement).src)
-          .filter(src => src.startsWith('http'));
-
-        // Extraire les métadonnées
-        const metadata: Record<string, string> = {};
-        document.querySelectorAll('meta').forEach(meta => {
-          const name = meta.getAttribute('name') || meta.getAttribute('property');
-          const content = meta.getAttribute('content');
-          if (name && content) {
-            metadata[name] = content.substring(0, 200);
+        if (result.success) {
+          let screenshot: string | undefined;
+          if (takeScreenshot) {
+            const screenshotResult = await browserless.screenshot(url);
+            screenshot = screenshotResult.screenshot;
           }
-        });
-
-        return { title, url: currentUrl, content: mainContent, links, images, metadata };
-      });
-
-      console.log(`[AutonomousBrowser] Extraction Puppeteer réussie: ${result.title}`);
-      
-      return { ...result, screenshot };
-    } finally {
-      await page.close();
+          
+          return {
+            title: result.title || '',
+            url: result.url,
+            content: result.content || '',
+            links: result.links || [],
+            images: result.images || [],
+            metadata: result.metadata || {},
+            screenshot
+          };
+        }
+        console.warn('[AutonomousBrowser] Browserless a échoué:', result.error);
+      } catch (error) {
+        console.warn('[AutonomousBrowser] Erreur Browserless:', error);
+      }
     }
+
+    // Méthode 2: E2B Sandbox avec fetch
+    if (this.useE2B) {
+      try {
+        console.log('[AutonomousBrowser] Utilisation de E2B Sandbox');
+        const result = await e2bBrowser.browseWithFetch(`browser-${userId}`, url);
+        
+        if (result.success) {
+          return {
+            title: result.title || '',
+            url: result.url,
+            content: result.content || '',
+            links: result.links || [],
+            images: result.images || [],
+            metadata: result.metadata || {}
+          };
+        }
+      } catch (error) {
+        console.warn('[AutonomousBrowser] E2B a échoué:', error);
+      }
+    }
+
+    // Méthode 3: Fallback fetch + JSDOM (universel)
+    console.log('[AutonomousBrowser] Fallback vers fetch + JSDOM');
+    return await this.extractWithFetch(url);
   }
 
   /**
-   * Extraction avec fetch + JSDOM (fallback)
+   * Extraction avec fetch + JSDOM (fallback universel)
    */
   private async extractWithFetch(url: string): Promise<ExtractionResult> {
     console.log(`[AutonomousBrowser] Extraction via fetch + JSDOM: ${url}`);
@@ -368,35 +286,20 @@ export class AutonomousBrowserModule {
   /**
    * Prend un screenshot d'une page
    */
-  async takeScreenshot(url: string): Promise<string> {
-    await this.initialize();
-    
-    if (!this.browser) {
-      throw new Error('Browser not initialized');
+  async takeScreenshot(url: string, userId: string = 'default'): Promise<string | null> {
+    if (this.useBrowserless) {
+      const result = await browserless.screenshot(url);
+      return result.screenshot || null;
     }
-
-    const page = await this.browser.newPage();
-    
-    try {
-      await page.setViewport({ width: 1920, height: 1080 });
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-      
-      const screenshot = await page.screenshot({ 
-        encoding: 'base64',
-        fullPage: false 
-      });
-      
-      return `data:image/png;base64,${screenshot}`;
-    } finally {
-      await page.close();
-    }
+    return null; // Pas de screenshot sans Browserless
   }
 
   /**
    * Recherche du texte spécifique sur une page
    */
-  async searchOnPage(url: string, searchText: string): Promise<string[]> {
-    const extraction = await this.navigateAndExtract(url);
+  async searchOnPage(url: string, searchText: string, userId: string = 'default'): Promise<string[]> {
+    const extraction = await this.navigateAndExtract(url, userId, false);
+    
     const regex = new RegExp(searchText, 'gi');
     const paragraphs = extraction.content.split(/[.!?]\s+/);
     
@@ -412,6 +315,7 @@ export class AutonomousBrowserModule {
   async executeBrowsingSession(
     url: string,
     extractionGoal: string,
+    userId: string = 'default',
     takeScreenshot: boolean = false
   ): Promise<{
     sessionId: string;
@@ -420,33 +324,72 @@ export class AutonomousBrowserModule {
     screenshot?: string;
     success: boolean;
     error?: string;
-    method: 'puppeteer' | 'fetch';
+    method: 'browserless-chrome' | 'e2b-playwright' | 'e2b-fetch' | 'fetch-jsdom';
   }> {
     const sessionId = `session-${Date.now()}`;
     const startTime = Date.now();
-    let method: 'puppeteer' | 'fetch' = 'puppeteer';
+    let method: 'browserless-chrome' | 'e2b-playwright' | 'e2b-fetch' | 'fetch-jsdom' = 'fetch-jsdom';
 
     console.log(`[AutonomousBrowser] Démarrage session: ${sessionId}`);
     console.log(`  URL: ${url}`);
     console.log(`  Objectif: ${extractionGoal}`);
 
     try {
-      // Extraire le contenu
       let extraction: ExtractionResult;
-      try {
-        extraction = await this.extractWithPuppeteer(url, takeScreenshot);
-        method = 'puppeteer';
-      } catch (puppeteerError) {
-        console.warn('[AutonomousBrowser] Puppeteer échoué, utilisation du fallback fetch');
+      let screenshot: string | undefined;
+
+      // Utiliser Browserless si disponible
+      if (this.useBrowserless) {
+        const browserlessResult = await browserless.executeBrowsingSession(url, extractionGoal, takeScreenshot);
+        
+        if (browserlessResult.success) {
+          method = 'browserless-chrome';
+          extraction = {
+            title: browserlessResult.result.title || '',
+            url: browserlessResult.result.url,
+            content: browserlessResult.result.content || '',
+            links: browserlessResult.result.links || [],
+            images: browserlessResult.result.images || [],
+            metadata: browserlessResult.result.metadata || {},
+            screenshot: browserlessResult.result.screenshot
+          };
+          screenshot = browserlessResult.result.screenshot;
+        } else {
+          // Fallback vers fetch local
+          extraction = await this.extractWithFetch(url);
+          method = 'fetch-jsdom';
+        }
+      } else if (this.useE2B) {
+        // Utiliser E2B
+        const e2bResult = await e2bBrowser.executeBrowsingSession(userId, url, extractionGoal, takeScreenshot);
+        
+        if (e2bResult.success) {
+          method = e2bResult.result.method === 'e2b-playwright' ? 'e2b-playwright' : 'e2b-fetch';
+          extraction = {
+            title: e2bResult.result.title || '',
+            url: e2bResult.result.url,
+            content: e2bResult.result.content || '',
+            links: e2bResult.result.links || [],
+            images: e2bResult.result.images || [],
+            metadata: e2bResult.result.metadata || {},
+            screenshot: e2bResult.result.screenshot
+          };
+          screenshot = e2bResult.result.screenshot;
+        } else {
+          extraction = await this.extractWithFetch(url);
+          method = 'fetch-jsdom';
+        }
+      } else {
+        // Pas de service cloud, utiliser fetch local
         extraction = await this.extractWithFetch(url);
-        method = 'fetch';
+        method = 'fetch-jsdom';
       }
       
       // Construire le résumé du contenu
       let content = `## Résultats de l'extraction depuis ${url}\n\n`;
       content += `**Titre:** ${extraction.title}\n\n`;
       content += `**Objectif:** ${extractionGoal}\n\n`;
-      content += `**Méthode:** ${method === 'puppeteer' ? 'Puppeteer (Chrome headless)' : 'Fetch + JSDOM'}\n\n`;
+      content += `**Méthode:** ${this.getMethodDescription(method)}\n\n`;
       content += `### Contenu principal:\n${extraction.content.substring(0, 3000)}...\n\n`;
       
       if (extraction.links.length > 0) {
@@ -470,7 +413,7 @@ export class AutonomousBrowserModule {
         url,
         title: extraction.title,
         content,
-        screenshot: extraction.screenshot,
+        screenshot,
         links: extraction.links.map(l => l.href),
         actions: [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }],
         startTime,
@@ -485,7 +428,7 @@ export class AutonomousBrowserModule {
         sessionId,
         content,
         extraction,
-        screenshot: extraction.screenshot,
+        screenshot,
         success: true,
         method
       };
@@ -503,17 +446,36 @@ export class AutonomousBrowserModule {
   }
 
   /**
+   * Description lisible de la méthode utilisée
+   */
+  private getMethodDescription(method: string): string {
+    switch (method) {
+      case 'browserless-chrome':
+        return 'Browserless.io (Chrome headless cloud - comme Manus)';
+      case 'e2b-playwright':
+        return 'E2B Sandbox + Playwright (Chrome headless)';
+      case 'e2b-fetch':
+        return 'E2B Sandbox + Fetch (HTML statique)';
+      case 'fetch-jsdom':
+        return 'Fetch + JSDOM (fallback local)';
+      default:
+        return method;
+    }
+  }
+
+  /**
    * Intègre le browsing autonome dans le chat
    */
   async executeWithAutonomousBrowsing(
     query: string,
+    userId: string = 'default',
     apiResults?: unknown
   ): Promise<{
     browsed: boolean;
     content?: string;
     sessionId?: string;
     extraction?: ExtractionResult;
-    method?: 'puppeteer' | 'fetch';
+    method?: string;
   }> {
     // Analyser si le browsing est nécessaire
     const analysis = await this.analyzeNeedForBrowsing(query, apiResults);
@@ -530,7 +492,7 @@ export class AutonomousBrowserModule {
     }
 
     // Exécuter la session de browsing
-    const result = await this.executeBrowsingSession(urlMatch[0], query);
+    const result = await this.executeBrowsingSession(urlMatch[0], query, userId);
 
     return {
       browsed: result.success,
@@ -578,8 +540,9 @@ export class AutonomousBrowserModule {
    */
   getStatistics(): {
     totalSessions: number;
-    isInitialized: boolean;
-    method: string;
+    useBrowserless: boolean;
+    useE2B: boolean;
+    primaryMethod: string;
     averageDuration: number;
   } {
     const sessions = Array.from(this.sessions.values());
@@ -589,14 +552,30 @@ export class AutonomousBrowserModule {
       0
     );
 
+    let primaryMethod = 'fetch-jsdom';
+    if (this.useBrowserless) {
+      primaryMethod = 'browserless-chrome';
+    } else if (this.useE2B) {
+      primaryMethod = 'e2b-fetch';
+    }
+
     return {
       totalSessions: sessions.length,
-      isInitialized: this.isInitialized,
-      method: this.isInitialized ? 'Puppeteer (Chrome headless)' : 'fetch + JSDOM',
+      useBrowserless: this.useBrowserless,
+      useE2B: this.useE2B,
+      primaryMethod,
       averageDuration: completedSessions.length > 0 
         ? totalDuration / completedSessions.length 
         : 0
     };
+  }
+
+  /**
+   * Ferme les ressources (compatibilité)
+   */
+  async close(): Promise<void> {
+    console.log('[AutonomousBrowser] Fermeture des ressources');
+    this.sessions.clear();
   }
 }
 
