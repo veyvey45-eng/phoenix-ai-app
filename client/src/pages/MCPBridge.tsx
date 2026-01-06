@@ -27,15 +27,29 @@ import {
   Wrench,
   Download,
   ExternalLink,
-  Terminal
+  Terminal,
+  Shield,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { trpc } from '@/lib/trpc';
 import { toast } from 'sonner';
+import { useMCPSecurity, type SecurityConfirmationRequest } from '@/hooks/useMCPSecurity';
+import { MCPSecurityConfirmation } from '@/components/MCPSecurityConfirmation';
 
 export default function MCPBridge() {
   const [url, setUrl] = useState('ws://localhost:8765');
   const [secret, setSecret] = useState('');
   const [copied, setCopied] = useState(false);
+  
+  // Hook de sécurité MCP
+  const {
+    pendingConfirmations,
+    isProcessing,
+    approveAction,
+    rejectAction,
+    refreshPendingConfirmations,
+  } = useMCPSecurity();
 
   const { data: status, refetch: refetchStatus } = trpc.mcpBridge.getStatus.useQuery(undefined, {
     refetchInterval: 5000,
@@ -126,6 +140,15 @@ export default function MCPBridge() {
             <TabsTrigger value="servers" className="gap-2" disabled={!isConnected}>
               <Server className="h-4 w-4" />
               Serveurs MCP
+            </TabsTrigger>
+            <TabsTrigger value="security" className="gap-2">
+              <Shield className="h-4 w-4" />
+              Sécurité
+              {pendingConfirmations.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {pendingConfirmations.length}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="setup" className="gap-2">
               <Download className="h-4 w-4" />
@@ -272,6 +295,16 @@ export default function MCPBridge() {
 
           <TabsContent value="servers">
             <MCPServersPanel servers={serversData?.servers || []} onRefresh={refetchServers} />
+          </TabsContent>
+
+          <TabsContent value="security">
+            <SecurityPanel
+              pendingConfirmations={pendingConfirmations}
+              isProcessing={isProcessing}
+              onApprove={approveAction}
+              onReject={rejectAction}
+              onRefresh={refreshPendingConfirmations}
+            />
           </TabsContent>
 
           <TabsContent value="setup">
@@ -429,6 +462,151 @@ function MCPServerCard({ server }: { server: MCPServer }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// SECURITY PANEL
+// ============================================================================
+
+interface SecurityPanelProps {
+  pendingConfirmations: SecurityConfirmationRequest[];
+  isProcessing: boolean;
+  onApprove: (requestId: string) => Promise<{ success: boolean; result?: unknown }>;
+  onReject: (requestId: string, reason?: string) => Promise<void>;
+  onRefresh: () => void;
+}
+
+function SecurityPanel({ 
+  pendingConfirmations, 
+  isProcessing, 
+  onApprove, 
+  onReject,
+  onRefresh 
+}: SecurityPanelProps) {
+  return (
+    <div className="space-y-6">
+      {/* En-tête */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-green-500" />
+              Sécurité MCP
+            </CardTitle>
+            <CardDescription>
+              Phoenix vous demande l'autorisation avant d'exécuter des actions sensibles
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Actualiser
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Alert className="bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            <AlertTitle>Protection activée</AlertTitle>
+            <AlertDescription>
+              Toutes les actions MCP sensibles (suppression, installation, exécution de commandes) 
+              nécessitent votre approbation avant d'être exécutées.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Demandes en attente */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-orange-500" />
+            Demandes en attente
+            {pendingConfirmations.length > 0 && (
+              <Badge variant="destructive">{pendingConfirmations.length}</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Actions que Phoenix souhaite exécuter et qui nécessitent votre approbation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pendingConfirmations.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Aucune demande en attente</p>
+              <p className="text-sm mt-2">
+                Les demandes de confirmation apparaîtront ici quand Phoenix voudra exécuter une action sensible.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingConfirmations.map((request) => (
+                <MCPSecurityConfirmation
+                  key={request.id}
+                  request={request}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                  isProcessing={isProcessing}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Niveaux de risque */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Niveaux de risque</CardTitle>
+          <CardDescription>
+            Comment Phoenix classifie les actions MCP
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-green-500">✅ Faible</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Lecture de fichiers, liste de dossiers, recherche. 
+                <strong className="text-foreground"> Pas de confirmation requise.</strong>
+              </p>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-yellow-500">⚠️ Moyen</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Création/modification de fichiers, copie, renommage.
+                <strong className="text-foreground"> Confirmation simple.</strong>
+              </p>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-orange-500">🔶 Élevé</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Suppression, installation de packages, exécution de commandes.
+                <strong className="text-foreground"> Confirmation détaillée.</strong>
+              </p>
+            </div>
+            
+            <div className="p-4 rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-red-500">🚨 CRITIQUE</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Suppression récursive, commandes système, chemins protégés.
+                <strong className="text-foreground"> Avertissement spécial.</strong>
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

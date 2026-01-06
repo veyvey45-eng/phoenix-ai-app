@@ -663,3 +663,45 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - [ ] Permettre l'exécution de commandes MCP depuis Phoenix
 - [ ] Créer la documentation d'installation
 - [ ] Tester la connexion bout-en-bout
+
+
+---
+
+## Sécurité MCP - Confirmation dans le Chat (2026-01-06)
+- [ ] Créer composant de confirmation de sécurité dans le chat
+- [ ] Intégrer la logique de détection des actions sensibles
+- [ ] Ajouter boutons Autoriser/Refuser dans l'interface
+- [ ] Tester le système de confirmation
+
+
+
+---
+
+## Phase 51: Sécurité MCP - Confirmations dans le Chat - COMPLÉTÉE ✅
+
+### Objectif
+Intégrer un système de confirmation de sécurité directement dans l'interface Phoenix pour que l'utilisateur autorise les actions MCP sensibles.
+
+### Tâches Complétées
+- [x] Créer le module de sécurité MCP (server/phoenix/mcpSecurity.ts)
+- [x] Créer le composant de confirmation (MCPSecurityConfirmation.tsx)
+- [x] Créer le hook useMCPSecurity pour gérer les confirmations
+- [x] Ajouter l'onglet Sécurité dans la page MCP Bridge
+- [x] Intégrer les endpoints de sécurité dans mcpBridgeRouter.ts
+- [x] Créer les tests du module de sécurité
+
+### Niveaux de Risque Implémentés
+| Niveau | Actions | Confirmation |
+|--------|---------|--------------|
+| ✅ Faible | Lecture, liste, recherche | Aucune |
+| ⚠️ Moyen | Création, modification, copie | Simple |
+| 🔶 Élevé | Suppression, installation, exécution | Détaillée |
+| 🚨 CRITIQUE | Commandes système, chemins protégés | Avertissement spécial |
+
+### Fichiers Créés/Modifiés
+- server/phoenix/mcpSecurity.ts - Module de sécurité
+- client/src/components/MCPSecurityConfirmation.tsx - Composant UI
+- client/src/hooks/useMCPSecurity.ts - Hook React
+- client/src/pages/MCPBridge.tsx - Onglet Sécurité ajouté
+- server/routers/mcpBridgeRouter.ts - Endpoints de sécurité
+- server/mcpSecurity.test.ts - Tests unitaires
