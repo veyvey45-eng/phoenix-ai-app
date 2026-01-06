@@ -35,6 +35,7 @@ import { realExecutorRouter } from './routers/realExecutorRouter';
 import { cryptoExpertRouter } from './routers/cryptoExpertRouter';
 import { innovativeFeaturesRouter } from './routers/innovativeFeaturesRouter';
 import { mcpBridgeRouter } from './routers/mcpBridgeRouter';
+import { agentRouter } from './routers/agentRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -96,6 +97,7 @@ export const appRouter = router({
   cryptoExpert: cryptoExpertRouter,
   innovative: innovativeFeaturesRouter,
   mcpBridge: mcpBridgeRouter,
+  agent: agentRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

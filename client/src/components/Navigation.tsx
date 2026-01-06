@@ -6,7 +6,7 @@ import React from 'react';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
-import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X, Sparkles, Sun, Moon, Info } from 'lucide-react';
+import { Brain, MessageSquare, LayoutDashboard, Code2, LogOut, Menu, X, Sparkles, Sun, Moon, Info, Bot } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useState } from 'react';
 import { getLoginUrl } from '@/const';
@@ -26,6 +26,7 @@ export function Navigation() {
 
   const navItems = user ? [
     { label: 'Conversation', icon: MessageSquare, href: '/dashboard' },
+    { label: 'Agent', icon: Bot, href: '/agent' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
     { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
   ] : [

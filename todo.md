@@ -705,3 +705,20 @@ Intégrer un système de confirmation de sécurité directement dans l'interface
 - client/src/pages/MCPBridge.tsx - Onglet Sécurité ajouté
 - server/routers/mcpBridgeRouter.ts - Endpoints de sécurité
 - server/mcpSecurity.test.ts - Tests unitaires
+
+---
+
+## Phase 52: Agent Autonome (Agent Loop) - EN COURS
+
+### Objectif
+Implémenter un système d'agent autonome qui permet à Phoenix de planifier, exécuter et itérer automatiquement sur des tâches complexes en utilisant les outils MCP.
+
+### Tâches
+- [x] Créer le moteur d'agent autonome (agentEngine.ts)
+- [ ] Implémenter le planificateur de tâches (taskPlanner.ts)
+- [ ] Créer l'orchestrateur d'outils MCP (toolOrchestrator.ts)
+- [ ] Ajouter le système de mémoire de contexte
+- [x] Créer l'interface UI pour le mode Agent
+- [ ] Intégrer avec le MCP Bridge existant
+- [x] Ajouter le système de confirmation pour actions sensibles
+- [ ] Tester le système d'agent complet
