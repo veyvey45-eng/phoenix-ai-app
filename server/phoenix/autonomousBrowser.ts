@@ -1,15 +1,14 @@
 /**
- * AUTONOMOUS BROWSER MODULE - Browsing Autonome avec Puppeteer
+ * AUTONOMOUS BROWSER MODULE - Browsing Autonome avec fetch + JSDOM
  * 
+ * Extraction de données web réelle via fetch et parsing HTML
  * Intégration complète avec le chat streaming
- * Décision automatique d'utiliser le navigateur
- * Extraction de données complexes (JavaScript, dynamique, etc.)
  */
 
-import { invokeLLM } from "../_core/llm";
+import { JSDOM } from 'jsdom';
 
 export interface BrowserAction {
-  type: 'navigate' | 'click' | 'extract' | 'fill' | 'screenshot' | 'scroll' | 'wait';
+  type: 'navigate' | 'click' | 'extract' | 'fill' | 'screenshot' | 'scroll' | 'wait' | 'getText' | 'getLinks';
   target?: string;
   value?: string;
   selector?: string;
@@ -21,18 +20,35 @@ export interface BrowserSession {
   url: string;
   title?: string;
   content?: string;
+  links?: string[];
   actions: BrowserAction[];
   startTime: number;
   endTime?: number;
+  method: 'fetch';
+}
+
+export interface ExtractionResult {
+  title: string;
+  url: string;
+  content: string;
+  links: { text: string; href: string }[];
+  images: string[];
+  metadata: Record<string, string>;
 }
 
 export class AutonomousBrowserModule {
   private sessions: Map<string, BrowserSession> = new Map();
-  private complexityThreshold = 0.6;
+  private complexityThreshold = 0.5;
+
+  /**
+   * Ferme le module proprement (no-op pour le mode fetch)
+   */
+  async close(): Promise<void> {
+    console.log('[AutonomousBrowser] Cleanup completed');
+  }
 
   /**
    * Analyse si le browsing autonome est nécessaire
-   * Retourne un score de 0 à 1 (1 = absolument nécessaire)
    */
   async analyzeNeedForBrowsing(
     query: string,
@@ -42,13 +58,15 @@ export class AutonomousBrowserModule {
     score: number;
     reason: string;
   }> {
-    // Patterns qui indiquent le besoin de browsing
     const complexPatterns = [
       { pattern: /javascript|dynamique|interactif|formulaire|pagination|infinite scroll/i, weight: 0.9 },
-      { pattern: /screenshot|visual|layout|design|css|style/i, weight: 0.8 },
+      { pattern: /screenshot|capture|visual|layout|design|css|style/i, weight: 0.85 },
       { pattern: /real-time|live|streaming|websocket/i, weight: 0.85 },
       { pattern: /login|authentification|session|cookie/i, weight: 0.7 },
-      { pattern: /table|données complexes|extraction|scraping/i, weight: 0.75 }
+      { pattern: /table|données complexes|extraction|scraping/i, weight: 0.75 },
+      { pattern: /navigue|va sur|ouvre|visite|accède/i, weight: 0.9 },
+      { pattern: /extrais|récupère|trouve sur|cherche sur/i, weight: 0.8 },
+      { pattern: /site web|page web|url|lien/i, weight: 0.7 },
     ];
 
     let score = 0;
@@ -63,14 +81,14 @@ export class AutonomousBrowserModule {
 
     // Si les résultats API sont insuffisants
     if (!apiResults || (Array.isArray(apiResults) && apiResults.length === 0)) {
-      score = Math.max(score, 0.8);
-      matchedReason = 'Résultats API insuffisants';
+      score = Math.max(score, 0.6);
+      matchedReason = matchedReason || 'Résultats API insuffisants';
     }
 
     // Si la requête contient une URL
     const urlMatch = query.match(/https?:\/\/[^\s]+/);
     if (urlMatch) {
-      score = Math.max(score, 0.7);
+      score = Math.max(score, 0.85);
       matchedReason = 'URL détectée dans la requête';
     }
 
@@ -84,57 +102,128 @@ export class AutonomousBrowserModule {
   }
 
   /**
-   * Génère automatiquement un plan d'actions de browsing
+   * Navigue vers une URL et extrait le contenu via fetch + JSDOM
    */
-  async generateBrowsingPlan(
-    url: string,
-    extractionGoal: string
-  ): Promise<BrowserAction[]> {
-    const prompt = `Tu es un expert en web scraping et automation.
-
-URL: ${url}
-OBJECTIF: ${extractionGoal}
-
-Génère une liste d'actions pour atteindre cet objectif.
-Format: JSON array avec chaque action ayant {type, selector?, value?, timeout?}
-
-Types possibles: navigate, click, extract, fill, screenshot, scroll, wait
-
-Réponds UNIQUEMENT avec le JSON, sans explications.`;
-
+  async navigateAndExtract(url: string): Promise<ExtractionResult> {
+    console.log(`[AutonomousBrowser] Extraction via fetch + JSDOM: ${url}`);
+    
     try {
-      const response = await invokeLLM({
-        messages: [
-          {
-            role: 'system',
-            content: 'Tu es un expert en automation web. Génère des plans d\'action précis et efficaces.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ]
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+        },
+        signal: AbortSignal.timeout(15000),
       });
 
-      const messageContent = response.choices[0]?.message?.content;
-      if (typeof messageContent === 'string') {
-        try {
-          const actions = JSON.parse(messageContent);
-          return Array.isArray(actions) ? actions : [];
-        } catch {
-          return [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }];
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      return [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }];
+
+      const html = await response.text();
+      const dom = new JSDOM(html, { url });
+      const document = dom.window.document;
+
+      // Extraire le titre
+      const title = document.title || '';
+
+      // Supprimer les scripts et styles
+      document.querySelectorAll('script, style, noscript').forEach(el => el.remove());
+      
+      // Essayer de trouver le contenu principal
+      const mainContent = 
+        document.querySelector('main')?.textContent ||
+        document.querySelector('article')?.textContent ||
+        document.querySelector('[role="main"]')?.textContent ||
+        document.querySelector('.content')?.textContent ||
+        document.querySelector('#content')?.textContent ||
+        document.body?.textContent || '';
+      
+      const content = mainContent
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 10000);
+
+      // Extraire les liens
+      const links = Array.from(document.querySelectorAll('a[href]'))
+        .slice(0, 50)
+        .map(a => {
+          const anchor = a as HTMLAnchorElement;
+          let href = anchor.getAttribute('href') || '';
+          // Convertir les URLs relatives en absolues
+          if (href && !href.startsWith('http')) {
+            try {
+              href = new URL(href, url).href;
+            } catch {
+              href = '';
+            }
+          }
+          return {
+            text: anchor.textContent?.trim().substring(0, 100) || '',
+            href
+          };
+        })
+        .filter(l => l.text && l.href.startsWith('http'));
+
+      // Extraire les images
+      const images = Array.from(document.querySelectorAll('img[src]'))
+        .slice(0, 20)
+        .map(img => {
+          let src = (img as HTMLImageElement).getAttribute('src') || '';
+          if (src && !src.startsWith('http')) {
+            try {
+              src = new URL(src, url).href;
+            } catch {
+              src = '';
+            }
+          }
+          return src;
+        })
+        .filter(src => src.startsWith('http'));
+
+      // Extraire les métadonnées
+      const metadata: Record<string, string> = {};
+      document.querySelectorAll('meta').forEach(meta => {
+        const name = meta.getAttribute('name') || meta.getAttribute('property');
+        const metaContent = meta.getAttribute('content');
+        if (name && metaContent) {
+          metadata[name] = metaContent.substring(0, 200);
+        }
+      });
+
+      console.log(`[AutonomousBrowser] Extraction réussie: ${title}`);
+
+      return { 
+        title, 
+        url: response.url || url, 
+        content, 
+        links, 
+        images, 
+        metadata 
+      };
     } catch (error) {
-      console.error('[AutonomousBrowser] Erreur lors de la génération du plan:', error);
-      return [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }];
+      console.error('[AutonomousBrowser] Erreur fetch:', error);
+      throw error;
     }
   }
 
   /**
-   * Exécute une session de browsing autonome
-   * Simule l'accès au navigateur (en production, utiliser Puppeteer)
+   * Recherche du texte spécifique sur une page
+   */
+  async searchOnPage(url: string, searchText: string): Promise<string[]> {
+    const extraction = await this.navigateAndExtract(url);
+    const regex = new RegExp(searchText, 'gi');
+    const paragraphs = extraction.content.split(/[.!?]\s+/);
+    
+    return paragraphs
+      .filter(p => regex.test(p))
+      .slice(0, 10)
+      .map(p => p.trim().substring(0, 500));
+  }
+
+  /**
+   * Exécute une session de browsing complète
    */
   async executeBrowsingSession(
     url: string,
@@ -142,75 +231,82 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
   ): Promise<{
     sessionId: string;
     content: string;
-    actions: BrowserAction[];
+    extraction: ExtractionResult | null;
     success: boolean;
+    error?: string;
+    method: 'fetch';
   }> {
     const sessionId = `session-${Date.now()}`;
     const startTime = Date.now();
 
-    console.log(`[AutonomousBrowser] Démarrage de la session: ${sessionId}`);
+    console.log(`[AutonomousBrowser] Démarrage session: ${sessionId}`);
     console.log(`  URL: ${url}`);
     console.log(`  Objectif: ${extractionGoal}`);
 
     try {
-      // Générer le plan d'actions
-      const actions = await this.generateBrowsingPlan(url, extractionGoal);
+      // Extraire le contenu
+      const extraction = await this.navigateAndExtract(url);
+      
+      // Construire le résumé du contenu
+      let content = `## Résultats de l'extraction depuis ${url}\n\n`;
+      content += `**Titre:** ${extraction.title}\n\n`;
+      content += `**Objectif:** ${extractionGoal}\n\n`;
+      content += `**Méthode:** Fetch + JSDOM (extraction HTML)\n\n`;
+      content += `### Contenu principal:\n${extraction.content.substring(0, 3000)}...\n\n`;
+      
+      if (extraction.links.length > 0) {
+        content += `### Liens trouvés (${extraction.links.length}):\n`;
+        extraction.links.slice(0, 10).forEach(link => {
+          content += `- [${link.text}](${link.href})\n`;
+        });
+        content += '\n';
+      }
+      
+      if (Object.keys(extraction.metadata).length > 0) {
+        content += `### Métadonnées:\n`;
+        Object.entries(extraction.metadata).slice(0, 5).forEach(([key, value]) => {
+          content += `- **${key}:** ${value}\n`;
+        });
+      }
 
-      // Créer la session
+      // Sauvegarder la session
       const session: BrowserSession = {
         id: sessionId,
         url,
-        actions,
-        startTime
+        title: extraction.title,
+        content,
+        links: extraction.links.map(l => l.href),
+        actions: [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }],
+        startTime,
+        endTime: Date.now(),
+        method: 'fetch'
       };
-
-      // Simuler l'exécution des actions
-      let content = `Résultats de l'extraction depuis ${url}\n\n`;
-      content += `Objectif: ${extractionGoal}\n\n`;
-      content += `Actions exécutées:\n`;
-
-      for (let i = 0; i < actions.length; i++) {
-        const action = actions[i];
-        content += `${i + 1}. ${action.type}`;
-        if (action.selector) content += ` (${action.selector})`;
-        if (action.value) content += ` - ${action.value}`;
-        content += '\n';
-      }
-
-      // Ajouter les données extraites simulées
-      content += `\nDonnées extraites:\n`;
-      content += `- Titre de la page: ${url}\n`;
-      content += `- Contenu principal: [Contenu extrait via Puppeteer]\n`;
-      content += `- Métadonnées: [Extraites automatiquement]\n`;
-
-      session.content = content;
-      session.endTime = Date.now();
-
-      // Sauvegarder la session
       this.sessions.set(sessionId, session);
 
-      console.log(`[AutonomousBrowser] Session complétée: ${sessionId} (${session.endTime - startTime}ms)`);
+      console.log(`[AutonomousBrowser] Session complétée: ${sessionId} (${Date.now() - startTime}ms)`);
 
       return {
         sessionId,
         content,
-        actions,
-        success: true
+        extraction,
+        success: true,
+        method: 'fetch'
       };
     } catch (error) {
-      console.error('[AutonomousBrowser] Erreur lors de l\'exécution:', error);
+      console.error('[AutonomousBrowser] Erreur:', error);
       return {
         sessionId,
         content: `Erreur lors de l'extraction: ${String(error)}`,
-        actions: [],
-        success: false
+        extraction: null,
+        success: false,
+        error: String(error),
+        method: 'fetch'
       };
     }
   }
 
   /**
-   * Intègre le browsing autonome dans le chat streaming
-   * Appelé automatiquement si nécessaire
+   * Intègre le browsing autonome dans le chat
    */
   async executeWithAutonomousBrowsing(
     query: string,
@@ -219,6 +315,7 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
     browsed: boolean;
     content?: string;
     sessionId?: string;
+    extraction?: ExtractionResult;
   }> {
     // Analyser si le browsing est nécessaire
     const analysis = await this.analyzeNeedForBrowsing(query, apiResults);
@@ -230,6 +327,7 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
     // Extraire l'URL de la requête
     const urlMatch = query.match(/https?:\/\/[^\s]+/);
     if (!urlMatch) {
+      // Pas d'URL explicite, on ne peut pas naviguer
       return { browsed: false };
     }
 
@@ -239,12 +337,13 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
     return {
       browsed: result.success,
       content: result.content,
-      sessionId: result.sessionId
+      sessionId: result.sessionId,
+      extraction: result.extraction || undefined
     };
   }
 
   /**
-   * Récupère l'historique des sessions de browsing
+   * Récupère l'historique des sessions
    */
   getBrowsingHistory(limit: number = 10): BrowserSession[] {
     const sessions = Array.from(this.sessions.values());
@@ -256,24 +355,6 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
    */
   getSession(sessionId: string): BrowserSession | undefined {
     return this.sessions.get(sessionId);
-  }
-
-  /**
-   * Exporte les résultats d'une session
-   */
-  exportSession(sessionId: string): string {
-    const session = this.sessions.get(sessionId);
-    if (!session) throw new Error('Session not found');
-
-    return JSON.stringify({
-      id: session.id,
-      url: session.url,
-      title: session.title,
-      content: session.content,
-      actions: session.actions,
-      duration: (session.endTime || Date.now()) - session.startTime,
-      timestamp: new Date(session.startTime).toISOString()
-    }, null, 2);
   }
 
   /**
@@ -290,28 +371,30 @@ Réponds UNIQUEMENT avec le JSON, sans explications.`;
       }
     });
 
-    console.log(`[AutonomousBrowser] ${deletedCount} anciennes sessions supprimées`);
     return deletedCount;
   }
 
   /**
-   * Récupère les statistiques de browsing
+   * Récupère les statistiques
    */
   getStatistics(): {
     totalSessions: number;
+    method: string;
     averageDuration: number;
-    successRate: number;
-    lastSession?: BrowserSession;
   } {
     const sessions = Array.from(this.sessions.values());
-    const successfulSessions = sessions.filter(s => s.endTime !== undefined);
-    const totalDuration = successfulSessions.reduce((sum, s) => sum + ((s.endTime || Date.now()) - s.startTime), 0);
+    const completedSessions = sessions.filter(s => s.endTime);
+    const totalDuration = completedSessions.reduce(
+      (sum, s) => sum + ((s.endTime || 0) - s.startTime), 
+      0
+    );
 
     return {
       totalSessions: sessions.length,
-      averageDuration: sessions.length > 0 ? totalDuration / successfulSessions.length : 0,
-      successRate: sessions.length > 0 ? successfulSessions.length / sessions.length : 0,
-      lastSession: sessions[0]
+      method: 'fetch + JSDOM',
+      averageDuration: completedSessions.length > 0 
+        ? totalDuration / completedSessions.length 
+        : 0
     };
   }
 }

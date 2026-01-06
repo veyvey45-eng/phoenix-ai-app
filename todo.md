@@ -1030,3 +1030,71 @@ Phoenix a récupéré les VRAIS prix Ethereum décembre 2025 via CryptoCompare (
 - 06/12/2025: 3060.97 USD
 - 31/12/2025: 3000.79 USD
 
+
+
+---
+
+## Phase 47: Browsing Autonome avec fetch + JSDOM - COMPLÉTÉE ✅
+
+### Tâches Complétées
+- [x] Installer jsdom pour le parsing HTML
+- [x] Réécrire autonomousBrowser.ts avec fetch + JSDOM (pas Puppeteer)
+- [x] Ajouter la détection de l'intent 'web_browse' dans intentDetector.ts
+- [x] Intégrer le browsing dans streamingChat.ts
+- [x] Créer les tests pour autonomousBrowser.test.ts
+- [x] Tester manuellement l'extraction de contenu web
+
+### Résumé des Modifications
+
+#### 1. Module autonomousBrowser.ts
+- ✅ Utilise fetch + JSDOM au lieu de Puppeteer (plus fiable)
+- ✅ Extraction du titre, contenu, liens, images, métadonnées
+- ✅ Gestion des URLs relatives converties en absolues
+- ✅ Support des sessions de browsing avec historique
+- ✅ Statistiques et nettoyage automatique
+
+#### 2. Intent Detector
+- ✅ Nouveau type d'intent: 'web_browse'
+- ✅ Patterns de détection pour navigation web
+- ✅ Détection des URLs explicites
+- ✅ Détection des mots-clés de scraping
+
+#### 3. Streaming Chat Integration
+- ✅ Import du module autonomousBrowser
+- ✅ Détection automatique des demandes de navigation
+- ✅ Extraction du contenu et injection dans le contexte
+- ✅ Feedback en temps réel pendant la navigation
+
+### Tests Manuels Réussis
+```
+Testing fetch + JSDOM browsing...
+Response status: 200
+Title: Example Domain
+Content length: 126
+Links: 1
+SUCCESS! Browsing works!
+```
+
+### Fichiers Modifiés
+- ✅ server/phoenix/autonomousBrowser.ts (réécrit)
+- ✅ server/phoenix/intentDetector.ts (ajout web_browse)
+- ✅ server/phoenix/streamingChat.ts (intégration)
+- ✅ server/phoenix/autonomousBrowser.test.ts (nouveaux tests)
+
+### Dépendances Ajoutées
+- ✅ jsdom@27.4.0
+- ✅ @types/jsdom@27.0.0
+
+### Utilisation
+Pour naviguer vers un site web, Phoenix peut maintenant:
+1. Détecter automatiquement les URLs dans les messages
+2. Extraire le contenu HTML via fetch
+3. Parser le DOM avec JSDOM
+4. Injecter les données dans le contexte de la conversation
+
+### Exemples de Requêtes Supportées
+- "Va sur https://example.com et extrais le contenu"
+- "Navigue vers https://news.ycombinator.com"
+- "Récupère les données de https://api.example.com"
+- "Analyse le site https://github.com"
+

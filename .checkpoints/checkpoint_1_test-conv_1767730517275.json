@@ -1,10 +1,10 @@
 {
   "conversationId": "test-conv",
   "userId": "1",
-  "timestamp": 1767715559217,
+  "timestamp": 1767730517275,
   "sandboxState": {
     "variables": {
-      "test": "value"
+      "test": "value-1"
     },
     "files": [],
     "environment": {},
