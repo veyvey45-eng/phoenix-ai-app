@@ -382,3 +382,113 @@ Transformer Phoenix en entité autonome qui vit dans le serveur, pas juste une b
 - [x] Export des conversations en Markdown/TXT/JSON
 - [x] Aide raccourcis clavier (KeyboardShortcutsHelp)
 - [x] Composant d'export de conversations (ExportConversation)
+
+
+---
+
+## Phase 41: Fonctionnalités Indispensables (2026-01-06)
+
+### Objectif
+Rendre Phoenix vraiment indispensable au quotidien avec des fonctionnalités à haute valeur ajoutée.
+
+### Fonctionnalités à Implémenter
+
+#### 1. Système de Tâches Automatisées (Task Automation)
+- [ ] Création de workflows automatisés (Si X alors Y)
+- [ ] Planification de tâches récurrentes
+- [ ] Notifications push pour rappels
+- [ ] Intégration avec calendrier
+
+#### 2. Assistant Personnel Intelligent
+- [ ] Résumé quotidien personnalisé (actualités, météo, tâches)
+- [ ] Suivi des habitudes et suggestions
+- [ ] Mode "Morning Briefing" au démarrage
+- [ ] Détection des patterns d'utilisation
+
+#### 3. Workspace Collaboratif
+- [ ] Partage de conversations
+- [ ] Espaces de travail par projet
+- [ ] Templates de prompts personnalisés
+- [ ] Bibliothèque de snippets de code
+
+#### 4. Intégrations Avancées
+- [ ] Connexion Google Calendar/Outlook
+- [ ] Intégration GitHub (issues, PRs, commits)
+- [ ] Slack/Discord notifications
+- [ ] Import/Export vers Notion
+
+#### 5. Mode Hors-Ligne Intelligent
+- [ ] Cache des réponses fréquentes
+- [ ] Exécution locale de code simple
+- [ ] File d'attente pour synchronisation
+- [ ] Mode dégradé avec fonctionnalités essentielles
+
+#### 6. Analyse et Insights
+- [ ] Dashboard d'utilisation personnel
+- [ ] Statistiques de productivité
+- [ ] Suggestions d'amélioration basées sur l'usage
+- [ ] Export des métriques
+
+#### 7. Personnalisation Avancée
+- [ ] Personas Phoenix (Développeur, Analyste, Créatif, etc.)
+- [ ] Styles de réponse configurables
+- [ ] Raccourcis personnalisés
+- [ ] Thèmes et apparence personnalisables
+
+#### 8. Sécurité et Confidentialité
+- [ ] Chiffrement end-to-end des conversations
+- [ ] Mode incognito (pas de sauvegarde)
+- [ ] Gestion des données personnelles (RGPD)
+- [ ] Authentification 2FA
+
+
+
+---
+
+## Phase 42: Phoenix Expert Crypto (2026-01-06) - EN COURS
+
+### Objectif
+Transformer Phoenix en un véritable expert crypto avec accès complet aux données de marché et capacités d'analyse avancées.
+
+### Tâches à Implémenter
+
+#### 1. Module d'Analyse Technique Avancée
+- [x] Indicateurs RSI (Relative Strength Index)
+- [x] MACD (Moving Average Convergence Divergence)
+- [x] Bollinger Bands
+- [x] Moving Averages (SMA, EMA)
+- [x] Support et Résistance automatiques
+- [ ] Volume Profile
+- [x] Fibonacci Retracements
+
+#### 2. Accès Complet API CoinGecko
+- [x] Prix en temps réel (toutes les cryptos)
+- [x] Données historiques (1j, 7j, 30j, 90j, 1an, max)
+- [x] Market Cap et classement
+- [x] Volume 24h
+- [x] Variations de prix (1h, 24h, 7j, 30j)
+- [x] Données OHLC (Open, High, Low, Close)
+- [x] Trending coins
+- [x] Global market data
+
+#### 3. Stratégies de Trading
+- [x] DCA (Dollar Cost Averaging) Calculator
+- [x] Grid Trading Strategy
+- [x] Swing Trading Signals
+- [x] Breakout Detection
+- [x] Risk/Reward Calculator
+- [x] Position Sizing
+
+#### 4. Sentiment et Alertes
+- [x] Fear & Greed Index
+- [ ] Social Sentiment (si disponible)
+- [ ] Alertes de prix configurables
+- [ ] Détection de pumps/dumps
+- [ ] Whale Alerts (gros mouvements)
+
+#### 5. Analyse de Portefeuille
+- [ ] Suivi de portefeuille virtuel
+- [ ] Calcul de P&L
+- [ ] Diversification analysis
+- [ ] Performance vs BTC/ETH
+

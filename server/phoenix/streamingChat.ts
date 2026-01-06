@@ -7,6 +7,7 @@ import { invokeLLM } from '../_core/llm';
 import { streamWithToolHandling } from './groqToolHandler';
 import { generateAndExecuteCompleteFlow, isCodeRequest } from './smartCodeExecutor';
 import { analyzeAndExecuteAutomatically, createEnrichedSystemPrompt } from './autoExecutionEngine';
+import { generateCryptoExpertContext, getCryptoExpertSystemPrompt, detectCryptoExpertQuery } from './cryptoExpertIntegration';
 
 interface StreamingOptions {
   temperature?: number;
@@ -44,6 +45,23 @@ export async function* streamChatResponse(
   try {
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // NOUVEAU: Vérifier si c'est une demande d'analyse crypto experte
+    const cryptoDetection = detectCryptoExpertQuery(userMessage);
+    if (cryptoDetection.needsExpert) {
+      console.log('[StreamingChat] Crypto expert query detected:', cryptoDetection.analysisType);
+      const cryptoContext = await generateCryptoExpertContext(userMessage);
+      
+      if (cryptoContext.enrichedContext) {
+        // Ajouter le contexte crypto au message système
+        const cryptoSystemPrompt = getCryptoExpertSystemPrompt();
+        messages[0] = {
+          role: 'system',
+          content: messages[0].content + '\n\n' + cryptoSystemPrompt + '\n\n## DONNÉES CRYPTO EN TEMPS RÉEL\n' + cryptoContext.enrichedContext
+        };
+        console.log('[StreamingChat] Crypto context added to system prompt');
+      }
+    }
     
     // NOUVEAU: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
     if (isCodeRequest(userMessage)) {

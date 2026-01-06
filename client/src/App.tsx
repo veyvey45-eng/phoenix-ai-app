@@ -13,6 +13,7 @@ import WebPageGeneratorPage from "./pages/WebPageGenerator";
 import { PhoenixShowcase } from "./pages/PhoenixShowcase";
 import About from "./pages/About";
 import { OfflineBanner } from "./components/ConnectionStatus";
+import CryptoExpert from "./pages/CryptoExpert";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/showcase" component={PhoenixShowcase} />
       <Route path="/about" component={About} />
+      <Route path="/crypto" component={CryptoExpert} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

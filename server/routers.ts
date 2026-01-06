@@ -32,6 +32,7 @@ import { e2bHistoryRouter } from './routers/e2bHistory';
 import { engineerRouter } from './routers/engineer';
 import { autonomousAgentRouter } from './routers/autonomousAgentRouter';
 import { realExecutorRouter } from './routers/realExecutorRouter';
+import { cryptoExpertRouter } from './routers/cryptoExpertRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -90,6 +91,7 @@ export const appRouter = router({
   engineer: engineerRouter,
   autonomousAgent: autonomousAgentRouter,
   realExecutor: realExecutorRouter,
+  cryptoExpert: cryptoExpertRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
