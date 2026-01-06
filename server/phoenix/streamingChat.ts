@@ -9,6 +9,7 @@ import { generateAndExecuteCompleteFlow, isCodeRequest } from './smartCodeExecut
 import { analyzeAndExecuteAutomatically, createEnrichedSystemPrompt } from './autoExecutionEngine';
 import { generateCryptoExpertContext, getCryptoExpertSystemPrompt, detectCryptoExpertQuery } from './cryptoExpertIntegration';
 import { multiSourceIntegration } from './multiSourceIntegration';
+import { shouldUseAgentLoop, processWithAgentLoop } from './agentLoop';
 
 interface StreamingOptions {
   temperature?: number;
@@ -46,6 +47,28 @@ export async function* streamChatResponse(
   try {
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // NOUVEAU: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
+    if (shouldUseAgentLoop(userMessage)) {
+      console.log('[StreamingChat] Complex task detected, using Agent Loop');
+      yield '🧠 Tâche complexe détectée. Je décompose et exécute automatiquement...\n\n';
+      
+      try {
+        const result = await processWithAgentLoop(
+          userMessage,
+          messages[0]?.content || '',
+          (message, progress) => {
+            console.log(`[AgentLoop] Progress ${progress}%: ${message}`);
+          }
+        );
+        
+        yield result;
+        return;
+      } catch (error) {
+        console.error('[StreamingChat] Agent Loop error:', error);
+        yield `⚠️ Erreur lors de l'exécution de la tâche complexe: ${error instanceof Error ? error.message : 'Erreur inconnue'}\n\n`;
+      }
+    }
     
     // NOUVEAU: Vérifier si c'est une demande d'analyse crypto experte
     const cryptoDetection = detectCryptoExpertQuery(userMessage);
