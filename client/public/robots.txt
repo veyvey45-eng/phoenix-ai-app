@@ -1,0 +1,11 @@
+# Phoenix AI - Robots.txt
+# https://phoenix-ai.manus.space/
+
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: https://phoenix-ai.manus.space/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1

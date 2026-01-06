@@ -39,8 +39,12 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <OfflineBanner />
-          <Navigation />
-          <Router />
+          <header role="banner">
+            <Navigation />
+          </header>
+          <main role="main" aria-label="Contenu principal de Phoenix AI">
+            <Router />
+          </main>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
