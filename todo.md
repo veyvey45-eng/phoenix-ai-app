@@ -648,3 +648,18 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - [x] Implémenter le système de notifications toast
 - [ ] Ajouter les notifications pour les tâches longues
 - [ ] Tester l'intégration complète
+
+
+---
+
+## Phase 53: MCP Bridge - Connexion aux MCP Locaux
+
+- [ ] Créer le serveur MCP Bridge (Node.js) pour le PC utilisateur
+- [ ] Implémenter la découverte automatique des MCP installés
+- [ ] Implémenter le protocole WebSocket sécurisé avec authentification
+- [ ] Créer le client MCP Bridge côté Phoenix (serveur)
+- [ ] Créer l'interface UI de configuration MCP Bridge
+- [ ] Afficher le statut de connexion en temps réel
+- [ ] Permettre l'exécution de commandes MCP depuis Phoenix
+- [ ] Créer la documentation d'installation
+- [ ] Tester la connexion bout-en-bout

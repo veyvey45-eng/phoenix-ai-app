@@ -1,0 +1,21 @@
+{
+  "name": "phoenix-mcp-bridge",
+  "version": "1.0.0",
+  "description": "Bridge pour connecter Phoenix AI aux serveurs MCP locaux",
+  "main": "bridge.js",
+  "type": "module",
+  "scripts": {
+    "start": "node bridge.js",
+    "dev": "node --watch bridge.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "dotenv": "^16.3.1",
+    "uuid": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Phoenix AI",
+  "license": "MIT"
+}
