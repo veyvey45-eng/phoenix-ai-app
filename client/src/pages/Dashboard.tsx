@@ -5,7 +5,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Send, MessageSquare, Paperclip, Plus, History } from "lucide-react";
+import { Loader2, Send, MessageSquare, Paperclip, Plus, History, Volume2 } from "lucide-react";
+import { SpeakButton } from "@/components/SpeakButton";
+import { VoiceLiveMode } from "@/components/VoiceLiveMode";
 import { Streamdown } from "streamdown";
 import { ConversationsList } from "@/components/ConversationsList";
 import { FileUpload } from "@/components/FileUpload";
@@ -313,6 +315,17 @@ export default function Dashboard() {
                                 ))}
                               </div>
                             )}
+                            
+                            {/* Bouton pour écouter le message */}
+                            <div className="flex items-center gap-2 pt-2 border-t border-border/50 mt-3">
+                              <SpeakButton 
+                                text={message.content} 
+                                size="sm"
+                                variant="ghost"
+                                showLabel
+                                className="text-xs opacity-70 hover:opacity-100"
+                              />
+                            </div>
                           </div>
                         ) : (
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -391,6 +404,81 @@ export default function Dashboard() {
 
             {/* Input area */}
             <div className="border-t border-border p-4 bg-background/50">
+              {/* Mode Live Voice */}
+              <div className="mb-3 max-w-3xl mx-auto">
+                <VoiceLiveMode
+                  onSendMessage={async (message) => {
+                    // Envoyer le message vocal et récupérer la réponse
+                    const convId = await ensureConversation();
+                    if (!convId) return '';
+                    
+                    const userMessage: Message = {
+                      id: generateId(),
+                      role: 'user',
+                      content: message,
+                      timestamp: new Date()
+                    };
+                    setMessages(prev => [...prev, userMessage]);
+                    
+                    try {
+                      const response = await fetch('/api/stream/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          message,
+                          contextId,
+                          conversationId: convId
+                        })
+                      });
+                      
+                      if (!response.ok) return '';
+                      
+                      const reader = response.body?.getReader();
+                      if (!reader) return '';
+                      
+                      let fullResponse = '';
+                      const decoder = new TextDecoder();
+                      
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        for (const line of lines) {
+                          if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+                            try {
+                              const parsed = JSON.parse(data);
+                              if (parsed.type === 'token' && parsed.content) {
+                                fullResponse += parsed.content;
+                              }
+                            } catch {}
+                          }
+                        }
+                      }
+                      
+                      if (fullResponse) {
+                        const assistantMessage: Message = {
+                          id: generateId(),
+                          role: 'assistant',
+                          content: fullResponse,
+                          timestamp: new Date()
+                        };
+                        setMessages(prev => [...prev, assistantMessage]);
+                      }
+                      
+                      return fullResponse;
+                    } catch {
+                      return '';
+                    }
+                  }}
+                  isProcessing={isLoading}
+                />
+              </div>
+              
               <div className="flex gap-2 items-end max-w-3xl mx-auto">
                 <Button
                   onClick={() => setShowFileUpload(!showFileUpload)}

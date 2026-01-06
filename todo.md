@@ -963,3 +963,31 @@ Phoenix détectait "image_generation" quand l'utilisateur demandait une analyse 
 - [x] Mettre la détection crypto AVANT la détection d'images
 - [x] Tester avec le message original - Phoenix répond maintenant en mode crypto ✅
 
+
+
+---
+
+## Phase 58: Fonctionnalités Vocales - COMPLÉTÉE ✅
+
+### Objectif
+Ajouter des fonctionnalités vocales à Phoenix pour une expérience plus interactive.
+
+### Fonctionnalités
+1. **Bouton "Écouter"** sur chaque message Phoenix - Text-to-Speech
+2. **Bouton "Live"** - Conversation vocale en temps réel (Speech-to-Text + Text-to-Speech)
+
+### Tâches
+- [x] Créer le hook useTextToSpeech pour la synthèse vocale
+- [x] Créer le composant SpeakButton pour lire les messages
+- [x] Ajouter le bouton de lecture sur chaque bulle de message Phoenix
+- [x] Créer le hook useSpeechToText pour la reconnaissance vocale
+- [x] Créer le composant VoiceLiveMode pour la conversation live
+- [x] Ajouter le bouton Live dans l'interface de chat
+- [x] Tester les fonctionnalités vocales
+
+### Fichiers créés
+- client/src/hooks/useTextToSpeech.ts - Hook synthèse vocale
+- client/src/hooks/useSpeechToText.ts - Hook reconnaissance vocale
+- client/src/components/SpeakButton.tsx - Bouton Écouter
+- client/src/components/VoiceLiveMode.tsx - Mode conversation Live
+
