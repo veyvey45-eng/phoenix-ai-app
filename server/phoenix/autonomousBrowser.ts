@@ -1,10 +1,12 @@
 /**
- * AUTONOMOUS BROWSER MODULE - Browsing Autonome avec fetch + JSDOM
+ * AUTONOMOUS BROWSER MODULE - Browsing Autonome avec Puppeteer RÉEL
  * 
- * Extraction de données web réelle via fetch et parsing HTML
+ * Navigation web réelle avec Chrome headless
+ * Fallback vers fetch + JSDOM si Puppeteer échoue
  * Intégration complète avec le chat streaming
  */
 
+import puppeteer, { Browser, Page } from 'puppeteer';
 import { JSDOM } from 'jsdom';
 
 export interface BrowserAction {
@@ -20,11 +22,12 @@ export interface BrowserSession {
   url: string;
   title?: string;
   content?: string;
+  screenshot?: string;
   links?: string[];
   actions: BrowserAction[];
   startTime: number;
   endTime?: number;
-  method: 'fetch';
+  method: 'puppeteer' | 'fetch';
 }
 
 export interface ExtractionResult {
@@ -34,17 +37,76 @@ export interface ExtractionResult {
   links: { text: string; href: string }[];
   images: string[];
   metadata: Record<string, string>;
+  screenshot?: string;
 }
 
 export class AutonomousBrowserModule {
+  private browser: Browser | null = null;
   private sessions: Map<string, BrowserSession> = new Map();
   private complexityThreshold = 0.5;
+  private isInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   /**
-   * Ferme le module proprement (no-op pour le mode fetch)
+   * Initialise le navigateur Puppeteer
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized && this.browser) {
+      return;
+    }
+
+    // Éviter les initialisations multiples simultanées
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = this._doInitialize();
+    return this.initializationPromise;
+  }
+
+  private async _doInitialize(): Promise<void> {
+    try {
+      console.log('[AutonomousBrowser] Initialisation de Puppeteer...');
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--window-size=1920,1080',
+        ],
+        timeout: 30000,
+      });
+      this.isInitialized = true;
+      console.log('[AutonomousBrowser] Puppeteer initialisé avec succès!');
+    } catch (error) {
+      console.error('[AutonomousBrowser] Erreur d\'initialisation Puppeteer:', error);
+      this.isInitialized = false;
+      this.browser = null;
+      throw error;
+    } finally {
+      this.initializationPromise = null;
+    }
+  }
+
+  /**
+   * Ferme le navigateur proprement
    */
   async close(): Promise<void> {
-    console.log('[AutonomousBrowser] Cleanup completed');
+    if (this.browser) {
+      try {
+        await this.browser.close();
+      } catch (e) {
+        console.error('[AutonomousBrowser] Erreur lors de la fermeture:', e);
+      }
+      this.browser = null;
+      this.isInitialized = false;
+      console.log('[AutonomousBrowser] Navigateur fermé');
+    }
   }
 
   /**
@@ -102,9 +164,105 @@ export class AutonomousBrowserModule {
   }
 
   /**
-   * Navigue vers une URL et extrait le contenu via fetch + JSDOM
+   * Navigue vers une URL et extrait le contenu avec Puppeteer
    */
-  async navigateAndExtract(url: string): Promise<ExtractionResult> {
+  async navigateAndExtract(url: string, takeScreenshot: boolean = false): Promise<ExtractionResult> {
+    try {
+      // Essayer avec Puppeteer d'abord
+      return await this.extractWithPuppeteer(url, takeScreenshot);
+    } catch (error) {
+      console.warn('[AutonomousBrowser] Puppeteer a échoué, fallback vers fetch+JSDOM:', error);
+      // Fallback vers fetch + JSDOM
+      return await this.extractWithFetch(url);
+    }
+  }
+
+  /**
+   * Extraction avec Puppeteer (navigateur réel)
+   */
+  private async extractWithPuppeteer(url: string, takeScreenshot: boolean = false): Promise<ExtractionResult> {
+    await this.initialize();
+    
+    if (!this.browser) {
+      throw new Error('Browser not initialized');
+    }
+
+    const page = await this.browser.newPage();
+    
+    try {
+      // Configuration de la page
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+      console.log(`[AutonomousBrowser] Navigation Puppeteer vers: ${url}`);
+      
+      // Navigation avec timeout
+      await page.goto(url, { 
+        waitUntil: 'networkidle2',
+        timeout: 30000 
+      });
+
+      // Attendre que le contenu soit chargé
+      await page.waitForSelector('body', { timeout: 10000 });
+
+      // Prendre un screenshot si demandé
+      let screenshot: string | undefined;
+      if (takeScreenshot) {
+        const screenshotBuffer = await page.screenshot({ 
+          encoding: 'base64',
+          fullPage: false 
+        });
+        screenshot = `data:image/png;base64,${screenshotBuffer}`;
+      }
+
+      // Extraire les données
+      const result = await page.evaluate(() => {
+        const title = document.title || '';
+        const currentUrl = window.location.href;
+        
+        // Extraire le contenu textuel principal
+        const mainContent = document.body.innerText.substring(0, 10000);
+        
+        // Extraire les liens
+        const links = Array.from(document.querySelectorAll('a[href]'))
+          .slice(0, 50)
+          .map(a => ({
+            text: (a as HTMLAnchorElement).innerText.trim().substring(0, 100),
+            href: (a as HTMLAnchorElement).href
+          }))
+          .filter(l => l.text && l.href.startsWith('http'));
+
+        // Extraire les images
+        const images = Array.from(document.querySelectorAll('img[src]'))
+          .slice(0, 20)
+          .map(img => (img as HTMLImageElement).src)
+          .filter(src => src.startsWith('http'));
+
+        // Extraire les métadonnées
+        const metadata: Record<string, string> = {};
+        document.querySelectorAll('meta').forEach(meta => {
+          const name = meta.getAttribute('name') || meta.getAttribute('property');
+          const content = meta.getAttribute('content');
+          if (name && content) {
+            metadata[name] = content.substring(0, 200);
+          }
+        });
+
+        return { title, url: currentUrl, content: mainContent, links, images, metadata };
+      });
+
+      console.log(`[AutonomousBrowser] Extraction Puppeteer réussie: ${result.title}`);
+      
+      return { ...result, screenshot };
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Extraction avec fetch + JSDOM (fallback)
+   */
+  private async extractWithFetch(url: string): Promise<ExtractionResult> {
     console.log(`[AutonomousBrowser] Extraction via fetch + JSDOM: ${url}`);
     
     try {
@@ -151,7 +309,6 @@ export class AutonomousBrowserModule {
         .map(a => {
           const anchor = a as HTMLAnchorElement;
           let href = anchor.getAttribute('href') || '';
-          // Convertir les URLs relatives en absolues
           if (href && !href.startsWith('http')) {
             try {
               href = new URL(href, url).href;
@@ -192,7 +349,7 @@ export class AutonomousBrowserModule {
         }
       });
 
-      console.log(`[AutonomousBrowser] Extraction réussie: ${title}`);
+      console.log(`[AutonomousBrowser] Extraction fetch réussie: ${title}`);
 
       return { 
         title, 
@@ -205,6 +362,33 @@ export class AutonomousBrowserModule {
     } catch (error) {
       console.error('[AutonomousBrowser] Erreur fetch:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Prend un screenshot d'une page
+   */
+  async takeScreenshot(url: string): Promise<string> {
+    await this.initialize();
+    
+    if (!this.browser) {
+      throw new Error('Browser not initialized');
+    }
+
+    const page = await this.browser.newPage();
+    
+    try {
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      const screenshot = await page.screenshot({ 
+        encoding: 'base64',
+        fullPage: false 
+      });
+      
+      return `data:image/png;base64,${screenshot}`;
+    } finally {
+      await page.close();
     }
   }
 
@@ -227,17 +411,20 @@ export class AutonomousBrowserModule {
    */
   async executeBrowsingSession(
     url: string,
-    extractionGoal: string
+    extractionGoal: string,
+    takeScreenshot: boolean = false
   ): Promise<{
     sessionId: string;
     content: string;
     extraction: ExtractionResult | null;
+    screenshot?: string;
     success: boolean;
     error?: string;
-    method: 'fetch';
+    method: 'puppeteer' | 'fetch';
   }> {
     const sessionId = `session-${Date.now()}`;
     const startTime = Date.now();
+    let method: 'puppeteer' | 'fetch' = 'puppeteer';
 
     console.log(`[AutonomousBrowser] Démarrage session: ${sessionId}`);
     console.log(`  URL: ${url}`);
@@ -245,13 +432,21 @@ export class AutonomousBrowserModule {
 
     try {
       // Extraire le contenu
-      const extraction = await this.navigateAndExtract(url);
+      let extraction: ExtractionResult;
+      try {
+        extraction = await this.extractWithPuppeteer(url, takeScreenshot);
+        method = 'puppeteer';
+      } catch (puppeteerError) {
+        console.warn('[AutonomousBrowser] Puppeteer échoué, utilisation du fallback fetch');
+        extraction = await this.extractWithFetch(url);
+        method = 'fetch';
+      }
       
       // Construire le résumé du contenu
       let content = `## Résultats de l'extraction depuis ${url}\n\n`;
       content += `**Titre:** ${extraction.title}\n\n`;
       content += `**Objectif:** ${extractionGoal}\n\n`;
-      content += `**Méthode:** Fetch + JSDOM (extraction HTML)\n\n`;
+      content += `**Méthode:** ${method === 'puppeteer' ? 'Puppeteer (Chrome headless)' : 'Fetch + JSDOM'}\n\n`;
       content += `### Contenu principal:\n${extraction.content.substring(0, 3000)}...\n\n`;
       
       if (extraction.links.length > 0) {
@@ -275,22 +470,24 @@ export class AutonomousBrowserModule {
         url,
         title: extraction.title,
         content,
+        screenshot: extraction.screenshot,
         links: extraction.links.map(l => l.href),
         actions: [{ type: 'navigate', value: url }, { type: 'extract', value: extractionGoal }],
         startTime,
         endTime: Date.now(),
-        method: 'fetch'
+        method
       };
       this.sessions.set(sessionId, session);
 
-      console.log(`[AutonomousBrowser] Session complétée: ${sessionId} (${Date.now() - startTime}ms)`);
+      console.log(`[AutonomousBrowser] Session complétée: ${sessionId} (${Date.now() - startTime}ms) via ${method}`);
 
       return {
         sessionId,
         content,
         extraction,
+        screenshot: extraction.screenshot,
         success: true,
-        method: 'fetch'
+        method
       };
     } catch (error) {
       console.error('[AutonomousBrowser] Erreur:', error);
@@ -300,7 +497,7 @@ export class AutonomousBrowserModule {
         extraction: null,
         success: false,
         error: String(error),
-        method: 'fetch'
+        method
       };
     }
   }
@@ -316,6 +513,7 @@ export class AutonomousBrowserModule {
     content?: string;
     sessionId?: string;
     extraction?: ExtractionResult;
+    method?: 'puppeteer' | 'fetch';
   }> {
     // Analyser si le browsing est nécessaire
     const analysis = await this.analyzeNeedForBrowsing(query, apiResults);
@@ -338,7 +536,8 @@ export class AutonomousBrowserModule {
       browsed: result.success,
       content: result.content,
       sessionId: result.sessionId,
-      extraction: result.extraction || undefined
+      extraction: result.extraction || undefined,
+      method: result.method
     };
   }
 
@@ -379,6 +578,7 @@ export class AutonomousBrowserModule {
    */
   getStatistics(): {
     totalSessions: number;
+    isInitialized: boolean;
     method: string;
     averageDuration: number;
   } {
@@ -391,7 +591,8 @@ export class AutonomousBrowserModule {
 
     return {
       totalSessions: sessions.length,
-      method: 'fetch + JSDOM',
+      isInitialized: this.isInitialized,
+      method: this.isInitialized ? 'Puppeteer (Chrome headless)' : 'fetch + JSDOM',
       averageDuration: completedSessions.length > 0 
         ? totalDuration / completedSessions.length 
         : 0

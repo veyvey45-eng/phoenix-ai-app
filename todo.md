@@ -1098,3 +1098,24 @@ Pour naviguer vers un site web, Phoenix peut maintenant:
 - "Récupère les données de https://api.example.com"
 - "Analyse le site https://github.com"
 
+
+
+---
+
+## Phase 48: Puppeteer Réel - Browsing avec Chrome Headless
+
+### Tâches
+- [x] Installer Puppeteer avec les bonnes options de configuration
+- [x] Télécharger Chrome pour Puppeteer (npx puppeteer browsers install chrome)
+- [x] Tester Puppeteer manuellement avec un script simple
+- [x] Modifier autonomousBrowser.ts pour utiliser Puppeteer réel
+- [x] Implémenter le fallback vers fetch+JSDOM si Puppeteer échoue
+- [x] Tester le browsing complet avec Puppeteer
+- [x] Créer checkpoint final
+
+### Résultat
+Puppeteer fonctionne avec Chrome headless v143.0.7499.169
+- Méthode: Puppeteer (Chrome headless)
+- Temps d'exécution: ~3 secondes pour navigation + extraction
+- Fallback automatique vers fetch+JSDOM si Puppeteer échoue
+

@@ -1,5 +1,5 @@
 /**
- * Tests pour le module de navigation web autonome (fetch + JSDOM)
+ * Tests pour le module de navigation web autonome (Puppeteer + fallback JSDOM)
  */
 
 import { describe, it, expect, afterAll } from 'vitest';
@@ -56,14 +56,14 @@ describe('AutonomousBrowser Module', () => {
       expect(result.url).toContain('example.com');
       expect(result.content).toBeTruthy();
       expect(result.content.length).toBeGreaterThan(0);
-    }, 30000);
+    }, 60000);
 
     it('should extract links from a page', async () => {
       const result = await autonomousBrowser.navigateAndExtract('https://example.com');
       
       expect(result.links).toBeDefined();
       expect(Array.isArray(result.links)).toBe(true);
-    }, 30000);
+    }, 60000);
   });
 
   describe('executeBrowsingSession', () => {
@@ -77,8 +77,8 @@ describe('AutonomousBrowser Module', () => {
       expect(result.sessionId).toBeTruthy();
       expect(result.content).toBeTruthy();
       expect(result.extraction).toBeDefined();
-      expect(result.method).toBe('fetch');
-    }, 30000);
+      expect(['puppeteer', 'fetch']).toContain(result.method);
+    }, 60000);
 
     it('should handle errors gracefully', async () => {
       const result = await autonomousBrowser.executeBrowsingSession(
@@ -88,7 +88,7 @@ describe('AutonomousBrowser Module', () => {
       
       expect(result.success).toBe(false);
       expect(result.error).toBeTruthy();
-    }, 30000);
+    }, 60000);
   });
 
   describe('getStatistics', () => {
@@ -97,7 +97,7 @@ describe('AutonomousBrowser Module', () => {
       
       expect(stats).toBeDefined();
       expect(typeof stats.totalSessions).toBe('number');
-      expect(stats.method).toBe('fetch + JSDOM');
+      expect(typeof stats.isInitialized).toBe('boolean');
       expect(typeof stats.averageDuration).toBe('number');
     });
   });
