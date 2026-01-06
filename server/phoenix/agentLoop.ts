@@ -64,25 +64,30 @@ export async function decomposeTask(
   const systemPrompt = `Tu es un planificateur de tâches expert. Tu dois décomposer un objectif complexe en sous-tâches exécutables.
 
 Chaque tâche doit avoir:
-- type: "browse" (naviguer sur un site), "search" (recherche web), "code" (exécuter du code), "analyze" (analyser des données), "generate" (générer du contenu), "save" (sauvegarder)
+- type: "search" (recherche web Google), "browse" (extraire contenu d'une URL spécifique), "code" (exécuter du code), "analyze" (synthétiser des résultats), "generate" (créer du contenu)
 - description: ce que la tâche doit accomplir
-- input: l'entrée nécessaire (URL, requête de recherche, code, etc.)
+- input: l'entrée nécessaire
 
-IMPORTANT:
-- Maximum 10 tâches
-- Chaque tâche doit être CONCRÈTE et EXÉCUTABLE
-- Utilise "browse" pour extraire du contenu de sites web
-- Utilise "search" pour trouver des informations
-- Utilise "code" pour des calculs ou transformations de données
-- Utilise "analyze" pour synthétiser des résultats
-- Utilise "generate" pour créer du contenu final
+RÈGLES CRITIQUES:
+1. TOUJOURS commencer par "search" pour trouver des informations - c'est une vraie recherche Google via Serper API
+2. "search" input = mots-clés simples (ex: "news intelligence artificielle 2025", "bitcoin price today")
+3. "browse" = UNIQUEMENT si tu as une URL spécifique à visiter (ex: "https://example.com/article")
+4. NE JAMAIS utiliser "browse" pour chercher des informations - utilise "search"
+5. Maximum 5 tâches pour être efficace
 
-Réponds UNIQUEMENT avec un JSON valide, sans texte avant ou après:
+EXEMPLE CORRECT:
+- Objectif: "Trouve les news sur l'IA"
+- Tâche 1: {"type": "search", "input": "artificial intelligence news 2025"}
+- Tâche 2: {"type": "analyze", "input": "{{result_1}}"}
+
+EXEMPLE INCORRECT:
+- Tâche 1: {"type": "browse", "input": "https://bbc.com/search?q=AI"} ← FAUX! Utilise "search"
+
+Réponds UNIQUEMENT avec un JSON valide:
 {
   "tasks": [
-    {"id": "1", "type": "search", "description": "...", "input": "..."},
-    {"id": "2", "type": "browse", "description": "...", "input": "...", "dependencies": ["1"]},
-    ...
+    {"id": "1", "type": "search", "description": "...", "input": "mots clés simples"},
+    {"id": "2", "type": "analyze", "description": "...", "input": "{{result_1}}", "dependencies": ["1"]}
   ]
 }`;
 
@@ -148,7 +153,8 @@ export async function executeTask(
       }
 
       case 'search': {
-        console.log(`[AgentLoop] 🔍 Recherche: ${input}`);
+        console.log(`[AgentLoop] 🔍 Recherche SERPER API: ${input}`);
+        console.log(`[AgentLoop] ⏱️ Appel API Serper en cours...`);
         const searchResults = await serperApi.search(input);
         if (searchResults && searchResults.length > 0) {
           output = searchResults

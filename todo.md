@@ -1216,3 +1216,10 @@ L'Agent Loop se déclenche automatiquement pour:
 - "D'abord... puis... ensuite..."
 - "Collecte les données de..."
 - "Génère une synthèse..."
+
+
+### Correction du Prompt (2026-01-06)
+- [x] Corriger le prompt de décomposition pour privilégier "search" (Serper API)
+- [x] Ajouter des exemples corrects/incorrects dans le prompt
+- [x] Limiter à 5 tâches maximum pour être efficace
+- [x] Tester la correction en production (fonctionne avec vrais résultats Google)
