@@ -28,7 +28,6 @@ export function Navigation() {
     { label: 'Conversation', icon: MessageSquare, href: '/dashboard' },
     { label: 'Agent', icon: Bot, href: '/agent' },
     { label: 'Code Executor', icon: Code2, href: '/code-executor' },
-    { label: 'Web Generator', icon: Sparkles, href: '/web-generator' },
   ] : [
     { label: 'À propos', icon: Info, href: '/about' },
   ];

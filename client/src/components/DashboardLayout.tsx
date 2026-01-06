@@ -31,7 +31,6 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Wrench, label: "Outils", path: "/tools" },
   { icon: Plug, label: "MCP Bridge", path: "/mcp-bridge" },
-  { icon: Bitcoin, label: "Crypto Expert", path: "/crypto" },
   { icon: Code, label: "Code Executor", path: "/code-executor" },
   { icon: Shield, label: "Administration", path: "/admin" },
 ];

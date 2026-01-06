@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { streamChatEndpoint, fastStreamChatEndpoint } from "./streamingEndpoint";
+import { streamChatEndpoint } from "./streamingEndpoint";
 import { handleCodeExecution, handleCodeExecutionStream, executePhoenixCodeEndpoint } from "./codeExecutionEndpoint";
 import codeExecutionRouter from "../phoenix/codeExecutionEndpoint";
 import { handleStripeWebhook } from "../stripe/webhookHandler";
@@ -51,8 +51,8 @@ async function startServer() {
   // Streaming endpoints for real-time responses (support both GET and POST)
   app.get("/api/stream/chat", streamChatEndpoint);
   app.post("/api/stream/chat", streamChatEndpoint);
-  app.get("/api/stream/fast-chat", fastStreamChatEndpoint);
-  app.post("/api/stream/fast-chat", fastStreamChatEndpoint);
+  app.get("/api/stream/fast-chat", streamChatEndpoint);
+  app.post("/api/stream/fast-chat", streamChatEndpoint);
   
   // Code execution endpoints
   app.post("/api/stream/code-execution", handleCodeExecutionStream);

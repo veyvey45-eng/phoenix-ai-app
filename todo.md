@@ -765,3 +765,39 @@ Résoudre définitivement le problème d'upload et d'extraction de contenu PDF d
 | Méthode utilisée | pdf-parse-v2 | Méthode principale |
 | Compilation | ✅ SUCCÈS | Aucune erreur TypeScript |
 | Serveur | ✅ Running | Port 3000 |
+
+---
+
+## Phase 54: Phoenix Unifié - Tout dans le Chat - COMPLÉTÉE ✅
+
+### Objectif
+Transformer Phoenix en assistant unifié où tout se passe dans une seule conversation, comme Claude/Manus.
+
+### Problèmes Identifiés par l'Utilisateur
+- Trop de compartiments séparés (Code Executor, Web Generator, etc.)
+- Phoenix génère du code automatiquement au lieu de converser
+- L'utilisateur doit naviguer entre différents onglets
+
+### Comportement Souhaité
+- Conversation normale par défaut (pas de code automatique)
+- Génération de code uniquement sur demande explicite
+- Génération d'images directement dans le chat
+- Recherche web automatique intégrée au chat
+- Une seule interface de chat pour tout
+
+### Tâches
+- [x] Modifier le prompt système pour conversation naturelle
+- [x] Créer un détecteur d'intentions intelligent (conversation/code/image/recherche)
+- [x] Intégrer la génération d'images dans le flux de chat
+- [x] Intégrer la recherche web automatique dans le chat
+- [x] Simplifier l'interface (supprimer onglets redondants)
+- [x] Afficher les images générées directement dans le chat
+- [x] Afficher les résultats de recherche dans le chat
+- [x] Tester l'expérience unifiée
+
+### Fichiers Créés/Modifiés
+- server/phoenix/intentDetector.ts - Détecteur d'intentions intelligent
+- server/_core/streamingEndpoint.ts - Endpoint unifié avec génération d'images
+- client/src/pages/Dashboard.tsx - Interface simplifiée avec support images
+- client/src/components/Navigation.tsx - Navigation simplifiée
+- client/src/components/DashboardLayout.tsx - Menu simplifié
