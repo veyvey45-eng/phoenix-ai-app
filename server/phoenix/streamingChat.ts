@@ -8,6 +8,7 @@ import { streamWithToolHandling } from './groqToolHandler';
 import { generateAndExecuteCompleteFlow, isCodeRequest } from './smartCodeExecutor';
 import { analyzeAndExecuteAutomatically, createEnrichedSystemPrompt } from './autoExecutionEngine';
 import { generateCryptoExpertContext, getCryptoExpertSystemPrompt, detectCryptoExpertQuery } from './cryptoExpertIntegration';
+import { multiSourceIntegration } from './multiSourceIntegration';
 
 interface StreamingOptions {
   temperature?: number;
@@ -60,6 +61,24 @@ export async function* streamChatResponse(
           content: messages[0].content + '\n\n' + cryptoSystemPrompt + '\n\n## DONNÉES CRYPTO EN TEMPS RÉEL\n' + cryptoContext.enrichedContext
         };
         console.log('[StreamingChat] Crypto context added to system prompt');
+      }
+    }
+    
+    // NOUVEAU: Vérifier si c'est une demande météo ou recherche web
+    const queryDetection = multiSourceIntegration.detectQueryType(userMessage);
+    if (queryDetection.types.includes('weather') || queryDetection.types.includes('news') || queryDetection.types.includes('search')) {
+      console.log('[StreamingChat] Multi-source query detected:', queryDetection.types);
+      try {
+        const enrichedData = await multiSourceIntegration.generateEnrichedContext(userMessage);
+        if (enrichedData.context) {
+          messages[0] = {
+            role: 'system',
+            content: messages[0].content + '\n\n## DONNÉES EN TEMPS RÉEL (Sources: ' + enrichedData.sources.join(', ') + ')\n' + enrichedData.context
+          };
+          console.log('[StreamingChat] Multi-source context added');
+        }
+      } catch (error) {
+        console.error('[StreamingChat] Multi-source error:', error);
       }
     }
     

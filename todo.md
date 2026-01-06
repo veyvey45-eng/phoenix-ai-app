@@ -597,3 +597,34 @@ Permettre de discuter avec Phoenix sur les cryptos avec accès aux données en t
 - [ ] Mode focus (masquer sidebar)
 - [ ] Suggestions intelligentes basées sur l'historique
 
+
+
+---
+
+## Phase 50: Intégration APIs Avancées et Fonctionnalités Innovantes
+
+### 1. APIs de Données Crypto
+- [ ] News crypto en temps réel (CryptoPanic ou similaire)
+- [ ] Données on-chain (Blockchain.com API)
+- [ ] Whale Alerts (gros mouvements de crypto)
+- [ ] Données DeFi (TVL, yields)
+
+### 2. APIs Utilitaires
+- [ ] Météo (OpenWeather - déjà configuré)
+- [ ] Conversion devises (Exchange Rates API)
+- [ ] Calendrier économique (événements importants)
+- [ ] Recherche web avancée (Serper - déjà configuré)
+
+### 3. APIs d'Analyse
+- [ ] Sentiment social (Twitter/X trends)
+- [ ] Google Trends pour crypto
+- [ ] Analyse de sentiment des news
+
+### 4. Fonctionnalités Innovantes
+- [ ] Résumé automatique des conversations longues
+- [ ] Templates de stratégies de trading pré-configurés
+- [ ] Mode comparaison multi-crypto
+- [ ] Alertes personnalisées
+- [ ] Export des analyses en PDF
+- [ ] Historique des prix avec graphiques
+

@@ -22,6 +22,16 @@ import {
   calculateDCA,
   calculatePositionSize
 } from '../phoenix/cryptoExpert';
+import {
+  tradingTemplates,
+  getTradingTemplate,
+  getTemplatesByRisk,
+  formatTemplateForDisplay,
+  compareMultipleCryptos,
+  summarizeConversation,
+  generateSmartSuggestions,
+  exportAnalysis
+} from '../phoenix/innovativeFeatures';
 
 export const cryptoExpertRouter = router({
   // ============================================================================
@@ -353,5 +363,92 @@ export const cryptoExpertRouter = router({
         cryptoId,
         found: commonMappings[normalizedQuery] !== undefined
       };
+    }),
+  
+  // ============================================================================
+  // FONCTIONNALITÉS INNOVANTES
+  // ============================================================================
+  
+  /**
+   * Récupère tous les templates de stratégies
+   */
+  getTradingTemplates: publicProcedure
+    .query(() => {
+      return tradingTemplates.map(t => ({
+        ...t,
+        formatted: formatTemplateForDisplay(t)
+      }));
+    }),
+  
+  /**
+   * Récupère un template spécifique
+   */
+  getTradingTemplate: publicProcedure
+    .input(z.object({
+      templateId: z.string()
+    }))
+    .query(({ input }) => {
+      const template = getTradingTemplate(input.templateId);
+      if (!template) return null;
+      return {
+        ...template,
+        formatted: formatTemplateForDisplay(template)
+      };
+    }),
+  
+  /**
+   * Récupère les templates par niveau de risque
+   */
+  getTemplatesByRisk: publicProcedure
+    .input(z.object({
+      riskType: z.enum(['conservative', 'moderate', 'aggressive'])
+    }))
+    .query(({ input }) => {
+      return getTemplatesByRisk(input.riskType).map(t => ({
+        ...t,
+        formatted: formatTemplateForDisplay(t)
+      }));
+    }),
+  
+  /**
+   * Compare plusieurs cryptos
+   */
+  compareCryptos: publicProcedure
+    .input(z.object({
+      cryptoIds: z.array(z.string()).min(2).max(5)
+    }))
+    .mutation(async ({ input }) => {
+      return await compareMultipleCryptos(input.cryptoIds);
+    }),
+  
+  /**
+   * Génère des suggestions intelligentes
+   */
+  getSuggestions: publicProcedure
+    .input(z.object({
+      message: z.string(),
+      previousMessages: z.array(z.string()).optional()
+    }))
+    .query(({ input }) => {
+      return generateSmartSuggestions(input.message, input.previousMessages);
+    }),
+  
+  /**
+   * Exporte une analyse
+   */
+  exportAnalysis: publicProcedure
+    .input(z.object({
+      title: z.string(),
+      content: z.string(),
+      format: z.enum(['markdown', 'json']).default('markdown'),
+      includeTimestamp: z.boolean().default(true),
+      includeDisclaimer: z.boolean().default(true)
+    }))
+    .mutation(({ input }) => {
+      return exportAnalysis(input.title, input.content, {
+        format: input.format,
+        includeTimestamp: input.includeTimestamp,
+        includeDisclaimer: input.includeDisclaimer
+      });
     })
 });
