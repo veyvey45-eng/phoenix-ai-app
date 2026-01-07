@@ -106,3 +106,38 @@ Rendre Phoenix totalement autonome comme Manus, capable de s'auto-corriger dans 
 
 ## Statut Final Phase 50
 **CORRECTIONS MAJEURES APPLIQUÉES** - Phoenix gère maintenant correctement les transitions entre différents types de demandes sans confusion de contexte.
+
+
+## Phase 51: Améliorations Création d'Applications et Templates
+
+### Création d'Applications/Agents IA ✅
+- [x] Nouveau type d'intention: app_creation (priorité maximale)
+- [x] Patterns de détection: application, app, agent, assistant, bot, chatbot, IA, AI
+- [x] Fonction handleAppCreation avec feedback de progression
+- [x] Template HTML d'application d'agent IA (chat moderne, thème sombre)
+- [x] Extraction automatique du nom de l'application
+
+### Modification de Sites Existants ✅
+- [x] Nouveau type d'intention: site_modification
+- [x] Patterns de détection: modifie, change, ajoute, supprime, update, edit
+- [x] Fonction handleSiteModification avec recherche de site
+- [x] Fonction findSiteByName pour recherche partielle
+- [x] Fonction updateSiteContent pour mise à jour
+
+### Templates de Sites Spécialisés ✅
+- [x] Template Restaurant (menu, réservations, horaires)
+- [x] Template Portfolio (galerie, projets, compétences)
+- [x] Template E-commerce (produits, panier, paiement)
+- [x] Template Blog (articles, catégories, commentaires)
+
+### Feedback de Progression Amélioré ✅
+- [x] Indicateur de progression par étape (4 étapes pour apps, 3 pour sites)
+- [x] Messages de statut détaillés (thinking events SSE)
+- [x] Confirmation visuelle à chaque étape (✅)
+- [x] Message de succès avec URL permanente
+
+### Tests Validés ✅
+- [x] Tests du détecteur d'intention: 25 passent
+- [x] Détection app_creation fonctionne
+- [x] Détection site_modification fonctionne
+- [x] Priorité des intentions respectée

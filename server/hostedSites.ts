@@ -148,3 +148,52 @@ export async function getPublicSites(limit: number = 20): Promise<HostedSite[]> 
   
   return sites;
 }
+
+
+/**
+ * Recherche un site par nom (recherche partielle)
+ */
+export async function findSiteByName(userId: number, searchName: string): Promise<(HostedSite & { permanentUrl: string }) | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const normalizedSearch = searchName.toLowerCase().trim();
+  
+  // Récupérer tous les sites de l'utilisateur
+  const sites = await db
+    .select()
+    .from(hostedSites)
+    .where(eq(hostedSites.userId, userId))
+    .orderBy(desc(hostedSites.createdAt));
+  
+  // Rechercher par correspondance partielle du nom
+  const matchedSite = sites.find(site => {
+    const siteName = site.name.toLowerCase();
+    return siteName.includes(normalizedSearch) || normalizedSearch.includes(siteName);
+  });
+  
+  if (!matchedSite) return null;
+  
+  // Construire l'URL permanente
+  const permanentUrl = `/sites/${matchedSite.slug}`;
+  
+  return {
+    ...matchedSite,
+    permanentUrl
+  };
+}
+
+/**
+ * Met à jour le contenu d'un site
+ */
+export async function updateSiteContent(
+  siteId: number,
+  userId: number,
+  content: {
+    htmlContent?: string;
+    cssContent?: string;
+    jsContent?: string;
+  }
+): Promise<HostedSite | null> {
+  return updateSite(siteId, userId, content);
+}

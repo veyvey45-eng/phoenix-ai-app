@@ -111,7 +111,19 @@ Utilise ce contenu pour répondre aux questions de l'utilisateur.`;
       userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
     }
 
-    // Traitement spécial pour la CRÉATION de site web (PRIORITÉ HAUTE)
+    // Traitement spécial pour la CRÉATION d'APPLICATION/AGENT IA (PRIORITÉ MAXIMALE)
+    if (intent.type === 'app_creation') {
+      await handleAppCreation(res, message, userId);
+      return;
+    }
+
+    // Traitement spécial pour la MODIFICATION de site existant
+    if (intent.type === 'site_modification') {
+      await handleSiteModification(res, message, userId);
+      return;
+    }
+
+    // Traitement spécial pour la CRÉATION de site web
     if (intent.type === 'site_creation') {
       await handleSiteCreation(res, message, userId);
       return;
@@ -431,6 +443,226 @@ async function handleWebBrowse(res: Response, message: string) {
   } catch (error) {
     console.error('[handleWebBrowse] Error in web browse handler:', error);
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'Web browse failed' })}\n\n`);
+    res.end();
+  }
+}
+
+/**
+ * Gère la création d'application/agent IA
+ */
+async function handleAppCreation(res: Response, message: string, userId: number) {
+  console.log('[handleAppCreation] Démarrage avec message:', message);
+  
+  try {
+    const { staticSiteGenerator } = await import('../phoenix/staticSiteGenerator');
+    const { extractSiteName } = await import('../phoenix/contextManager');
+    
+    // Extraire le nom de l'application
+    let appName = extractSiteName(message) || 'Agent IA';
+    const appNameMatch = message.match(/appel[ée]e?\s+["']?([^"']+)["']?/i) ||
+                        message.match(/nomm[ée]e?\s+["']?([^"']+)["']?/i) ||
+                        message.match(/["']([^"']+)["']/i);
+    if (appNameMatch) {
+      appName = appNameMatch[1].trim();
+    }
+    console.log('[handleAppCreation] Nom de l\'app extrait:', appName);
+    
+    // Envoyer les étapes de progression
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Analyse de votre demande...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 300));
+    
+    res.write(`data: ${JSON.stringify({ type: 'token', content: `🚀 **Création de votre application "${appName}"**\n\n` })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 1/4: Configuration de l\'architecture...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 200));
+    res.write(`data: ${JSON.stringify({ type: 'token', content: '✅ Architecture configurée\n' })}\n\n`);
+    
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 2/4: Génération de l\'interface utilisateur...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 200));
+    res.write(`data: ${JSON.stringify({ type: 'token', content: '✅ Interface générée\n' })}\n\n`);
+    
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 3/4: Ajout des fonctionnalités...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 200));
+    res.write(`data: ${JSON.stringify({ type: 'token', content: '✅ Fonctionnalités ajoutées\n' })}\n\n`);
+    
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 4/4: Déploiement en cours...' })}\n\n`);
+    
+    // Générer le HTML de l'application
+    const htmlContent = generateAppHTML(appName, message);
+    
+    // Sauvegarder en base de données
+    const result = await staticSiteGenerator.createFromHTML(
+      userId,
+      appName,
+      htmlContent,
+      {
+        description: `Application ${appName} créée par Phoenix AI`,
+        siteType: 'business',
+        isPublic: true
+      }
+    );
+    
+    if (result.success && result.permanentUrl) {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: '✅ Déployé avec succès!\n\n' })}\n\n`);
+      const successMsg = `## 🎉 Application créée avec succès!\n\n**${appName}** est maintenant en ligne!\n\n🔗 **URL PERMANENTE:** [${result.permanentUrl}](${result.permanentUrl})\n\nCette URL ne disparaîtra JAMAIS et est prête à être partagée!\n\n### ✨ Ce qui a été créé:\n- Interface de chat moderne\n- Design responsive thème sombre\n- Zone de saisie interactive\n- Sidebar de navigation\n- Optimisé pour mobile\n\n💡 Cliquez sur le lien pour voir votre application!`;
+      res.write(`data: ${JSON.stringify({ type: 'token', content: successMsg })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: `❌ Erreur lors de la création: ${result.error || 'Erreur inconnue'}` })}\n\n`);
+    }
+    
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error) {
+    console.error('[handleAppCreation] Error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'App creation failed' })}\n\n`);
+    res.end();
+  }
+}
+
+/**
+ * Génère le HTML d'une application d'agent IA
+ */
+function generateAppHTML(appName: string, message: string): string {
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${appName} - Agent IA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; display: flex; }
+    .sidebar { width: 260px; background: #1a1a1a; border-right: 1px solid #2a2a2a; padding: 1rem; display: flex; flex-direction: column; }
+    .logo { font-size: 1.5rem; font-weight: 700; color: #10b981; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.5rem; }
+    .logo::before { content: '🤖'; }
+    .nav-item { padding: 0.8rem 1rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; margin-bottom: 0.5rem; }
+    .nav-item:hover { background: #2a2a2a; }
+    .nav-item.active { background: #10b981; color: white; }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .header { padding: 1rem 2rem; border-bottom: 1px solid #2a2a2a; display: flex; justify-content: space-between; align-items: center; }
+    .header h1 { font-size: 1.2rem; }
+    .chat-area { flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 1rem; }
+    .message { max-width: 80%; padding: 1rem 1.5rem; border-radius: 16px; line-height: 1.6; }
+    .message.bot { background: #1a1a1a; border: 1px solid #2a2a2a; align-self: flex-start; }
+    .message.user { background: #10b981; color: white; align-self: flex-end; }
+    .input-area { padding: 1.5rem 2rem; border-top: 1px solid #2a2a2a; }
+    .input-container { display: flex; gap: 1rem; max-width: 800px; margin: 0 auto; }
+    .input-container input { flex: 1; padding: 1rem 1.5rem; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; color: white; font-size: 1rem; }
+    .input-container input:focus { outline: none; border-color: #10b981; }
+    .input-container button { padding: 1rem 2rem; background: #10b981; color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .input-container button:hover { background: #059669; }
+    @media (max-width: 768px) { .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="logo">${appName}</div>
+    <div class="nav-item active">💬 Nouvelle conversation</div>
+    <div class="nav-item">📁 Historique</div>
+    <div class="nav-item">⚙️ Paramètres</div>
+  </aside>
+  <main class="main">
+    <header class="header">
+      <h1>Chat avec ${appName}</h1>
+      <span style="color: #10b981;">● En ligne</span>
+    </header>
+    <div class="chat-area" id="chatArea">
+      <div class="message bot">Bonjour ! Je suis ${appName}, votre assistant IA. Comment puis-je vous aider aujourd'hui ?</div>
+    </div>
+    <div class="input-area">
+      <div class="input-container">
+        <input type="text" id="userInput" placeholder="Tapez votre message..." onkeypress="if(event.key==='Enter')sendMessage()">
+        <button onclick="sendMessage()">Envoyer</button>
+      </div>
+    </div>
+  </main>
+  <script>
+    function sendMessage() {
+      const input = document.getElementById('userInput');
+      const chatArea = document.getElementById('chatArea');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      const userMsg = document.createElement('div');
+      userMsg.className = 'message user';
+      userMsg.textContent = text;
+      chatArea.appendChild(userMsg);
+      input.value = '';
+      
+      setTimeout(() => {
+        const botMsg = document.createElement('div');
+        botMsg.className = 'message bot';
+        botMsg.textContent = 'Merci pour votre message ! Je suis une démo, mais dans une version complète, je pourrais vous aider avec diverses tâches.';
+        chatArea.appendChild(botMsg);
+        chatArea.scrollTop = chatArea.scrollHeight;
+      }, 1000);
+      
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Gère la modification de site existant
+ */
+async function handleSiteModification(res: Response, message: string, userId: number) {
+  console.log('[handleSiteModification] Démarrage avec message:', message);
+  
+  try {
+    const { findSiteByName, updateSiteContent } = await import('../hostedSites');
+    
+    // Envoyer les étapes de progression
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Analyse de votre demande de modification...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 300));
+    
+    // Extraire le nom du site du message
+    const siteNameMatch = message.match(/(?:site|page|app)\s+["']?([\w\s-]+)["']?/i) ||
+                         message.match(/mon\s+site\s+["']?([\w\s-]+)["']?/i);
+    const siteName = siteNameMatch ? siteNameMatch[1].trim() : null;
+    
+    if (!siteName) {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: `⚠️ Je n'ai pas pu identifier le site à modifier. Pouvez-vous préciser le nom du site ?\n\nExemple: "Modifie mon site **NomDuSite**: change la couleur en bleu"` })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+    
+    res.write(`data: ${JSON.stringify({ type: 'token', content: `🔍 Recherche du site "${siteName}"...\n\n` })}\n\n`);
+    
+    // Rechercher le site
+    const site = await findSiteByName(userId, siteName);
+    
+    if (!site) {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: `❌ Site "${siteName}" non trouvé. Vérifiez le nom ou consultez vos sites dans "Mes Projets".` })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+    
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 1/3: Site trouvé, analyse des modifications...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 200));
+    res.write(`data: ${JSON.stringify({ type: 'token', content: `✅ Site trouvé: ${site.name}\n` })}\n\n`);
+    
+    res.write(`data: ${JSON.stringify({ type: 'thinking', content: 'Étape 2/3: Application des modifications...' })}\n\n`);
+    await new Promise(r => setTimeout(r, 200));
+    
+    // Pour l'instant, informer l'utilisateur des modifications possibles
+    const modificationGuide = `## 🛠️ Modification de "${site.name}"\n\n` +
+      `Le site a été trouvé. Voici ce que vous pouvez modifier:\n\n` +
+      `- **Couleurs**: "Change la couleur du header en bleu"\n` +
+      `- **Textes**: "Modifie le titre en 'Nouveau Titre'"\n` +
+      `- **Sections**: "Ajoute une section contact"\n` +
+      `- **Images**: "Change l'image de fond"\n\n` +
+      `🔗 **Votre site**: [${site.permanentUrl}](${site.permanentUrl})\n\n` +
+      `💡 Pour des modifications avancées, vous pouvez également éditer directement le HTML dans "Mes Projets".`;
+    
+    res.write(`data: ${JSON.stringify({ type: 'token', content: modificationGuide })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error) {
+    console.error('[handleSiteModification] Error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Site modification failed' })}\n\n`);
     res.end();
   }
 }

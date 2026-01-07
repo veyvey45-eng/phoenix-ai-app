@@ -9,6 +9,8 @@ export type IntentType =
   | 'code_execution'    // Demande d'exécuter du code
   | 'image_generation'  // Demande de générer une image
   | 'site_creation'     // Demande de création de site web
+  | 'app_creation'      // Demande de création d'application/agent IA
+  | 'site_modification' // Demande de modification de site existant
   | 'web_browse'        // Navigation web directe
   | 'web_search'        // Besoin de recherche web
   | 'weather'           // Demande météo
@@ -141,6 +143,39 @@ const SITE_CREATION_PATTERNS = [
   /(?:maach|maachen|bau|bauen)\s+(?:mir\s+)?(?:eng?\s+)?(?:websäit|site)/i,
 ];
 
+// Patterns pour la MODIFICATION de site web existant (PRIORITÉ MAXIMALE)
+const SITE_MODIFICATION_PATTERNS = [
+  // Français - Modification directe avec nom de site
+  /modifie\s+(?:le\s+)?(?:site|mon\s+site)\s+[\w\s]+/i,
+  /(?:modifie|modifier|change|changer|mets? [aà] jour|mettre [aà] jour|améliore|améliorer|corrige|corriger|ajuste|ajuster|édite|éditer|update|edit)\s+(?:le|la|mon|ma|ce|cette)?\s*(?:site|page|application|app)/i,
+  // Français - Actions sur éléments avec "sur mon site" ou "de mon site"
+  /(?:ajoute|ajouter|rajoute|rajouter|insère|insérer|add)\s+(?:un[e]?|des|du|de la)?\s*(?:section|bouton|menu|image|texte|formulaire|contact|header|footer|nav|message)/i,
+  /(?:supprime|supprimer|enlève|enlever|retire|retirer|remove|delete)\s+(?:le|la|les|un[e]?)?\s*(?:section|bouton|menu|image|texte|formulaire)/i,
+  /(?:change|changer|modifie|modifier)\s+(?:le|la|les)?\s*(?:couleur|titre|texte|image|fond|background|style|design|header|footer)/i,
+  // Pattern spécifique: "change la couleur... de mon site"
+  /(?:change|changer|modifie|modifier).*(?:couleur|color|style|design).*(?:site|page|app)/i,
+  // Anglais
+  /(?:modify|change|update|edit|improve|fix|adjust)\s+(?:the|my|this)?\s*(?:site|page|website|application|app)/i,
+  /(?:add|insert)\s+(?:a|an|some)?\s*(?:section|button|menu|image|text|form|contact|header|footer|nav|message)/i,
+  // Patterns pour "sur mon site", "dans mon site", "à mon site"
+  /(?:sur|dans|to|in|on|à)\s+(?:mon|ma|le|la|my|the)?\s*(?:site|page|application)/i,
+  // Pattern avec deux-points (ex: "Modifie mon site: change...")
+  /(?:modifie|change|update|edit)\s+(?:mon|le|my)?\s*(?:site|page|app)\s*[:\-]/i,
+];
+
+// Patterns pour la CRÉATION d'APPLICATION/AGENT IA (PRIORITÉ MAXIMALE)
+const APP_CREATION_PATTERNS = [
+  // Français - Création d'application/agent
+  /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:application|app|agent|assistant|bot|chatbot|IA|AI)/i,
+  /(?:cr[ée]e|cr[ée]er)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:application|app)\s+(?:web|mobile)?\s*(?:d'|de)?\s*(?:agent|assistant|IA|AI|chat)/i,
+  /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:application|app|agent)/i,
+  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:application|app|agent)/i,
+  // Anglais
+  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:an?\s+)?(?:application|app|agent|assistant|bot|chatbot|AI)/i,
+  /(?:can\s+you|could\s+you|please)\s+(?:create|make|build)\s+(?:an?\s+)?(?:application|app|agent|bot)/i,
+  /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:an?\s+)?(?:application|app|agent|assistant)/i,
+];
+
 /**
  * Détecte l'intention principale de l'utilisateur
  */
@@ -156,7 +191,35 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
     };
   }
   
-  // PRIORITÉ 0: Vérifier les demandes de CRÉATION de site web EN PREMIER
+  // PRIORITÉ 0: Vérifier les demandes de CRÉATION d'APPLICATION/AGENT IA (priorité maximale)
+  for (const pattern of APP_CREATION_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] App/Agent creation detected with pattern:', pattern);
+      return {
+        type: 'app_creation',
+        confidence: 0.99,
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern)
+        }
+      };
+    }
+  }
+  
+  // PRIORITÉ 1: Vérifier les demandes de MODIFICATION de site existant
+  for (const pattern of SITE_MODIFICATION_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Site modification detected with pattern:', pattern);
+      return {
+        type: 'site_modification',
+        confidence: 0.97,
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern)
+        }
+      };
+    }
+  }
+  
+  // PRIORITÉ 2: Vérifier les demandes de CRÉATION de site web
   for (const pattern of SITE_CREATION_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       console.log('[IntentDetector] Site creation detected with pattern:', pattern);
