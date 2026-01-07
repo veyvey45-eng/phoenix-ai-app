@@ -394,6 +394,28 @@ export default function Dashboard() {
   // Render artifacts
   const renderArtifacts = (artifacts: any[]) => {
     return artifacts.map((artifact, idx) => {
+      // Images générées
+      if (artifact.type === 'image') {
+        return (
+          <div key={idx} className="rounded-lg overflow-hidden border border-border mt-2">
+            <img 
+              src={artifact.content} 
+              alt={artifact.name || 'Image générée'}
+              className="w-full max-w-md rounded-lg"
+              loading="lazy"
+              onError={(e) => {
+                console.error('Image load error:', artifact.content);
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><text x="50%" y="50%" text-anchor="middle" fill="gray">Image non disponible</text></svg>';
+              }}
+            />
+            {artifact.name && (
+              <div className="p-2 bg-muted/50 text-xs text-muted-foreground">
+                {artifact.name}
+              </div>
+            )}
+          </div>
+        );
+      }
       if (artifact.type === 'url' || artifact.type === 'preview_url') {
         return (
           <a
@@ -419,6 +441,21 @@ export default function Dashboard() {
               <code>{artifact.content}</code>
             </pre>
           </div>
+        );
+      }
+      // Fichiers génériques
+      if (artifact.type === 'file') {
+        return (
+          <a
+            key={idx}
+            href={artifact.content}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm bg-muted border border-border rounded-lg p-3 hover:bg-muted/80 transition-colors"
+          >
+            <Paperclip className="w-4 h-4" />
+            <span className="font-medium">{artifact.name || 'Fichier'}</span>
+          </a>
         );
       }
       return null;

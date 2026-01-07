@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, slug, name FROM hostedSites ORDER BY id DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT id, slug, name FROM hostedSites ORDER BY id DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "30002",
+      "slug": "yashahotel-eq4iZZ5U",
+      "name": "YashaHotel"
+    },
+    {
+      "id": "30001",
+      "slug": "le-grand-luxembourg-d0uMDPOx",
+      "name": "Le Grand Luxembourg"
+    },
+    {
+      "id": "1",
+      "slug": "hotel-luxembourg-27-rue-joseph-junck-Ixn8_MK-",
+      "name": "Hôtel Luxembourg - 27 rue Joseph Junck"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tslug\tname\n30002\tyashahotel-eq4iZZ5U\tYashaHotel\n30001\tle-grand-luxembourg-d0uMDPOx\tLe Grand Luxembourg\n1\thotel-luxembourg-27-rue-joseph-junck-Ixn8_MK-\tHôtel Luxembourg - 27 rue Joseph Junck\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

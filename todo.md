@@ -1954,3 +1954,38 @@ Rendre Phoenix indépendant des limites E2B pour la création de sites web.
 - [ ] Rechercher et configurer une deuxième clé E2B
 - [x] Tester le système complet avec création de site hôtel
 - [x] Vérifier que l'URL permanente fonctionne sans E2B
+
+---
+
+## Phase 52: Correction erreur 404 Yasha Hôtel - EN COURS
+
+- [ ] Diagnostiquer pourquoi le site affiche 404
+- [ ] Corriger le problème de routage ou de sauvegarde
+- [ ] Recréer le site Yasha Hôtel avec formulaire de réservation
+- [ ] Vérifier que l'URL permanente fonctionne
+
+## Phase 50: Correction Drizzle ORM et finalisation sites hôtel
+- [ ] Tester la création de site d'hôtel via Phoenix
+- [ ] Vérifier que le formulaire de réservation complet fonctionne
+- [ ] Résoudre les erreurs TypeScript des dépendances Drizzle ORM
+- [ ] Sauvegarder le checkpoint final
+
+## Phase 51: Stress Test Complet et Debugging
+- [ ] Résoudre les erreurs TypeScript Drizzle ORM
+- [ ] Stress test - Chat et Conversation
+- [ ] Stress test - Code Executor Python
+- [ ] Stress test - Code Executor JavaScript
+- [ ] Stress test - Création de sites web (smart_project_create)
+- [ ] Stress test - Recherche web (Serper API)
+- [ ] Stress test - Génération d'images
+- [ ] Stress test - MCP Bridge
+- [ ] Stress test - Administration
+- [ ] Stress test - Agent autonome
+- [ ] Corriger tous les bugs trouvés
+- [ ] Sauvegarder checkpoint final
+
+## Phase 51: Bugs Trouvés lors du Stress Test
+- [x] Bug 1: web_search retourne toujours les données crypto au lieu des actualités
+- [x] Bug 2: Image générée non visible dans l'interface (problème d'affichage)
+- [x] Bug 3: browse_web "Action non reconnue" dans l'agent autonome
+- [ ] Bug 4: Procédures tRPC manquantes (phoenix.admin.isAdmin, phoenix.conversations, etc.)

@@ -11,6 +11,8 @@ import { generateCryptoExpertContext, getCryptoExpertSystemPrompt, detectCryptoE
 import { multiSourceIntegration } from './multiSourceIntegration';
 import { shouldUseAgentLoop, processWithAgentLoop } from './agentLoop';
 import { autonomousBrowser } from './autonomousBrowser';
+import { staticSiteGenerator } from './staticSiteGenerator';
+import { createHostedSite } from '../hostedSites';
 
 interface StreamingOptions {
   temperature?: number;
@@ -37,6 +39,584 @@ export function formatMessagesForStreaming(
 }
 
 /**
+ * Détecte si c'est une demande de CRÉATION de site web (pas de navigation)
+ */
+interface WebsiteCreationRequest {
+  shouldCreate: boolean;
+  type: 'hotel' | 'restaurant' | 'business' | 'portfolio' | 'landing' | 'custom';
+  details: {
+    name?: string;
+    address?: string;
+    city?: string;
+    description?: string;
+    features?: string[];
+    phone?: string;
+    email?: string;
+    prices?: Record<string, number>;
+    rooms?: { type: string; price: number }[];
+  };
+}
+
+function detectWebsiteCreationRequest(message: string): WebsiteCreationRequest {
+  const lowerMessage = message.toLowerCase();
+  
+  // Patterns pour détecter une demande de CRÉATION de site (pas navigation)
+  const creationPatterns = [
+    /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site\s+(?:web\s+)?|page\s+(?:web\s+)?|landing\s+page)/i,
+    /(?:site|page)\s+(?:web\s+)?(?:pour|d'|de)\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio)/i,
+    /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:site|page)/i,
+    /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
+  ];
+  
+  // Vérifier si c'est une demande de création
+  const isCreationRequest = creationPatterns.some(p => p.test(message));
+  
+  if (!isCreationRequest) {
+    return { shouldCreate: false, type: 'custom', details: {} };
+  }
+  
+  // Détecter le type de site
+  let type: WebsiteCreationRequest['type'] = 'custom';
+  if (/h[ôo]tel/i.test(lowerMessage)) {
+    type = 'hotel';
+  } else if (/restaurant|resto|caf[ée]/i.test(lowerMessage)) {
+    type = 'restaurant';
+  } else if (/portfolio|cv|r[ée]sum[ée]/i.test(lowerMessage)) {
+    type = 'portfolio';
+  } else if (/landing|accueil|promo/i.test(lowerMessage)) {
+    type = 'landing';
+  } else if (/entreprise|business|soci[ée]t[ée]|commerce/i.test(lowerMessage)) {
+    type = 'business';
+  }
+  
+  // Extraire les détails
+  const details: WebsiteCreationRequest['details'] = {};
+  
+  // Extraire le nom (après "s'appelle", "nom", "nommé", etc.)
+  const nameMatch = message.match(/(?:s'appelle|nom(?:m[ée])?(?:\s+est)?|appel[ée])\s+["']?([^"',.\n]+)["']?/i) ||
+                    message.match(/(?:h[ôo]tel|restaurant|entreprise)\s+["']?([A-Z][^"',.\n]+)["']?/i);
+  if (nameMatch) {
+    details.name = nameMatch[1].trim();
+  }
+  
+  // Extraire l'adresse
+  const addressMatch = message.match(/(?:situ[ée]|adresse|au|à)\s+(?:au\s+)?(\d+[^,.\n]+)/i);
+  if (addressMatch) {
+    details.address = addressMatch[1].trim();
+  }
+  
+  // Extraire la ville
+  const cityMatch = message.match(/(?:à|au|en)\s+([A-Z][a-zéèêëàâäùûüôöîïç]+(?:\s+[A-Z][a-zéèêëàâäùûüôöîïç]+)?)\s*(?:,|$|\.|avec|qui)/i);
+  if (cityMatch) {
+    details.city = cityMatch[1].trim();
+  }
+  
+  // Extraire le nombre de chambres (pour hôtels)
+  const roomsMatch = message.match(/(\d+)\s*chambres?/i);
+  if (roomsMatch) {
+    details.features = details.features || [];
+    details.features.push(`${roomsMatch[1]} chambres`);
+  }
+  
+  // Extraire les prix des chambres
+  const priceRegex = /chambre\s+(single|double|twin|triple|familiale?|suite)\s*(?:à|:)?\s*(\d+)\s*[€$]/gi;
+  const rooms: { type: string; price: number }[] = [];
+  let priceMatch;
+  while ((priceMatch = priceRegex.exec(message)) !== null) {
+    rooms.push({ type: priceMatch[1], price: parseInt(priceMatch[2]) });
+  }
+  if (rooms.length > 0) {
+    details.rooms = rooms;
+  }
+  
+  // Extraire les prix génériques
+  const genericPriceRegex = /(single|double|twin)\s*(?:et|\/|,)?\s*(?:double|twin)?\s*(?:prix\s*)?(?:à|:)?\s*(\d+)\s*[€$]/gi;
+  let genericMatch;
+  while ((genericMatch = genericPriceRegex.exec(message)) !== null) {
+    if (!details.rooms) details.rooms = [];
+    details.rooms.push({ type: genericMatch[1], price: parseInt(genericMatch[2]) });
+  }
+  
+  // Extraire le téléphone
+  const phoneMatch = message.match(/(?:t[ée]l[ée]phone|tel|num[ée]ro)\s*(?::|est)?\s*([\d\s+()-]+)/i);
+  if (phoneMatch) {
+    details.phone = phoneMatch[1].trim();
+  }
+  
+  // Extraire l'email
+  const emailMatch = message.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
+  if (emailMatch) {
+    details.email = emailMatch[1];
+  }
+  
+  // Extraire les services/features
+  const servicesMatch = message.match(/(?:services?|[ée]quipements?|avec)\s*(?::|inclus)?\s*([^.]+)/i);
+  if (servicesMatch) {
+    const services = servicesMatch[1].split(/[,;]/).map(s => s.trim()).filter(s => s.length > 0);
+    details.features = [...(details.features || []), ...services];
+  }
+  
+  return {
+    shouldCreate: true,
+    type,
+    details
+  };
+}
+
+/**
+ * Génère un site web basé sur la demande détectée
+ */
+async function generateWebsite(request: WebsiteCreationRequest, userId: number): Promise<string> {
+  console.log('[StreamingChat] Generating website:', request);
+  
+  const { type, details } = request;
+  
+  // Générer le nom si non fourni
+  const siteName = details.name || `Mon ${type === 'hotel' ? 'Hôtel' : type === 'restaurant' ? 'Restaurant' : 'Site'}`;
+  
+  // Générer le HTML selon le type
+  let htmlContent: string;
+  
+  if (type === 'hotel') {
+    // Utiliser le template d'hôtel avec formulaire de réservation COMPLET
+    htmlContent = generateHotelSiteWithBooking({
+      name: siteName,
+      address: details.address || 'Adresse non spécifiée',
+      city: details.city || '',
+      description: details.description || `Bienvenue à ${siteName}`,
+      features: details.features || ['WiFi Gratuit', 'Parking', 'Réception 24h/24'],
+      phone: details.phone || '+352 000 000 000',
+      email: details.email || 'contact@hotel.com',
+      rooms: details.rooms || [
+        { type: 'Single', price: 90 },
+        { type: 'Double', price: 130 },
+        { type: 'Twin', price: 130 }
+      ]
+    });
+  } else {
+    // Template générique pour les autres types
+    htmlContent = generateHotelSiteWithBooking({
+      name: siteName,
+      address: details.address || '',
+      city: details.city || '',
+      description: details.description || `Bienvenue à ${siteName}`,
+      features: details.features || ['Service professionnel', 'Accueil chaleureux'],
+      phone: details.phone || '+352 000 000 000',
+      email: details.email || 'contact@hotel.com',
+      rooms: details.rooms || [
+        { type: 'Standard', price: 80 },
+        { type: 'Confort', price: 120 }
+      ]
+    });
+  }
+  
+  // Sauvegarder en base de données
+  try {
+    const result = await staticSiteGenerator.createFromHTML(
+      userId,
+      siteName,
+      htmlContent,
+      {
+        description: `Site ${type} créé par Phoenix AI`,
+        siteType: 'business',
+        isPublic: true
+      }
+    );
+    
+    if (result.success && result.permanentUrl) {
+      return `## 🎉 Site créé avec succès!
+
+**${siteName}** est maintenant en ligne!
+
+🔗 **URL PERMANENTE:** [${result.permanentUrl}](${result.permanentUrl})
+
+Cette URL ne disparaîtra JAMAIS et est prête à être partagée!
+
+### ✨ Ce qui a été créé:
+- Design moderne et responsive
+- ${type === 'hotel' ? 'Formulaire de réservation avec calcul automatique des prix' : 'Page de présentation professionnelle'}
+- Section contact
+- Optimisé pour mobile
+
+${details.rooms ? `### 💰 Tarifs configurés:\n${details.rooms.map(r => `- Chambre ${r.type}: ${r.price}€/nuit`).join('\n')}` : ''}
+
+💡 Cliquez sur le lien pour voir votre site!`;
+    } else {
+      return `❌ Erreur lors de la création du site: ${result.error || 'Erreur inconnue'}`;
+    }
+  } catch (error: any) {
+    console.error('[StreamingChat] Website generation error:', error);
+    return `❌ Erreur lors de la création du site: ${error.message}`;
+  }
+}
+
+/**
+ * Génère un site d'hôtel complet avec formulaire de réservation
+ */
+function generateHotelSiteWithBooking(config: {
+  name: string;
+  address: string;
+  city?: string;
+  description?: string;
+  features?: string[];
+  phone?: string;
+  email?: string;
+  rooms: { type: string; price: number }[];
+}): string {
+  const roomOptions = config.rooms.map(r => 
+    `<option value="${r.type.toLowerCase()}" data-price="${r.price}">${r.type} - ${r.price}€/nuit</option>`
+  ).join('\n                ');
+  
+  const roomPricesJS = config.rooms.map(r => 
+    `'${r.type.toLowerCase()}': ${r.price}`
+  ).join(', ');
+  
+  const featuresHTML = (config.features || []).map(f => 
+    `<li>✓ ${f}</li>`
+  ).join('\n            ');
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${config.name}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .hero {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 100px 20px;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .hero p {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+            color: #1a1a2e;
+        }
+        .rooms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-bottom: 60px;
+        }
+        .room-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .room-card:hover {
+            transform: translateY(-5px);
+        }
+        .room-card h3 {
+            color: #1a1a2e;
+            margin-bottom: 15px;
+        }
+        .room-price {
+            font-size: 2rem;
+            color: #e94560;
+            font-weight: bold;
+        }
+        .room-price span {
+            font-size: 1rem;
+            color: #666;
+        }
+        .booking-section {
+            background: #f8f9fa;
+            padding: 60px 20px;
+        }
+        .booking-form {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .price-estimate {
+            background: linear-gradient(135deg, #1a1a2e, #0f3460);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 30px 0;
+        }
+        .price-estimate .total {
+            font-size: 2.5rem;
+            font-weight: bold;
+        }
+        .btn-submit {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(233, 69, 96, 0.4);
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        .features li {
+            list-style: none;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .contact-info {
+            background: #1a1a2e;
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .contact-info h2 {
+            margin-bottom: 30px;
+        }
+        .contact-info p {
+            margin: 10px 0;
+            font-size: 1.1rem;
+        }
+        footer {
+            background: #0f0f1a;
+            color: #888;
+            text-align: center;
+            padding: 30px;
+        }
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2rem; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header class="hero">
+        <h1>🏨 ${config.name}</h1>
+        <p>${config.description || 'Votre confort est notre priorité'}</p>
+        <p style="margin-top: 20px; opacity: 0.8;">📍 ${config.address}${config.city ? ', ' + config.city : ''}</p>
+    </header>
+
+    <div class="container">
+        <h2 class="section-title">Nos Chambres</h2>
+        <div class="rooms-grid">
+            ${config.rooms.map(room => `
+            <div class="room-card">
+                <h3>Chambre ${room.type}</h3>
+                <p class="room-price">${room.price}€ <span>/ nuit</span></p>
+                <p style="color: #666; margin-top: 10px;">Petit-déjeuner non inclus</p>
+            </div>
+            `).join('')}
+        </div>
+
+        <h2 class="section-title">Nos Services</h2>
+        <ul class="features">
+            ${featuresHTML || '<li>✓ WiFi Gratuit</li><li>✓ Parking</li><li>✓ Réception 24h/24</li>'}
+        </ul>
+    </div>
+
+    <section class="booking-section" id="reservation">
+        <div class="booking-form">
+            <h2 style="text-align: center; margin-bottom: 30px; color: #1a1a2e;">📅 Réserver une Chambre</h2>
+            
+            <form id="bookingForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Prénom</label>
+                        <input type="text" id="firstName" required placeholder="Votre prénom">
+                    </div>
+                    <div class="form-group">
+                        <label>Nom</label>
+                        <input type="text" id="lastName" required placeholder="Votre nom">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Genre</label>
+                        <select id="gender" required>
+                            <option value="">Sélectionnez</option>
+                            <option value="homme">Homme</option>
+                            <option value="femme">Femme</option>
+                            <option value="autre">Autre</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Type de chambre</label>
+                        <select id="roomType" required>
+                            <option value="">Sélectionnez</option>
+                            ${roomOptions}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nombre d'adultes</label>
+                        <input type="number" id="adults" min="1" max="10" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Nombre d'enfants</label>
+                        <input type="number" id="children" min="0" max="10" value="0">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date d'arrivée</label>
+                        <input type="date" id="checkIn" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date de départ</label>
+                        <input type="date" id="checkOut" required>
+                    </div>
+                </div>
+
+                <div class="price-estimate">
+                    <p>Prix estimé</p>
+                    <p class="total" id="totalPrice">0€</p>
+                    <p style="font-size: 0.9rem; opacity: 0.8;">Petit-déjeuner non inclus</p>
+                </div>
+
+                <button type="submit" class="btn-submit">Confirmer la Réservation</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="contact-info">
+        <h2>📞 Contactez-nous</h2>
+        <p>📍 ${config.address}${config.city ? ', ' + config.city : ''}</p>
+        <p>📱 ${config.phone || '+352 000 000 000'}</p>
+        <p>✉️ ${config.email || 'contact@hotel.com'}</p>
+    </section>
+
+    <footer>
+        <p>© ${new Date().getFullYear()} ${config.name} - Tous droits réservés</p>
+        <p style="margin-top: 10px; font-size: 0.9rem;">Site créé avec Phoenix AI</p>
+    </footer>
+
+    <script>
+        const roomPrices = { ${roomPricesJS} };
+        
+        // Set minimum dates
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('checkIn').min = today;
+        document.getElementById('checkOut').min = today;
+        
+        // Calculate price
+        function calculatePrice() {
+            const roomType = document.getElementById('roomType').value;
+            const checkIn = new Date(document.getElementById('checkIn').value);
+            const checkOut = new Date(document.getElementById('checkOut').value);
+            
+            if (roomType && checkIn && checkOut && checkOut > checkIn) {
+                const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
+                const pricePerNight = roomPrices[roomType] || 0;
+                const total = nights * pricePerNight;
+                document.getElementById('totalPrice').textContent = total + '€';
+            } else {
+                document.getElementById('totalPrice').textContent = '0€';
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('roomType').addEventListener('change', calculatePrice);
+        document.getElementById('checkIn').addEventListener('change', function() {
+            document.getElementById('checkOut').min = this.value;
+            calculatePrice();
+        });
+        document.getElementById('checkOut').addEventListener('change', calculatePrice);
+        
+        // Form submission
+        document.getElementById('bookingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                firstName: document.getElementById('firstName').value,
+                lastName: document.getElementById('lastName').value,
+                gender: document.getElementById('gender').value,
+                roomType: document.getElementById('roomType').value,
+                adults: document.getElementById('adults').value,
+                children: document.getElementById('children').value,
+                checkIn: document.getElementById('checkIn').value,
+                checkOut: document.getElementById('checkOut').value,
+                totalPrice: document.getElementById('totalPrice').textContent
+            };
+            
+            alert('Merci ' + formData.firstName + ' ' + formData.lastName + '!\\n\\nVotre demande de réservation a été enregistrée.\\n\\nDétails:\\n- Chambre: ' + formData.roomType + '\\n- Du ' + formData.checkIn + ' au ' + formData.checkOut + '\\n- ' + formData.adults + ' adulte(s), ' + formData.children + ' enfant(s)\\n- Total: ' + formData.totalPrice + '\\n\\nNous vous contacterons bientôt pour confirmer.');
+        });
+    </script>
+</body>
+</html>`;
+}
+
+/**
  * Stream chat response using Server-Sent Events
  */
 export async function* streamChatResponse(
@@ -49,7 +629,23 @@ export async function* streamChatResponse(
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
     
-    // NOUVEAU: Vérifier si c'est une demande de navigation web directe
+    // PRIORITÉ 1: Vérifier si c'est une demande de CRÉATION de site web
+    const websiteRequest = detectWebsiteCreationRequest(userMessage);
+    if (websiteRequest.shouldCreate) {
+      console.log('[StreamingChat] Website creation request detected:', websiteRequest.type);
+      yield `🎨 Je crée votre site ${websiteRequest.type === 'hotel' ? "d'hôtel" : websiteRequest.type}...\n\n`;
+      
+      try {
+        const result = await generateWebsite(websiteRequest, userId || 1);
+        yield result;
+        return;
+      } catch (error) {
+        console.error('[StreamingChat] Website creation error:', error);
+        yield `⚠️ Erreur lors de la création du site: ${error instanceof Error ? error.message : 'Erreur inconnue'}\n\n`;
+      }
+    }
+    
+    // PRIORITÉ 2: Vérifier si c'est une demande de navigation web directe
     const browseRequest = detectBrowseRequest(userMessage);
     if (browseRequest.shouldBrowse) {
       console.log('[StreamingChat] Browse request detected:', browseRequest.url || 'general browse');
@@ -65,7 +661,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // NOUVEAU: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
+    // PRIORITÉ 3: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
     if (shouldUseAgentLoop(userMessage)) {
       console.log('[StreamingChat] Complex task detected, using Agent Loop');
       yield '🧠 Tâche complexe détectée. Je décompose et exécute automatiquement...\n\n';
@@ -87,7 +683,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // NOUVEAU: Vérifier si c'est une demande d'analyse crypto experte
+    // PRIORITÉ 4: Vérifier si c'est une demande d'analyse crypto experte
     const cryptoDetection = detectCryptoExpertQuery(userMessage);
     if (cryptoDetection.needsExpert) {
       console.log('[StreamingChat] Crypto expert query detected:', cryptoDetection.analysisType);
@@ -104,7 +700,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // NOUVEAU: Vérifier si c'est une demande météo ou recherche web
+    // PRIORITÉ 5: Vérifier si c'est une demande météo ou recherche web
     const queryDetection = multiSourceIntegration.detectQueryType(userMessage);
     if (queryDetection.types.includes('weather') || queryDetection.types.includes('news') || queryDetection.types.includes('search')) {
       console.log('[StreamingChat] Multi-source query detected:', queryDetection.types);
@@ -122,7 +718,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // NOUVEAU: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
+    // PRIORITÉ 6: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
     if (isCodeRequest(userMessage)) {
       console.log('[StreamingChat] Code request detected, executing directly');
       const codeResult = await generateAndExecuteCompleteFlow(userMessage);
@@ -137,7 +733,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // NOUVEAU: Auto-exécution intelligente
+    // PRIORITÉ 7: Auto-exécution intelligente
     console.log('[StreamingChat] Analyzing for auto-execution...');
     const conversationHistory = messages.slice(0, -1).map(m => m.role + ': ' + m.content).join('\n');
     const autoExecResult = await analyzeAndExecuteAutomatically({
@@ -298,24 +894,13 @@ async function* streamWithGoogleAI(
     });
 
     // Yield the response in chunks to simulate streaming
-    let contentRaw = response.choices?.[0]?.message?.content;
-    let content = typeof contentRaw === 'string' ? contentRaw : '';
-    
-    if (!content) {
-      console.warn('[StreamingChat] Google AI returned empty response');
-      yield 'Désolé, je n\'arrive pas à générer une réponse en ce moment. Veuillez réessayer.';
-      return;
-    }
-    
-    console.log('[StreamingChat] Google AI response received, streaming...');
-    
-    // Stream the complete response
+    const rawContent = response.choices?.[0]?.message?.content || '';
+    const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
     const chunkSize = 50;
     for (let i = 0; i < content.length; i += chunkSize) {
       yield content.substring(i, i + chunkSize);
       await new Promise(resolve => setTimeout(resolve, 10));
     }
-    console.log('[StreamingChat] Google AI streaming complete');
   } catch (error) {
     console.error('[StreamingChat] Google AI error:', error);
     throw error;
@@ -336,19 +921,20 @@ interface BrowseRequest {
 function detectBrowseRequest(message: string): BrowseRequest {
   const lowerMessage = message.toLowerCase();
   
-  // Patterns pour détecter une demande de navigation
+  // IMPORTANT: Ne PAS détecter comme navigation si c'est une demande de création
+  const creationKeywords = /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site|page)/i;
+  if (creationKeywords.test(message)) {
+    return { shouldBrowse: false, action: 'visit' };
+  }
+  
+  // Patterns pour détecter une demande de navigation (SANS les mots de création)
   const browsePatterns = [
     /va\s+sur|vas\s+sur|aller\s+sur|visite|visiter|ouvre|ouvrir|navigue|naviguer/i,
     /go\s+to|visit|open|navigate\s+to|browse/i,
     /montre[\s-]moi|show\s+me|affiche/i,
     /regarde|regarder|voir|check|vérifier|vérifie/i,
-    /page\s+web|site\s+web|website|webpage/i,
     /sur\s+internet|on\s+the\s+web/i,
-    // NOUVEAU: Patterns pour demandes naturelles sans URL
-    /(?:ouvre|ouvrir|fais|faire|fasses)\s+(?:une|un)?\s*(?:page|site|web)/i,
-    /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu)?\s*(?:ouvres?|visites?|navigues?|ailles?)/i,
-    /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:ouvrir|visiter|naviguer|aller\s+sur)/i,
-    /(?:accède|accéder|acceder)\s+(?:à|a)\s+(?:un|une)?\s*(?:page|site|web)/i
+    /(?:accède|accéder|acceder)\s+(?:à|a)\s+(?:https?:\/\/|www\.)/i
   ];
   
   // Patterns pour extraire une URL

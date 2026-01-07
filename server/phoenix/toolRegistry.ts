@@ -233,6 +233,45 @@ class ToolRegistryService {
       ],
       execute: async (args, context) => {
         try {
+          const searchType = args.type || 'general';
+          
+          // Si un type spécifique est demandé, forcer ce type
+          if (searchType === 'news') {
+            // Utiliser directement le service de news
+            const newsResponse = await (await import('./newsApiFree')).newsApiFree.getNews(args.query, 'fr', 'fr');
+            const output = newsResponse.articles
+              .slice(0, 5)
+              .map((a: any) => `📰 ${a.title}\n${a.description || ''}\n🔗 ${a.url}`)
+              .join('\n\n');
+            return {
+              success: true,
+              output: output || 'Aucune actualité trouvée',
+              metadata: { category: 'news', type: searchType }
+            };
+          } else if (searchType === 'crypto') {
+            // Utiliser directement le service crypto
+            const cryptoApi = (await import('./cryptoApi')).cryptoApi;
+            const symbols = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA'];
+            const prices = await cryptoApi.getPrices(symbols, 'usd', args.query);
+            const output = prices.map((p: any) => cryptoApi.formatForContext(p)).join('\n');
+            return {
+              success: true,
+              output: output || 'Aucune donnée crypto trouvée',
+              metadata: { category: 'crypto', type: searchType }
+            };
+          } else if (searchType === 'weather') {
+            // Utiliser directement le service météo
+            const openweatherApi = (await import('./openweatherApi')).openweatherApi;
+            const city = args.query.replace(/météo|meteo|temps|weather/gi, '').trim() || 'Paris';
+            const weather = await openweatherApi.getCurrentWeather(city);
+            return {
+              success: true,
+              output: openweatherApi.formatWeatherForContext(weather),
+              metadata: { category: 'weather', type: searchType }
+            };
+          }
+          
+          // Type général: utiliser le contextEnricher qui détecte automatiquement
           const enrichment = await contextEnricherModule.enrichContext(args.query, context.userId);
           
           return {
@@ -240,7 +279,8 @@ class ToolRegistryService {
             output: enrichment.enrichedContext || 'Aucun résultat trouvé',
             metadata: {
               category: enrichment.category,
-              needsInternet: enrichment.needsInternet
+              needsInternet: enrichment.needsInternet,
+              type: searchType
             }
           };
         } catch (error: any) {
@@ -757,25 +797,27 @@ except Exception as e:
     // Outil de navigation web
     this.register({
       name: 'browse_web',
-      description: 'Navigue sur le web, extrait le contenu des pages, prend des screenshots.',
+      description: 'Navigue sur le web, extrait le contenu des pages, prend des screenshots. Actions supportées: content (défaut), screenshot, scrape, extract, read, navigate.',
       category: 'web',
       parameters: [
         { name: 'url', type: 'string', description: 'URL de la page à visiter', required: true },
-        { name: 'action', type: 'string', description: 'Action: content, screenshot, click, fill', required: false, default: 'content' },
-        { name: 'selector', type: 'string', description: 'Sélecteur CSS pour click/fill', required: false },
+        { name: 'action', type: 'string', description: 'Action: content (défaut), screenshot, scrape, extract, read, navigate', required: false, default: 'content' },
+        { name: 'selector', type: 'string', description: 'Sélecteur CSS pour scrape/extract', required: false },
         { name: 'value', type: 'string', description: 'Valeur pour fill', required: false }
       ],
       execute: async (args, context) => {
         try {
           const action = args.action || 'content';
+          const supportedActions = ['content', 'screenshot', 'scrape', 'extract', 'read', 'navigate'];
 
-          if (action === 'content') {
+          // Actions qui extraient le contenu (content, extract, read, navigate)
+          if (action === 'content' || action === 'extract' || action === 'read' || action === 'navigate') {
             const result = await browserless.getContent(args.url);
             return {
               success: result.success,
               output: result.content || '',
               error: result.error,
-              metadata: { url: args.url, title: result.title }
+              metadata: { url: args.url, title: result.title, action: action }
             };
           } else if (action === 'screenshot') {
             const result = await browserless.screenshot(args.url);
@@ -805,7 +847,17 @@ except Exception as e:
               output: '',
               error: result.error || 'Erreur lors de la capture'
             };
-          } else if (action === 'scrape' && args.selector) {
+          } else if (action === 'scrape') {
+            // Si pas de sélecteur, extraire tout le contenu
+            if (!args.selector) {
+              const result = await browserless.getContent(args.url);
+              return {
+                success: result.success,
+                output: result.content || '',
+                error: result.error,
+                metadata: { url: args.url, title: result.title }
+              };
+            }
             const result = await browserless.scrape(args.url, [args.selector]);
             return {
               success: result.success,
@@ -817,7 +869,7 @@ except Exception as e:
           return {
             success: false,
             output: '',
-            error: 'Action non reconnue'
+            error: `Action '${action}' non reconnue. Actions supportées: ${supportedActions.join(', ')}`
           };
         } catch (error: any) {
           return {

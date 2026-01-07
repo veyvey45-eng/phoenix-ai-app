@@ -1,0 +1,16 @@
+{
+  "query": "SELECT id, slug, name, createdAt FROM hostedSites WHERE slug LIKE '%yasha%' OR name LIKE '%Yasha%' ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT id, slug, name, createdAt FROM hostedSites WHERE slug LIKE '%yasha%' OR name LIKE '%Yasha%' ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "30002",
+      "slug": "yashahotel-eq4iZZ5U",
+      "name": "YashaHotel",
+      "createdAt": "2026-01-07 13:49:42"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tslug\tname\tcreatedAt\n30002\tyashahotel-eq4iZZ5U\tYashaHotel\t2026-01-07 13:49:42\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}
