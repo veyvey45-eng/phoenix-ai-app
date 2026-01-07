@@ -2,6 +2,7 @@
  * Transition Detector - Détecte quand l'utilisateur change de demande
  * ou nie/annule une demande précédente
  * 
+ * VERSION AMÉLIORÉE v2: Amélioration des taux de détection des transitions
  * Ce module résout le problème où Phoenix continue sur l'ancienne intention
  * au lieu de comprendre que l'utilisateur veut quelque chose de différent.
  */
@@ -24,7 +25,7 @@ const NEGATION_PATTERNS = [
   { pattern: /(?:je\s+)?ne\s+veux\s+plus\s+(?:de\s+)?(?:création\s+d'?)?apps?/i, negates: 'app_creation' },
   { pattern: /(?:je\s+)?ne\s+veux\s+plus\s+(?:de\s+)?(?:création\s+d'?)?applications?/i, negates: 'app_creation' },
   
-  // NOUVEAU: Négation avec demande de site
+  // Négation avec demande de site
   { pattern: /(?:stop|arrête).*(?:je\s+veux|crée).*site/i, negates: 'image_generation' },
   
   // Arrête/Stop
@@ -33,18 +34,25 @@ const NEGATION_PATTERNS = [
   { pattern: /(?:arrête|stop|stoppe|cesse|fini)\s+(?:de\s+)?(?:générer|créer|faire)\s+(?:des?\s+)?sites?/i, negates: 'site_creation' },
   { pattern: /(?:arrête|stop|stoppe|cesse|fini)\s+(?:de\s+)?(?:générer|créer|faire)\s+(?:des?\s+)?apps?/i, negates: 'app_creation' },
   
-  // Pas de / Pas d'
-  { pattern: /pas\s+(?:d'|de\s+)?images?\s+(?:cette\s+fois|maintenant|s'?il\s+te\s+pla[iî]t)?/i, negates: 'image_generation' },
+  // NOUVEAU: "Plus d'images" - pattern courant
+  { pattern: /^plus\s+d'?images?/i, negates: 'image_generation' },
+  { pattern: /plus\s+d'?images?\s*[,]?\s*(?:maintenant|je\s+veux)/i, negates: 'image_generation' },
+  
+  // Pas de / Pas d' - AMÉLIORÉS
+  { pattern: /^pas\s+(?:d'|de\s+)?images?/i, negates: 'image_generation' },
+  { pattern: /pas\s+(?:d'|de\s+)?images?\s*[,]?\s*(?:un[e]?\s+)?(?:site|website|page)/i, negates: 'image_generation' },
   { pattern: /pas\s+(?:d'|de\s+)?sites?\s+(?:cette\s+fois|maintenant)?/i, negates: 'site_creation' },
   { pattern: /pas\s+(?:d'|de\s+)?apps?\s+(?:cette\s+fois|maintenant)?/i, negates: 'app_creation' },
   
-  // Oublie / Laisse tomber
-  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:l'|la\s+)?images?/i, negates: 'image_generation' },
-  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:le\s+)?sites?/i, negates: 'site_creation' },
-  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:l'|la\s+)?apps?/i, negates: 'app_creation' },
+  // Oublie / Laisse tomber - AMÉLIORÉS
+  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:les?\s+)?images?/i, negates: 'image_generation' },
+  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:les?\s+)?sites?/i, negates: 'site_creation' },
+  { pattern: /(?:oublie|laisse\s+tomber|abandonne)\s+(?:les?\s+)?apps?/i, negates: 'app_creation' },
   
-  // Anglais
+  // Anglais - AMÉLIORÉS
   { pattern: /(?:no\s+more|stop|don't|do\s+not)\s+(?:generating?\s+)?images?/i, negates: 'image_generation' },
+  { pattern: /^no\s+images?/i, negates: 'image_generation' },
+  { pattern: /no\s+images?\s*[,]?\s*(?:a\s+)?(?:website|site|page)/i, negates: 'image_generation' },
   { pattern: /(?:no\s+more|stop|don't|do\s+not)\s+(?:creating?\s+)?(?:web)?sites?/i, negates: 'site_creation' },
   { pattern: /(?:no\s+more|stop|don't|do\s+not)\s+(?:creating?\s+)?apps?/i, negates: 'app_creation' },
   { pattern: /forget\s+(?:the\s+)?images?/i, negates: 'image_generation' },
@@ -62,9 +70,17 @@ const TRANSITION_PATTERNS = [
   { pattern: /(?:now|from\s+now\s+on)\s+(?:I\s+want|create|make|generate)/i, type: 'switch' as const },
   { pattern: /(?:jetzt|ab\s+jetzt)\s+(?:will\s+ich|erstelle|mache)/i, type: 'switch' as const },
   
+  // NOUVEAU: "maintenant" seul avec site/app
+  { pattern: /maintenant\s+(?:un[e]?\s+)?(?:site|website|app|application)/i, type: 'switch' as const },
+  { pattern: /now\s+(?:a\s+)?(?:site|website|app|application)/i, type: 'switch' as const },
+  
   // "plutôt" / "au lieu de"
   { pattern: /(?:plutôt|au\s+lieu\s+de|à\s+la\s+place)\s+(?:qu'?une?\s+)?/i, type: 'switch' as const },
   { pattern: /(?:instead\s+of|rather\s+than)/i, type: 'switch' as const },
+  
+  // NOUVEAU: "plutôt" seul avec verbe
+  { pattern: /plutôt\s+(?:crée|fais|génère|build|create|make)/i, type: 'switch' as const },
+  { pattern: /rather\s+(?:create|build|make)/i, type: 'switch' as const },
   
   // "passons à" / "changeons"
   { pattern: /(?:passons|passe)\s+(?:à|au|aux)/i, type: 'switch' as const },
@@ -74,6 +90,17 @@ const TRANSITION_PATTERNS = [
   // "ok/bien/super, maintenant"
   { pattern: /(?:ok|okay|bien|super|parfait|merci)[\s,]+(?:maintenant|mais\s+là|cette\s+fois)/i, type: 'switch' as const },
   { pattern: /(?:ok|okay|good|great|thanks)[\s,]+(?:now|but\s+now|this\s+time)/i, type: 'switch' as const },
+  
+  // NOUVEAU: "en fait" / "finalement" - changement d'avis
+  { pattern: /(?:en\s+fait|finalement|actually|finally)\s*[,]?\s*(?:je\s+)?(?:préfère|veux|voudrais)/i, type: 'switch' as const },
+  { pattern: /(?:en\s+fait|finalement)\s*[,]?\s*(?:un[e]?\s+)?(?:site|website|app|application)/i, type: 'switch' as const },
+  
+  // NOUVEAU: "je préfère" - préférence
+  { pattern: /je\s+préfère\s+(?:un[e]?\s+)?(?:site|website|app|application)/i, type: 'switch' as const },
+  { pattern: /i\s+prefer\s+(?:a\s+)?(?:site|website|app|application)/i, type: 'switch' as const },
+  
+  // NOUVEAU: "serait mieux/plus utile"
+  { pattern: /(?:site|website|app|application)\s+(?:serait|would\s+be)\s+(?:mieux|better|plus\s+utile|more\s+useful)/i, type: 'switch' as const },
 ];
 
 // Patterns de CORRECTION - L'utilisateur corrige une mauvaise compréhension
@@ -116,6 +143,16 @@ const REAL_VS_IMAGE_PATTERNS = [
   // "pas une image" = vraie app
   { pattern: /pas\s+(?:une?\s+)?images?\s*[,]?\s*(?:une?\s+)?(?:vraie?|réelle?)?\s*(?:application|app)/i, intent: 'app_creation', isReal: true },
   { pattern: /not\s+(?:an?\s+)?images?\s*[,]?\s*(?:a\s+)?(?:real\s+)?(?:application|app)/i, intent: 'app_creation', isReal: true },
+];
+
+// NOUVEAU: Patterns pour détecter l'intention cible dans une transition
+const TARGET_INTENT_PATTERNS = [
+  // Site web
+  { pattern: /(?:site\s*web|site\s*internet|site|page\s*web|landing\s*page|website)/i, intent: 'site_creation' },
+  // Application
+  { pattern: /(?:application|app|chatbot|agent|assistant|bot)/i, intent: 'app_creation' },
+  // Code
+  { pattern: /(?:code|script|programme|program)/i, intent: 'code_execution' },
 ];
 
 /**
@@ -225,6 +262,21 @@ export function distinguishRealVsImage(message: string): {
 }
 
 /**
+ * NOUVEAU: Détecte l'intention cible dans un message de transition
+ */
+export function detectTargetIntent(message: string): string | undefined {
+  const normalizedMessage = message.toLowerCase().trim();
+  
+  for (const { pattern, intent } of TARGET_INTENT_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      return intent;
+    }
+  }
+  
+  return undefined;
+}
+
+/**
  * Analyse complète du message pour détecter les transitions et intentions réelles
  */
 export function analyzeMessageForTransition(
@@ -246,19 +298,28 @@ export function analyzeMessageForTransition(
   // Détecter si le message demande un site web
   const hasSiteKeyword = /(?:site\s*web|site\s*internet|site|page\s*web|landing\s*page|website)/i.test(normalizedMessage);
   const hasSiteCreationVerb = /(?:crée|créer|fais|faire|génère|générer|construis|construire|développe|développer|create|make|build)/i.test(normalizedMessage);
+  const hasWantVerb = /(?:je\s+veux|je\s+voudrais|j'aimerais|i\s+want|i\s+need|je\s+préfère|i\s+prefer)/i.test(normalizedMessage);
   
   // Si une transition est détectée, on doit probablement changer d'intention
   if (transition.hasTransition) {
     shouldOverrideIntent = true;
+    
+    // Détecter l'intention cible
+    const targetIntent = detectTargetIntent(message);
     
     // Si l'intention précédente était image_generation et qu'elle est niée
     if (transition.negatedIntent === 'image_generation') {
       // Vérifier si le message demande une app ou un site
       if (realVsImage.isRealApp) {
         suggestedIntent = 'app_creation';
-      } else if (hasSiteKeyword && hasSiteCreationVerb) {
+      } else if (hasSiteKeyword) {
         suggestedIntent = 'site_creation';
+      } else if (targetIntent) {
+        suggestedIntent = targetIntent;
       }
+    } else if (targetIntent) {
+      // Si on a une intention cible claire
+      suggestedIntent = targetIntent;
     }
   }
   
@@ -271,8 +332,14 @@ export function analyzeMessageForTransition(
     suggestedIntent = 'image_generation';
   }
   
-  // NOUVEAU: Si le message a une transition et demande un site, forcer site_creation
-  if (transition.hasTransition && hasSiteKeyword && hasSiteCreationVerb && !realVsImage.isRealApp) {
+  // Si le message a une transition et demande un site, forcer site_creation
+  if (transition.hasTransition && hasSiteKeyword && (hasSiteCreationVerb || hasWantVerb) && !realVsImage.isRealApp) {
+    shouldOverrideIntent = true;
+    suggestedIntent = 'site_creation';
+  }
+  
+  // NOUVEAU: Si le message contient "je préfère" ou "serait mieux" avec site
+  if ((hasWantVerb || /serait\s+(?:mieux|plus\s+utile)|would\s+be\s+(?:better|more\s+useful)/i.test(normalizedMessage)) && hasSiteKeyword) {
     shouldOverrideIntent = true;
     suggestedIntent = 'site_creation';
   }
@@ -288,5 +355,6 @@ export function analyzeMessageForTransition(
 export default {
   detectTransition,
   distinguishRealVsImage,
-  analyzeMessageForTransition
+  analyzeMessageForTransition,
+  detectTargetIntent
 };
