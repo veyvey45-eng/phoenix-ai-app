@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, slug, name, createdAt FROM hostedSites ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT id, slug, name, createdAt FROM hostedSites ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "120005",
+      "slug": "mon-site-9nCmyLXz",
+      "name": "Mon Site",
+      "createdAt": "2026-01-07 17:15:18"
+    },
+    {
+      "id": "120004",
+      "slug": "todo-list-app-YvmHEu1k",
+      "name": "todo-list-app",
+      "createdAt": "2026-01-07 17:02:49"
+    },
+    {
+      "id": "120003",
+      "slug": "le-gourmet-parisien-TjQmQdSo",
+      "name": "Le Gourmet Parisien",
+      "createdAt": "2026-01-07 16:55:46"
+    },
+    {
+      "id": "120002",
+      "slug": "compteur-interactif-0RF6Mfni",
+      "name": "Compteur Interactif",
+      "createdAt": "2026-01-07 16:53:28"
+    },
+    {
+      "id": "120001",
+      "slug": "hello-world-site-BnjmFE_C",
+      "name": "Hello World Site",
+      "createdAt": "2026-01-07 16:52:22"
+    },
+    {
+      "id": "90010",
+      "slug": "hello-world-test-VqdW_fhY",
+      "name": "hello-world-test",
+      "createdAt": "2026-01-07 16:29:30"
+    },
+    {
+      "id": "90009",
+      "slug": "compteurinteractif-xRmYuckQ",
+      "name": "CompteurInteractif",
+      "createdAt": "2026-01-07 16:22:52"
+    },
+    {
+      "id": "90008",
+      "slug": "monportfolio--3imE7Tv",
+      "name": "MonPortfolio",
+      "createdAt": "2026-01-07 16:15:56"
+    },
+    {
+      "id": "90007",
+      "slug": "mon-site-simple-wIxmjQ9X",
+      "name": "mon-site-simple",
+      "createdAt": "2026-01-07 16:07:42"
+    },
+    {
+      "id": "90006",
+      "slug": "mon-portfolio-simple-mbE0Fbf8",
+      "name": "Mon Portfolio Simple",
+      "createdAt": "2026-01-07 15:55:48"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tslug\tname\tcreatedAt\n120005\tmon-site-9nCmyLXz\tMon Site\t2026-01-07 17:15:18\n120004\ttodo-list-app-YvmHEu1k\ttodo-list-app\t2026-01-07 17:02:49\n120003\tle-gourmet-parisien-TjQmQdSo\tLe Gourmet Parisien\t2026-01-07 16:55:46\n120002\tcompteur-interactif-0RF6Mfni\tCompteur Interactif\t2026-01-07 16:53:28\n120001\thello-world-site-BnjmFE_C\tHello World Site\t2026-01-07 16:52:22\n90010\thello-world-test-VqdW_fhY\thello-world-test\t2026-01-07 16:29:30\n90009\tcompteurinteractif-xRmYuckQ\tCompteurInteractif\t2026-01-07 16:22:52\n90008\tmonportfolio--3imE7Tv\tMonPortfolio\t2026-01-07 16:15:56\n90007\tmon-site-simple-wIxmjQ9X\tmon-site-simple\t2026-01-07 16:07:42\n90006\tmon-portfolio-simple-mbE0Fbf8\tMon Portfolio Simple\t2026-01-07 15:55:48\n",
+  "stderr": "",
+  "execution_time_ms": 54
+}

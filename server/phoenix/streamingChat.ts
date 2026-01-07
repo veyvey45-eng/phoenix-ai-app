@@ -61,11 +61,26 @@ function detectWebsiteCreationRequest(message: string): WebsiteCreationRequest {
   const lowerMessage = message.toLowerCase();
   
   // Patterns pour détecter une demande de CRÉATION de site (pas navigation)
+  // Français, Anglais, Allemand, Luxembourgeois
   const creationPatterns = [
+    // Français
     /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site\s+(?:web\s+)?|page\s+(?:web\s+)?|landing\s+page)/i,
     /(?:site|page)\s+(?:web\s+)?(?:pour|d'|de)\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio)/i,
     /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:site|page)/i,
     /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
+    // Anglais
+    /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:a\s+)?(?:website|web\s+page|landing\s+page|site)/i,
+    /(?:can\s+you|could\s+you|please)\s+(?:create|make|build|generate)\s+(?:a\s+)?(?:website|site|page)/i,
+    /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:a\s+)?(?:website|site|page)\s+for/i,
+    // Allemand
+    /(?:erstelle|erstellen|mache|machen|baue|bauen|generiere|generieren|entwickle|entwickeln)\s+(?:mir\s+)?(?:eine?\s+)?(?:webseite|website|seite|landingpage)/i,
+    /(?:kannst\s+du|könntest\s+du|bitte)\s+(?:eine?\s+)?(?:webseite|website|seite)\s+(?:erstellen|machen|bauen)/i,
+    /(?:ich\s+möchte|ich\s+brauche|ich\s+will)\s+(?:eine?\s+)?(?:webseite|website|seite)\s+für/i,
+    // Luxembourgeois
+    /(?:maach|maachen|bau|bauen|erstell|erstellen)\s+(?:mir\s+)?(?:eng?\s+)?(?:websäit|site|säit)/i,
+    /(?:kanns\s+du|kéints\s+du)\s+(?:eng?\s+)?(?:websäit|site)\s+(?:maachen|bauen)/i,
+    // Mot-clé explicite "static_site_create" dans n'importe quelle langue
+    /static_site_create/i,
   ];
   
   // Vérifier si c'est une demande de création
@@ -690,10 +705,39 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 2: Vérifier si c'est une demande de navigation web directe
+    // PRIORITÉ 2: Vérifier si c'est une demande de RECHERCHE web (Serper API - plus rapide)
+    // IMPORTANT: Doit être AVANT la navigation pour éviter d'utiliser Browserless pour les recherches
+    const isSearchRequest = /(?:cherche|recherche|search|trouve|find|actualit|news|nouvelles)\s+(?:sur|on|about|pour|for)?/i.test(userMessage) &&
+      !/(?:va\s+sur|visite|ouvre|navigate|go\s+to)\s+/i.test(userMessage);
+    
+    if (isSearchRequest) {
+      console.log('[StreamingChat] Search request detected, using Serper API');
+      yield '🔍 Recherche en cours via Serper API...\n\n';
+      
+      try {
+        const queryDetection = multiSourceIntegration.detectQueryType(userMessage);
+        const enrichedData = await multiSourceIntegration.generateEnrichedContext(userMessage);
+        
+        if (enrichedData.context && enrichedData.context.length > 100) {
+          // Ajouter le contexte au message système pour que Phoenix réponde avec les données
+          messages[0] = {
+            role: 'system',
+            content: messages[0].content + '\n\n## DONNÉES DE RECHERCHE EN TEMPS RÉEL (Sources: ' + enrichedData.sources.join(', ') + ')\n' + enrichedData.context + '\n\nIMPORTANT: Utilise ces résultats pour répondre à la question.'
+          };
+          console.log('[StreamingChat] Search context added, continuing to LLM');
+          // Ne pas return ici - laisser le LLM répondre avec les données
+        }
+      } catch (error) {
+        console.error('[StreamingChat] Search error:', error);
+        // Continuer sans les données de recherche
+      }
+    }
+    
+    // PRIORITÉ 3: Vérifier si c'est une demande de navigation web directe (URL explicite)
     const browseRequest = detectBrowseRequest(userMessage);
-    if (browseRequest.shouldBrowse) {
-      console.log('[StreamingChat] Browse request detected:', browseRequest.url || 'general browse');
+    // Ne naviguer que si c'est une URL explicite ou une demande de visite de site
+    if (browseRequest.shouldBrowse && browseRequest.url && !isSearchRequest) {
+      console.log('[StreamingChat] Browse request detected:', browseRequest.url);
       yield '🌐 Navigation web en cours avec Browserless.io (vrai Chrome cloud)...\n\n';
       
       try {
@@ -706,7 +750,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 3: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
+    // PRIORITÉ 4: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
     if (shouldUseAgentLoop(userMessage)) {
       console.log('[StreamingChat] Complex task detected, using Agent Loop');
       yield '🧠 Tâche complexe détectée. Je décompose et exécute automatiquement...\n\n';
@@ -728,7 +772,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 4: Vérifier si c'est une demande d'analyse crypto experte
+    // PRIORITÉ 5: Vérifier si c'est une demande d'analyse crypto experte
     const cryptoDetection = detectCryptoExpertQuery(userMessage);
     if (cryptoDetection.needsExpert) {
       console.log('[StreamingChat] Crypto expert query detected:', cryptoDetection.analysisType);
@@ -745,25 +789,25 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 5: Vérifier si c'est une demande météo ou recherche web
+      // PRIORITÉ 6: Vérifier si c'est une demande météo (si pas déjà traité par recherche)
     const queryDetection = multiSourceIntegration.detectQueryType(userMessage);
-    if (queryDetection.types.includes('weather') || queryDetection.types.includes('news') || queryDetection.types.includes('search')) {
-      console.log('[StreamingChat] Multi-source query detected:', queryDetection.types);
+    if (queryDetection.types.includes('weather') && !isSearchRequest) {
+      console.log('[StreamingChat] Weather query detected');
       try {
         const enrichedData = await multiSourceIntegration.generateEnrichedContext(userMessage);
         if (enrichedData.context) {
           messages[0] = {
             role: 'system',
-            content: messages[0].content + '\n\n## DONNÉES EN TEMPS RÉEL (Sources: ' + enrichedData.sources.join(', ') + ')\n' + enrichedData.context
+            content: messages[0].content + '\n\n## DONNÉES MÉTÉO EN TEMPS RÉEL (Sources: ' + enrichedData.sources.join(', ') + ')\n' + enrichedData.context
           };
-          console.log('[StreamingChat] Multi-source context added');
+          console.log('[StreamingChat] Weather context added');
         }
       } catch (error) {
-        console.error('[StreamingChat] Multi-source error:', error);
+        console.error('[StreamingChat] Weather error:', error);
       }
     }
     
-    // PRIORITÉ 6: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
+    // PRIORITÉ 7: Vérifier si c'est une demande de code et l'exécuter DIRECTEMENT
     if (isCodeRequest(userMessage)) {
       console.log('[StreamingChat] Code request detected, executing directly');
       const codeResult = await generateAndExecuteCompleteFlow(userMessage);
@@ -778,7 +822,7 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 7: Auto-exécution intelligente
+    // PRIORITÉ 8: Auto-exécution intelligentete
     console.log('[StreamingChat] Analyzing for auto-execution...');
     const conversationHistory = messages.slice(0, -1).map(m => m.role + ': ' + m.content).join('\n');
     const autoExecResult = await analyzeAndExecuteAutomatically({

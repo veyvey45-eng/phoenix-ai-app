@@ -328,12 +328,33 @@ export default function Dashboard() {
     toast.success("Nouvelle conversation créée");
   }, []);
 
+  // Query pour charger les messages d'une conversation
+  const conversationQuery = trpc.conversations.get.useQuery(
+    { conversationId: conversationId || 0 },
+    { enabled: !!conversationId }
+  );
+
+  // Charger les messages quand la conversation change
+  useEffect(() => {
+    if (conversationQuery.data?.messages) {
+      const loadedMessages: Message[] = conversationQuery.data.messages.map((msg: any) => ({
+        id: `msg-${msg.id || Date.now()}-${Math.random()}`,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.createdAt || Date.now()),
+        images: [],
+        agentActions: [],
+        artifacts: []
+      }));
+      setMessages(loadedMessages);
+    }
+  }, [conversationQuery.data]);
+
   // Handle select conversation
-  const handleSelectConversation = useCallback((id: number) => {
+  const handleSelectConversation = useCallback(async (id: number) => {
     setConversationId(id);
-    setContextId(generateId());
-    setMessages([]);
     setShowConversations(false);
+    // Le useEffect ci-dessus chargera automatiquement les messages
   }, []);
 
   // Render agent action
@@ -612,33 +633,57 @@ export default function Dashboard() {
                   ))
                 )}
                 
-                {/* Current thinking/tool indicator */}
+                {/* Current thinking/tool indicator - Amélioré */}
                 {(currentThinking || currentTool) && (
                   <div className="flex justify-start">
-                    <div className="bg-muted text-foreground border border-border px-4 py-3 rounded-2xl rounded-bl-md max-w-[85%]">
-                      {currentThinking && (
-                        <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
-                          <Brain className="w-4 h-4 animate-pulse" />
-                          <span className="italic">{currentThinking}</span>
+                    <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 text-foreground border border-purple-500/20 px-4 py-3 rounded-2xl rounded-bl-md max-w-[85%] shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center">
+                            {currentTool ? (
+                              <Wrench className="w-4 h-4 text-white animate-bounce" />
+                            ) : (
+                              <Brain className="w-4 h-4 text-white animate-pulse" />
+                            )}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-background animate-ping" />
                         </div>
-                      )}
-                      {currentTool && (
-                        <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Exécution de <strong>{currentTool}</strong>...</span>
+                        <div className="flex-1">
+                          {currentThinking && (
+                            <div className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                              {currentThinking}
+                            </div>
+                          )}
+                          {currentTool && (
+                            <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                              🛠️ Exécution: <strong>{currentTool}</strong>
+                            </div>
+                          )}
+                          <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-purple-500 to-blue-500 rounded-full animate-progress" 
+                                 style={{ width: '100%', animation: 'progress 2s ease-in-out infinite' }} />
+                          </div>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 )}
                 
-                {/* Loading indicator */}
+                {/* Loading indicator - Amélioré */}
                 {isLoading && !currentThinking && !currentTool && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                   <div className="flex justify-start">
-                    <div className="bg-muted text-foreground border border-border px-4 py-3 rounded-2xl rounded-bl-md">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Phoenix analyse votre demande...</span>
+                    <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 text-foreground border border-yellow-500/20 px-4 py-3 rounded-2xl rounded-bl-md shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-500 rounded-full border-2 border-background animate-ping" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">🤔 Phoenix analyse votre demande...</div>
+                          <div className="text-xs text-muted-foreground mt-1">Détection du type de tâche en cours</div>
+                        </div>
                       </div>
                     </div>
                   </div>

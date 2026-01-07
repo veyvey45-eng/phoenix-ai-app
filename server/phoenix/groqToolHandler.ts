@@ -57,7 +57,15 @@ async function generateFallbackResponse(userMessage: string, contextData?: strin
   try {
     console.log('[GroqToolHandler] Using main LLM for fallback response');
     
-    let systemPrompt = `Tu es Phoenix, un assistant IA intelligent et serviable. Réponds de manière concise et utile en français.`;
+    let systemPrompt = `Tu es Phoenix, un assistant IA intelligent et serviable.
+
+RÈGLES IMPORTANTES:
+1. Réponds TOUJOURS dans la même langue que l'utilisateur (français, anglais, allemand, luxembourgeois, etc.)
+2. Si l'utilisateur parle en allemand, réponds en allemand
+3. Si l'utilisateur parle en anglais, réponds en anglais
+4. Si l'utilisateur parle en luxembourgeois, réponds en luxembourgeois
+5. Par défaut, réponds en français si la langue n'est pas claire
+6. Sois concis et utile`;
     
     // Ajouter le contexte si disponible (données météo, crypto, etc.)
     if (contextData) {

@@ -1,0 +1,36 @@
+{
+  "query": "SELECT id, slug, name, siteType, LEFT(htmlContent, 500) as html_preview FROM hostedSites WHERE slug LIKE '%elegance%' ORDER BY createdAt DESC LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute SELECT id, slug, name, siteType, LEFT(htmlContent, 500) as html_preview FROM hostedSites WHERE slug LIKE '%elegance%' ORDER BY createdAt DESC LIMIT 1;",
+  "rows": [
+    {
+      "id": "120006",
+      "slug": "elegance-avec-les-services-et-les-prix-yzlv9CcT",
+      "name": "Élégance avec les services et les prix",
+      "siteType": "business",
+      "html_preview": "<!DOCTYPE html>"
+    }
+  ],
+  "messages": [
+    "<html lang=\"fr\">",
+    "<head>",
+    "    <meta charset=\"UTF-8\">",
+    "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">",
+    "    <title>Élégance avec les services et les prix</title>",
+    "    <style>",
+    "        * {",
+    "            margin: 0;",
+    "            padding: 0;",
+    "            box-sizing: border-box;",
+    "        }",
+    "        body {",
+    "            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;",
+    "            line-height: 1.6;",
+    "            color: #333;",
+    "        }",
+    "        .hero {",
+    "            b"
+  ],
+  "stdout": "id\tslug\tname\tsiteType\thtml_preview\n120006\telegance-avec-les-services-et-les-prix-yzlv9CcT\tÉlégance avec les services et les prix\tbusiness\t<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Élégance avec les services et les prix</title>\n    <style>\n        * {\n            margin: 0;\n            padding: 0;\n            box-sizing: border-box;\n        }\n        body {\n            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;\n            line-height: 1.6;\n            color: #333;\n        }\n        .hero {\n            b\n",
+  "stderr": "",
+  "execution_time_ms": 207
+}
