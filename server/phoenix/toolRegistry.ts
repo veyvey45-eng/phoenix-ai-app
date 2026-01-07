@@ -26,6 +26,8 @@ import {
   workspaceFileExists,
   getWorkspaceFileHistory
 } from '../workspaceDb';
+import { advancedTools } from './advancedTools';
+import { moreAdvancedTools } from './moreAdvancedTools';
 
 // Types
 export interface ToolParameter {
@@ -73,6 +75,20 @@ class ToolRegistryService {
 
   constructor() {
     this.registerBuiltInTools();
+    this.registerAdvancedTools();
+  }
+
+  /**
+   * Enregistre les outils avancés niveau Manus
+   */
+  private registerAdvancedTools() {
+    for (const tool of advancedTools) {
+      this.register(tool);
+    }
+    for (const tool of moreAdvancedTools) {
+      this.register(tool);
+    }
+    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length} outils avancés enregistrés`);
   }
 
   /**
