@@ -65,8 +65,8 @@ type EventCallback = (event: AgentEvent) => void;
 
 // Default config
 const DEFAULT_CONFIG: AgentConfig = {
-  maxIterations: 15,
-  maxToolCalls: 20,
+  maxIterations: 30,
+  maxToolCalls: 40,
   requireConfirmation: false,
   verbose: true,
   timeout: 5 * 60 * 1000 // 5 minutes

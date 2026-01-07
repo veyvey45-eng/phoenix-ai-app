@@ -49,7 +49,7 @@ export interface AgentLoopConfig {
 }
 
 const DEFAULT_CONFIG: AgentLoopConfig = {
-  maxIterations: 20,
+  maxIterations: 30,
   maxTasksPerPlan: 10,
   timeoutPerTask: 60000,
 };

@@ -64,8 +64,8 @@ describe('AgentCore', () => {
     it('should use default config when not specified', () => {
       const agent = createAgent('Test task');
       
-      expect(agent.config.maxIterations).toBe(15);
-      expect(agent.config.maxToolCalls).toBe(20);
+      expect(agent.config.maxIterations).toBe(30);
+      expect(agent.config.maxToolCalls).toBe(40);
       expect(agent.config.verbose).toBe(true);
       
       // Cleanup

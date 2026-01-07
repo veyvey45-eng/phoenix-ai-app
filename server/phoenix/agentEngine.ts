@@ -114,7 +114,7 @@ export interface AgentConfig {
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
-  maxIterations: 10,
+  maxIterations: 30,
   requireConfirmationForHighRisk: true,
   autoExecuteLowRisk: true,
   verbose: true
