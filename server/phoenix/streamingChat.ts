@@ -617,6 +617,43 @@ function generateHotelSiteWithBooking(config: {
 }
 
 /**
+ * Détecte si c'est une demande conversationnelle simple qui ne nécessite pas Groq
+ */
+function isSimpleConversationalRequest(message: string): boolean {
+  const conversationalPatterns = [
+    // Salutations
+    /^(?:salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i,
+    /^(?:ça va|comment vas-tu|comment tu vas|how are you)/i,
+    
+    // Demandes créatives textuelles
+    /(?:raconte|raconter|dis|dire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|conte|poème|joke)/i,
+    /(?:écris|écrire|rédige|rédiger)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:poème|histoire|texte|lettre|email|mail|article)/i,
+    /(?:fais|faire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|poème)/i,
+    
+    // Traductions
+    /(?:traduis|traduire|translate)[\s-]/i,
+    
+    // Résumés
+    /(?:résume|résumer|summarize)[\s-]/i,
+    
+    // Explications simples
+    /(?:explique|expliquer|explain)[\s-]*(?:moi)?[\s-]*(?:ce|cette|cet|le|la|les)?/i,
+    
+    // Calculs simples
+    /^(?:combien|how much|how many)[\s-]*(?:font|fait|is|are|equals?)[\s-]*\d/i,
+    /^\d+[\s]*[\+\-\*\/][\s]*\d+/,
+    
+    // Questions oui/non
+    /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)/i,
+    
+    // Questions de culture générale basiques
+    /^(?:quelle est|quel est|what is|who is|c'est quoi|qu'est-ce que)[\s-]+(?:la|le|un|une|a|an|the)?[\s-]*(?:capitale|capital|président|president|sens|meaning|définition|definition)/i,
+  ];
+  
+  return conversationalPatterns.some(pattern => pattern.test(message));
+}
+
+/**
  * Stream chat response using Server-Sent Events
  */
 export async function* streamChatResponse(
@@ -628,6 +665,14 @@ export async function* streamChatResponse(
   try {
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
+    
+    // PRIORITÉ 0: Demandes conversationnelles simples - utiliser Google AI directement
+    // Cela évite les problèmes de rate limit de Groq pour les questions simples
+    if (isSimpleConversationalRequest(userMessage)) {
+      console.log('[StreamingChat] Simple conversational request detected, using Google AI directly');
+      yield* streamWithGoogleAI(messages, options);
+      return;
+    }
     
     // PRIORITÉ 1: Vérifier si c'est une demande de CRÉATION de site web
     const websiteRequest = detectWebsiteCreationRequest(userMessage);
@@ -924,6 +969,26 @@ function detectBrowseRequest(message: string): BrowseRequest {
   // IMPORTANT: Ne PAS détecter comme navigation si c'est une demande de création
   const creationKeywords = /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site|page)/i;
   if (creationKeywords.test(message)) {
+    return { shouldBrowse: false, action: 'visit' };
+  }
+  
+  // IMPORTANT: Ne PAS détecter comme navigation pour les demandes météo, crypto, questions simples
+  const excludePatterns = [
+    // Météo
+    /(?:quel|quelle)\s+(?:temps|météo)/i,
+    /(?:temps|météo|weather)\s+(?:à|a|en|dans|pour|at|in)/i,
+    /fait[\s-]*il\s+(?:à|a|en|dans)/i,
+    // Crypto
+    /(?:prix|cours|valeur)\s+(?:du|de|des)?\s*(?:bitcoin|btc|ethereum|eth|crypto)/i,
+    // Questions simples
+    /^(?:combien|how much|how many)[\s-]*(?:font|fait|is|are|coûte)/i,
+    /^(?:quel|quelle|quels|quelles)\s+(?:est|sont|heure)/i,
+    /^(?:qui|what|who|where|when|why|how)\s+(?:est|is|are|was|were)/i,
+    // Demandes conversationnelles
+    /(?:raconte|dis|explique|décris|résume|traduis|écris|rédige)/i,
+  ];
+  
+  if (excludePatterns.some(p => p.test(message))) {
     return { shouldBrowse: false, action: 'visit' };
   }
   

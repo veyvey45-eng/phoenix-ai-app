@@ -20,6 +20,72 @@ export type GroqMessage = CodeExecutionGroqMessage;
 /**
  * Appelle Groq avec les tools et gère les tool calls
  */
+import { invokeLLM } from '../_core/llm';
+
+/**
+ * Génère une réponse de fallback quand Groq est en rate limit
+ * Utilise le LLM principal (Google AI) pour répondre
+ */
+async function generateFallbackResponse(userMessage: string, contextData?: string): Promise<string> {
+  const lowerMessage = userMessage.toLowerCase();
+  
+  // Réponses pour les calculs simples - traitement local rapide
+  const mathMatch = userMessage.match(/(\d+)\s*([\+\-\*\/])\s*(\d+)/);
+  if (mathMatch) {
+    const a = parseFloat(mathMatch[1]);
+    const op = mathMatch[2];
+    const b = parseFloat(mathMatch[3]);
+    let result: number;
+    switch (op) {
+      case '+': result = a + b; break;
+      case '-': result = a - b; break;
+      case '*': result = a * b; break;
+      case '/': result = b !== 0 ? a / b : NaN; break;
+      default: result = NaN;
+    }
+    if (!isNaN(result)) {
+      return `${a} ${op} ${b} = ${result}`;
+    }
+  }
+  
+  // Réponses pour les salutations - traitement local rapide
+  if (/^(salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i.test(lowerMessage)) {
+    return 'Salut ! Comment puis-je t\'aider aujourd\'hui ?';
+  }
+  
+  // Pour toutes les autres questions, utiliser le LLM principal
+  try {
+    console.log('[GroqToolHandler] Using main LLM for fallback response');
+    
+    let systemPrompt = `Tu es Phoenix, un assistant IA intelligent et serviable. Réponds de manière concise et utile en français.`;
+    
+    // Ajouter le contexte si disponible (données météo, crypto, etc.)
+    if (contextData) {
+      systemPrompt += `\n\nDonnées contextuelles disponibles:\n${contextData}`;
+    }
+    
+    const response = await invokeLLM({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ]
+    });
+    
+    const content = response.choices?.[0]?.message?.content;
+    if (content && typeof content === 'string') {
+      return content;
+    }
+  } catch (error) {
+    console.error('[GroqToolHandler] LLM fallback error:', error);
+  }
+  
+  // Réponse par défaut si tout échoue
+  return 'Je suis là pour t\'aider ! Que puis-je faire pour toi ?';
+}
+
+/**
+ * Appelle Groq avec les tools et gère les tool calls
+ */
 export async function callGroqWithTools(
   messages: any[],
   options?: {
@@ -60,6 +126,18 @@ export async function callGroqWithTools(
     if (!response.ok) {
       const error = await response.text();
       console.error('[GroqToolHandler] Groq error:', error);
+      
+      // FALLBACK: En cas de rate limit (429), retourner une réponse par défaut
+      if (response.status === 429) {
+        console.log('[GroqToolHandler] Rate limit reached, falling back to default response');
+        // Extraire le dernier message utilisateur pour générer une réponse contextuelle
+        const lastUserMessage = currentMessages.filter(m => m.role === 'user').pop();
+        const userContent = lastUserMessage?.content || '';
+        
+        // Utiliser le LLM principal pour générer une réponse contextuelle
+        return await generateFallbackResponse(userContent);
+      }
+      
       throw new Error(`Groq API error: ${response.status}`);
     }
 

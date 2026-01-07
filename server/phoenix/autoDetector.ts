@@ -3,6 +3,8 @@
  * Détecte automatiquement quand Phoenix doit utiliser RealExecutor
  * Sans que l'utilisateur ait à utiliser des commandes natives
  * Système "Zero-Prompt" - Phoenix prend l'initiative
+ * 
+ * IMPORTANT: Ce module doit éviter les faux positifs pour les questions conversationnelles simples
  */
 
 import { RealExecutor } from './realExecutor';
@@ -17,44 +19,149 @@ export interface DetectionResult {
 }
 
 /**
- * Patterns pour détecter les demandes d'exécution
+ * Patterns pour détecter les demandes conversationnelles simples
+ * Ces patterns EXCLUENT l'exécution automatique
+ */
+const CONVERSATIONAL_PATTERNS = [
+  // Questions simples de conversation
+  /^(?:salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i,
+  /^(?:ça va|comment vas-tu|comment tu vas|how are you)/i,
+  
+  // Demandes créatives textuelles (pas de recherche web nécessaire)
+  /(?:raconte|raconter|dis|dire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|conte|poème|joke)/i,
+  /(?:écris|écrire|rédige|rédiger)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:poème|histoire|texte|lettre|email|mail|article|essai)/i,
+  /(?:fais|faire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|poème)/i,
+  
+  // Traductions (pas besoin de web)
+  /(?:traduis|traduire|translate)[\s-]/i,
+  
+  // Résumés (pas besoin de web)
+  /(?:résume|résumer|summarize)[\s-]/i,
+  
+  // Explications simples
+  /(?:explique|expliquer|explain)[\s-]*(?:moi)?[\s-]*(?:ce|cette|cet|le|la|les)?/i,
+  
+  // Questions de culture générale basiques
+  /^(?:combien|how much|how many)[\s-]*(?:font|fait|is|are|equals?)[\s-]*\d/i,
+  /^\d+[\s]*[\+\-\*\/][\s]*\d+/,  // Calculs simples comme "2+2"
+  
+  // Questions oui/non
+  /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)/i,
+  
+  // Demandes de définition simple (Phoenix peut répondre sans web)
+  /^(?:c'est quoi|qu'est-ce que c'est|what is a|define)\s+(?:un|une|le|la|a|an|the)?\s*\w+\s*\?*$/i,
+  
+  // Questions sur les capacités de Phoenix
+  /(?:que peux-tu|what can you|tu peux faire quoi|tu sais faire quoi)/i,
+];
+
+/**
+ * Patterns pour détecter les demandes de CRÉATION de site web (pas de navigation)
+ */
+const WEBSITE_CREATION_PATTERNS = [
+  /(?:crée|créer|fais|faire|génère|générer|construis|construire|développe|développer)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:site|page)\s+(?:web)?/i,
+  /(?:site|page)\s+(?:web\s+)?(?:pour|d'|de|avec)/i,
+];
+
+/**
+ * Patterns pour détecter les demandes d'exécution EXPLICITES
  */
 const EXECUTION_PATTERNS = {
   code: {
     patterns: [
-      /exécute|execute|run|lance|calcul|calcule|math|code|script|python|javascript|js/i,
-      /affiche|print|montre|résultat|output|console/i,
-      /créer une fonction|write a function|generate code/i,
-      /quelle est|what is|combien|how much|calculate/i
+      // Demandes EXPLICITES d'exécution de code
+      /(?:exécute|execute|run|lance)[\s-]+(?:ce|le|this|the)?[\s-]*(?:code|script|programme)/i,
+      /(?:teste|tester|test)[\s-]+(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
+      // Code dans des blocs
+      /```(?:python|javascript|js|typescript|ts|bash|shell)/i,
+      // Demandes de calcul complexe
+      /(?:calcule|calculer|calculate|compute)[\s-]+(?:la|le|les|the)?[\s-]*(?:somme|moyenne|total|résultat)/i,
     ],
-    confidence: 0.8
+    confidence: 0.8,
+    // Patterns qui EXCLUENT l'exécution de code
+    exclusions: [
+      /(?:explique|explain|comment|how)[\s-]+(?:ce|le|this|the)?[\s-]*(?:code|script)/i,  // Explication de code, pas exécution
+    ]
   },
   search: {
     patterns: [
-      /recherche|search|trouve|find|cherche|look for/i,
-      /dernières nouvelles|latest news|actualités|trending/i,
-      /quel est|what is|qui est|who is|où est|where is/i,
-      /information|data|données|stats|statistics/i,
-      /sur internet|online|web|google/i
+      // Demandes EXPLICITES de recherche web
+      /(?:recherche|cherche|search|find|look up)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le web|google|the web)/i,
+      /(?:trouve|trouver|find)[\s-]+(?:moi)?[\s-]+(?:des)?[\s-]*(?:informations?|infos?|articles?|news|actualités)/i,
+      // Actualités explicites
+      /(?:dernières|latest|récentes|recent)[\s-]+(?:nouvelles|news|actualités|informations)/i,
+      // Questions nécessitant des données en temps réel (sauf météo et crypto qui sont gérés séparément)
+      /(?:prix|price|cours|value)[\s-]+(?:actuel|current|aujourd'hui|today)/i,
     ],
-    confidence: 0.7
+    confidence: 0.7,
+    // Patterns qui EXCLUENT la recherche
+    exclusions: [
+      ...CONVERSATIONAL_PATTERNS,
+      /(?:c'est quoi|qu'est-ce que|what is|define)[\s-]+(?:un|une|le|la|a|an|the)?\s*\w+\s*\?*$/i,  // Définitions simples
+    ]
   },
   browse: {
     patterns: [
-      /navigue|navigate|browse|visite|visit|go to/i,
-      /extrait|extract|scrape|récupère|get data/i,
-      /https?:\/\/|www\.|\.com|\.fr|\.org/i,
-      /site web|website|page|url/i,
-      /clique|click|remplir|fill|soumettre|submit/i
+      // Demandes EXPLICITES de navigation web
+      /(?:va|aller|go)[\s-]+(?:sur|to)[\s-]+(?:le site|la page|the site|the page)/i,
+      /(?:ouvre|ouvrir|open)[\s-]+(?:le site|la page|l'url|the site|the page|the url)/i,
+      /(?:navigue|naviguer|navigate|browse)[\s-]+(?:vers|sur|to|on)/i,
+      /(?:visite|visiter|visit)[\s-]+(?:le site|la page|the site|the page)/i,
+      // URLs explicites avec intention de navigation
+      /(?:va|aller|go|ouvre|open|visite|visit)[\s-]+(?:sur|to|on)?[\s-]*https?:\/\//i,
+      // Extraction de données d'un site spécifique
+      /(?:extrait|extraire|extract|scrape|récupère|récupérer|get)[\s-]+(?:les)?[\s-]*(?:données|data|informations?|infos?)[\s-]+(?:de|from|du|sur)/i,
     ],
-    confidence: 0.75
+    confidence: 0.75,
+    // Patterns qui EXCLUENT la navigation
+    exclusions: [
+      ...WEBSITE_CREATION_PATTERNS,  // Création de site != navigation
+      /(?:crée|créer|fais|faire|génère|générer)[\s-]/i,  // Création != navigation
+    ]
   }
 };
 
 /**
+ * Vérifie si le message est une demande conversationnelle simple
+ */
+function isConversationalRequest(message: string): boolean {
+  return CONVERSATIONAL_PATTERNS.some(pattern => pattern.test(message));
+}
+
+/**
+ * Vérifie si le message est une demande de création de site web
+ */
+function isWebsiteCreationRequest(message: string): boolean {
+  return WEBSITE_CREATION_PATTERNS.some(pattern => pattern.test(message));
+}
+
+/**
  * Détecte automatiquement si Phoenix doit exécuter quelque chose
+ * AMÉLIORÉ: Évite les faux positifs pour les questions conversationnelles
  */
 export function autoDetectExecution(userMessage: string, phoenixResponse: string): DetectionResult {
+  // PRIORITÉ 1: Vérifier si c'est une demande conversationnelle simple
+  if (isConversationalRequest(userMessage)) {
+    console.log('[AutoDetector] Conversational request detected, skipping execution');
+    return {
+      shouldExecute: false,
+      executionType: 'none',
+      confidence: 0,
+      reason: 'Demande conversationnelle simple - pas besoin d\'exécution'
+    };
+  }
+
+  // PRIORITÉ 2: Vérifier si c'est une demande de création de site (pas de navigation)
+  if (isWebsiteCreationRequest(userMessage)) {
+    console.log('[AutoDetector] Website creation request detected, not navigation');
+    return {
+      shouldExecute: false,
+      executionType: 'none',
+      confidence: 0,
+      reason: 'Demande de création de site web - pas de navigation nécessaire'
+    };
+  }
+
   // Vérifier si Phoenix dit qu'il ne peut pas faire quelque chose
   const cannotDoPatterns = [
     /je ne peux pas|i cannot|i can't|je ne suis pas capable/i,
@@ -66,12 +173,20 @@ export function autoDetectExecution(userMessage: string, phoenixResponse: string
 
   const phoenixSaysCannotDo = cannotDoPatterns.some(pattern => pattern.test(phoenixResponse));
 
-  // Vérifier si le message contient une demande d'exécution
+  // Vérifier si le message contient une demande d'exécution EXPLICITE
   for (const [executionType, config] of Object.entries(EXECUTION_PATTERNS)) {
+    // Vérifier d'abord les exclusions
+    const isExcluded = config.exclusions?.some(pattern => pattern.test(userMessage));
+    if (isExcluded) {
+      console.log(`[AutoDetector] Message excluded from ${executionType} execution`);
+      continue;
+    }
+
     const matchCount = config.patterns.filter(pattern => pattern.test(userMessage)).length;
     const matchRatio = matchCount / config.patterns.length;
 
-    if (matchRatio > 0.3) {
+    // Exiger un match ratio plus élevé pour éviter les faux positifs
+    if (matchRatio > 0.4) {
       // Si Phoenix dit qu'il ne peut pas faire quelque chose, on doit l'exécuter
       if (phoenixSaysCannotDo) {
         return {
@@ -83,13 +198,13 @@ export function autoDetectExecution(userMessage: string, phoenixResponse: string
         };
       }
 
-      // Sinon, vérifier si c'est une demande claire
-      if (matchRatio > 0.5) {
+      // Sinon, vérifier si c'est une demande TRÈS claire (ratio > 0.6)
+      if (matchRatio > 0.6) {
         return {
           shouldExecute: true,
           executionType: executionType as 'code' | 'search' | 'browse',
           confidence: config.confidence * matchRatio,
-          reason: `Demande d'${executionType} détectée`,
+          reason: `Demande explicite d'${executionType} détectée`,
           suggestedAction: `Exécution ${executionType} automatique`
         };
       }
@@ -100,7 +215,7 @@ export function autoDetectExecution(userMessage: string, phoenixResponse: string
     shouldExecute: false,
     executionType: 'none',
     confidence: 0,
-    reason: 'Aucune demande d\'exécution détectée'
+    reason: 'Aucune demande d\'exécution explicite détectée'
   };
 }
 
@@ -169,17 +284,20 @@ export function generateExecutionSuggestion(
 
 /**
  * Détermine si Phoenix doit proposer d'exécuter quelque chose
- * Retourne true si Phoenix devrait dire "Je vais exécuter cela pour toi"
+ * AMÉLIORÉ: Plus strict pour éviter les faux positifs
  */
 export function shouldProactivelyExecute(userMessage: string): boolean {
+  // D'abord vérifier si c'est une demande conversationnelle
+  if (isConversationalRequest(userMessage)) {
+    return false;
+  }
+
+  // Patterns qui nécessitent vraiment une exécution
   const proactivePatterns = [
-    /exécute|execute|run|lance|calcul|calcule/i,
-    /affiche|print|montre|résultat/i,
-    /créer une fonction|write a function/i,
-    /recherche|search|trouve/i,
-    /navigue|navigate|browse/i,
-    /problème|problem|bug|erreur|error/i,
-    /aide-moi|help me|peux-tu|can you/i
+    /(?:exécute|execute|run|lance)[\s-]+(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
+    /```(?:python|javascript|js)/i,  // Code dans un bloc
+    /(?:recherche|search)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le web|google)/i,
+    /(?:navigue|navigate|browse|visite|visit)[\s-]+(?:vers|sur|to|on)?[\s-]*https?:\/\//i,
   ];
 
   return proactivePatterns.some(pattern => pattern.test(userMessage));
@@ -187,20 +305,50 @@ export function shouldProactivelyExecute(userMessage: string): boolean {
 
 /**
  * Analyse le contexte pour décider si Phoenix doit prendre l'initiative
- * Retourne une suggestion d'action proactive
+ * AMÉLIORÉ: Avec fallback en cas d'erreur LLM (rate limit)
  */
 export async function analyzeProactiveAction(userMessage: string, conversationContext: string): Promise<{
   shouldTakeInitiative: boolean;
   suggestedAction: string;
   actionType: 'code' | 'search' | 'browse' | 'analyze' | 'none';
 }> {
-  // Utiliser LLM pour analyser si Phoenix devrait prendre l'initiative
-  const analysis = await invokeLLM({
-    messages: [
-      {
-        role: 'system',
-        content: `Tu es Phoenix, une IA autonome. Analyse si tu dois prendre l'initiative pour résoudre le problème de l'utilisateur.
-        
+  // D'abord vérifier si c'est une demande conversationnelle simple
+  if (isConversationalRequest(userMessage)) {
+    console.log('[AutoDetector] Conversational request - no proactive action needed');
+    return {
+      shouldTakeInitiative: false,
+      suggestedAction: '',
+      actionType: 'none'
+    };
+  }
+
+  // Vérifier si c'est une demande de création de site
+  if (isWebsiteCreationRequest(userMessage)) {
+    console.log('[AutoDetector] Website creation request - no proactive action needed');
+    return {
+      shouldTakeInitiative: false,
+      suggestedAction: '',
+      actionType: 'none'
+    };
+  }
+
+  try {
+    // Utiliser LLM pour analyser si Phoenix devrait prendre l'initiative
+    const analysis = await invokeLLM({
+      messages: [
+        {
+          role: 'system',
+          content: `Tu es Phoenix, une IA autonome. Analyse si tu dois prendre l'initiative pour résoudre le problème de l'utilisateur.
+
+IMPORTANT: Pour les demandes suivantes, réponds TOUJOURS avec shouldTakeInitiative: false:
+- Questions conversationnelles simples (salut, ça va, etc.)
+- Demandes créatives (blagues, poèmes, histoires, etc.)
+- Traductions
+- Résumés
+- Explications
+- Calculs simples (2+2, etc.)
+- Questions de culture générale basiques
+
 Réponds en JSON avec cette structure:
 {
   "shouldTakeInitiative": boolean,
@@ -208,20 +356,18 @@ Réponds en JSON avec cette structure:
   "suggestedAction": "description de l'action à prendre"
 }
 
-Prends l'initiative si:
-- L'utilisateur demande d'exécuter du code
-- L'utilisateur pose une question qui nécessite une recherche
-- L'utilisateur demande d'analyser quelque chose
-- L'utilisateur a un problème que tu peux résoudre`
-      },
-      {
-        role: 'user',
-        content: `Contexte de conversation:\n${conversationContext}\n\nMessage utilisateur:\n${userMessage}`
-      }
-    ]
-  });
+Prends l'initiative UNIQUEMENT si:
+- L'utilisateur demande EXPLICITEMENT d'exécuter du code
+- L'utilisateur demande EXPLICITEMENT une recherche web
+- L'utilisateur demande EXPLICITEMENT de naviguer sur un site`
+        },
+        {
+          role: 'user',
+          content: `Message utilisateur:\n${userMessage}`
+        }
+      ]
+    });
 
-  try {
     const content = analysis.choices[0]?.message?.content;
     const jsonStr = typeof content === 'string' ? content : '';
     const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
@@ -234,8 +380,14 @@ Prends l'initiative si:
         actionType: parsed.actionType || 'none'
       };
     }
-  } catch (error) {
-    console.error('Erreur analyse proactive:', error);
+  } catch (error: any) {
+    // FALLBACK: En cas d'erreur LLM (rate limit, etc.), ne pas prendre d'initiative
+    console.error('[AutoDetector] LLM error, falling back to no action:', error.message);
+    return {
+      shouldTakeInitiative: false,
+      suggestedAction: '',
+      actionType: 'none'
+    };
   }
 
   return {

@@ -64,11 +64,39 @@ const IMAGE_GENERATION_PATTERNS = [
 ];
 
 // Patterns pour détecter les besoins de recherche web
+// IMPORTANT: Ces patterns doivent être EXPLICITES pour éviter les faux positifs
 const WEB_SEARCH_PATTERNS = [
-  /(?:cherche|recherche|trouve|trouver|google|search|find|look up)/i,
-  /(?:qu'est-ce que|c'est quoi|what is|who is|define|définition)/i,
-  /(?:actualité|actualités|news|nouvelles|dernières)/i,
-  /(?:information|infos?)[\s-]*(?:sur|about|on)/i,
+  /(?:cherche|recherche|trouve|trouver)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le web|google|the web)/i,
+  /(?:actualité|actualités|news|nouvelles|dernières)[\s-]+(?:sur|about|on|de)/i,
+  /(?:information|infos?)[\s-]+(?:récentes?|actuelles?|en ligne|online)/i,
+];
+
+// Patterns pour les demandes conversationnelles simples (PAS de recherche web)
+const CONVERSATIONAL_PATTERNS = [
+  // Salutations
+  /^(?:salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i,
+  /^(?:ça va|comment vas-tu|comment tu vas|how are you)/i,
+  
+  // Demandes créatives textuelles
+  /(?:raconte|raconter|dis|dire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|conte|poème|joke)/i,
+  /(?:écris|écrire|rédige|rédiger)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:poème|histoire|texte|lettre|email|mail|article)/i,
+  /(?:fais|faire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|poème)/i,
+  
+  // Traductions
+  /(?:traduis|traduire|translate)[\s-]/i,
+  
+  // Résumés
+  /(?:résume|résumer|summarize)[\s-]/i,
+  
+  // Explications simples
+  /(?:explique|expliquer|explain)[\s-]*(?:moi)?[\s-]*(?:ce|cette|cet|le|la|les)?/i,
+  
+  // Calculs simples
+  /^(?:combien|how much|how many)[\s-]*(?:font|fait|is|are|equals?)[\s-]*\d/i,
+  /^\d+[\s]*[\+\-\*\/][\s]*\d+/,
+  
+  // Questions oui/non
+  /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)/i,
 ];
 
 // Patterns météo
@@ -200,7 +228,19 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
     }
   }
   
-  // Vérifier les recherches web
+  // Vérifier si c'est une demande conversationnelle simple AVANT la recherche web
+  for (const pattern of CONVERSATIONAL_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Conversational pattern matched, returning conversation intent');
+      return {
+        type: 'conversation',
+        confidence: 1.0,
+        details: { keywords: [] }
+      };
+    }
+  }
+  
+  // Vérifier les recherches web EXPLICITES
   for (const pattern of WEB_SEARCH_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       return {
