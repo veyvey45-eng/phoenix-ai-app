@@ -1494,3 +1494,31 @@ Quand le code Python/JavaScript génère une image (matplotlib, PIL, etc.), Phoe
 - Temps d'exécution: 1276ms
 - Image générée: `generated-1767751542239.png`
 - Affichage: ✅ Image visible dans l'interface
+
+---
+
+## Phase 70: Tests et Intégration Complète des Visuels - EN COURS
+
+### Date: 2026-01-07
+
+### Objectif
+Tester et intégrer complètement l'affichage des images : génération HTML, support PIL/Pillow, et intégration dans l'Agent Phoenix.
+
+### Tâches
+- [x] Tester la génération HTML dans Code Executor - SUCCÈS
+- [x] Ajouter le support PIL/Pillow et tester - SUCCÈS (2 images générées)
+- [x] Intégrer l'affichage des images dans l'Agent Phoenix - SUCCÈS
+- [x] Tester l'intégration complète - SUCCÈS
+- [x] Valider tous les cas d'usage - SUCCÈS
+
+### Résultats des Tests
+| Test | Résultat | Détails |
+|------|----------|--------|
+| matplotlib | ✅ SUCCÈS | 2 images PNG générées, uploadées sur CloudFront |
+| PIL/Pillow | ✅ SUCCÈS | Image PNG + JPEG générées (1285ms) |
+| HTML JavaScript | ✅ SUCCÈS | Page HTML complète générée (637ms) |
+| Agent Integration | ✅ SUCCÈS | toolRegistry modifié pour retourner artifacts |
+
+### Fichiers Modifiés
+- server/phoenix/toolRegistry.ts - Ajout artifacts pour execute_python et execute_javascript
+- server/phoenix/agentLoopV2.ts - Intégration E2B et gestion filesGenerated

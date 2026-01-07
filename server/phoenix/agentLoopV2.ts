@@ -4,6 +4,7 @@
 
 import { invokeLLM } from '../_core/llm';
 import { searchCache, browseCache } from './agentCache';
+import { e2bSandbox } from './e2bSandbox';
 
 export interface AgentEvent {
   type: string;
@@ -18,12 +19,20 @@ export interface AgentConfig {
   tools: string[];
 }
 
+export interface GeneratedFile {
+  name: string;
+  type: 'image' | 'html' | 'other';
+  url: string;
+  mimeType: string;
+}
+
 export interface AgentState {
   status: 'idle' | 'running' | 'completed' | 'failed' | 'paused';
   currentIteration: number;
   plan: any;
   memory: any[];
   artifacts: any[];
+  filesGenerated: GeneratedFile[];
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
@@ -49,7 +58,8 @@ export class PhoenixAgentV2 {
       currentIteration: 0,
       plan: null,
       memory: [],
-      artifacts: []
+      artifacts: [],
+      filesGenerated: []
     };
     console.log(`[AgentV2] Created agent ${this.id} with goal: ${goal}`);
   }
@@ -110,9 +120,16 @@ export class PhoenixAgentV2 {
 
         const result = await this.act(thought.action, thought.args);
         
+        // Si l'action a généré des fichiers, les ajouter à l'état
+        if (result && result.filesGenerated && result.filesGenerated.length > 0) {
+          this.state.filesGenerated.push(...result.filesGenerated);
+          yield this.createEvent('files_generated', { files: result.filesGenerated });
+        }
+
         yield this.createEvent('action_complete', {
           tool: thought.action,
-          result: typeof result === 'string' ? result.substring(0, 500) : result
+          result: typeof result === 'string' ? result.substring(0, 500) : result,
+          filesGenerated: result?.filesGenerated || []
         });
 
         this.state.memory.push({
@@ -146,7 +163,8 @@ export class PhoenixAgentV2 {
     yield this.createEvent('agent_completed', { 
       status: this.state.status,
       iterations: this.state.currentIteration,
-      artifactCount: this.state.artifacts.length
+      artifactCount: this.state.artifacts.length,
+      filesGenerated: this.state.filesGenerated
     });
   }
 
@@ -274,9 +292,33 @@ Réponds en JSON:
     return result;
   }
 
-  private async executeCode(language: string, code: string): Promise<string> {
-    if (!code) return 'Code manquant';
-    return `[${language}] Code exécuté avec succès`;
+  private async executeCode(language: string, code: string): Promise<{ output: string; filesGenerated?: GeneratedFile[] }> {
+    if (!code) return { output: 'Code manquant' };
+    
+    try {
+      console.log(`[AgentV2] Executing ${language} code via E2B`);
+      
+      let result;
+      if (language === 'python') {
+        result = await e2bSandbox.executePython(code, 'agent', 'Phoenix Agent');
+      } else if (language === 'javascript') {
+        result = await e2bSandbox.executeJavaScript(code, 'agent', 'Phoenix Agent');
+      } else {
+        return { output: `Langage non supporté: ${language}` };
+      }
+      
+      if (result.success) {
+        return {
+          output: result.output,
+          filesGenerated: result.filesGenerated || []
+        };
+      } else {
+        return { output: `Erreur: ${result.error}` };
+      }
+    } catch (error) {
+      console.error('[AgentV2] Code execution error:', error);
+      return { output: `Erreur d'exécution: ${error instanceof Error ? error.message : 'Erreur inconnue'}` };
+    }
   }
 
   private async executeSummarize(text: string): Promise<string> {

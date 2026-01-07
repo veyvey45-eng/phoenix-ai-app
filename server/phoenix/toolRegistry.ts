@@ -72,7 +72,7 @@ class ToolRegistryService {
     
     this.register({
       name: 'execute_python',
-      description: 'Exécute du code Python dans un sandbox isolé. Peut installer des packages avec pip. Retourne la sortie standard et les erreurs.',
+      description: 'Exécute du code Python dans un sandbox isolé. Peut installer des packages avec pip. Retourne la sortie standard, les erreurs et les fichiers générés (images, HTML).',
       category: 'code',
       parameters: [
         { name: 'code', type: 'string', description: 'Le code Python à exécuter', required: true },
@@ -89,13 +89,37 @@ class ToolRegistryService {
           
           const result = await e2bSandbox.executePython(args.code, context.userId, context.sessionId);
           
+          // Convertir les fichiers générés en artifacts
+          const artifacts: Array<{ type: 'text' | 'image' | 'file' | 'code' | 'data'; content: string; mimeType?: string; name?: string }> = [];
+          if (result.filesGenerated && result.filesGenerated.length > 0) {
+            for (const file of result.filesGenerated) {
+              if (file.type === 'image') {
+                artifacts.push({
+                  type: 'image',
+                  content: file.url,
+                  mimeType: file.mimeType,
+                  name: file.name
+                });
+              } else if (file.type === 'html') {
+                artifacts.push({
+                  type: 'file',
+                  content: file.url,
+                  mimeType: file.mimeType,
+                  name: file.name
+                });
+              }
+            }
+          }
+          
           return {
             success: result.success,
             output: result.output,
             error: result.error,
+            artifacts: artifacts.length > 0 ? artifacts : undefined,
             metadata: {
               executionTime: result.executionTime,
-              language: 'python'
+              language: 'python',
+              filesGenerated: result.filesGenerated?.length || 0
             }
           };
         } catch (error: any) {
@@ -110,7 +134,7 @@ class ToolRegistryService {
 
     this.register({
       name: 'execute_javascript',
-      description: 'Exécute du code JavaScript/Node.js dans un sandbox isolé. Retourne la sortie standard et les erreurs.',
+      description: 'Exécute du code JavaScript/Node.js dans un sandbox isolé. Retourne la sortie standard, les erreurs et les fichiers générés (HTML, images).',
       category: 'code',
       parameters: [
         { name: 'code', type: 'string', description: 'Le code JavaScript à exécuter', required: true }
@@ -119,13 +143,37 @@ class ToolRegistryService {
         try {
           const result = await e2bSandbox.executeJavaScript(args.code, context.userId, context.sessionId);
           
+          // Convertir les fichiers générés en artifacts
+          const artifacts: Array<{ type: 'text' | 'image' | 'file' | 'code' | 'data'; content: string; mimeType?: string; name?: string }> = [];
+          if (result.filesGenerated && result.filesGenerated.length > 0) {
+            for (const file of result.filesGenerated) {
+              if (file.type === 'image') {
+                artifacts.push({
+                  type: 'image',
+                  content: file.url,
+                  mimeType: file.mimeType,
+                  name: file.name
+                });
+              } else if (file.type === 'html') {
+                artifacts.push({
+                  type: 'file',
+                  content: file.url,
+                  mimeType: file.mimeType,
+                  name: file.name
+                });
+              }
+            }
+          }
+          
           return {
             success: result.success,
             output: result.output,
             error: result.error,
+            artifacts: artifacts.length > 0 ? artifacts : undefined,
             metadata: {
               executionTime: result.executionTime,
-              language: 'javascript'
+              language: 'javascript',
+              filesGenerated: result.filesGenerated?.length || 0
             }
           };
         } catch (error: any) {
