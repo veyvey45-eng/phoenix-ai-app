@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { streamChatEndpoint } from "./streamingEndpoint";
+import { unifiedChatEndpoint } from "./unifiedChatEndpoint";
 import { handleCodeExecution, handleCodeExecutionStream, executePhoenixCodeEndpoint } from "./codeExecutionEndpoint";
 import codeExecutionRouter from "../phoenix/codeExecutionEndpoint";
 import { handleStripeWebhook } from "../stripe/webhookHandler";
@@ -49,10 +50,15 @@ async function startServer() {
   registerOAuthRoutes(app);
   
   // Streaming endpoints for real-time responses (support both GET and POST)
+  // Ancien endpoint (pour compatibilité)
   app.get("/api/stream/chat", streamChatEndpoint);
   app.post("/api/stream/chat", streamChatEndpoint);
   app.get("/api/stream/fast-chat", streamChatEndpoint);
   app.post("/api/stream/fast-chat", streamChatEndpoint);
+  
+  // Nouveau endpoint unifié avec capacités d'agent (comme Manus)
+  app.get("/api/stream/unified", unifiedChatEndpoint);
+  app.post("/api/stream/unified", unifiedChatEndpoint);
   
   // Code execution endpoints
   app.post("/api/stream/code-execution", handleCodeExecutionStream);

@@ -1803,3 +1803,42 @@ Profitez de votre visite !
 
 ### Route Ajoutée
 - `/projects` - Page "Mes Projets" accessible depuis la navigation
+
+---
+
+## Phase 48: Chat Unifié - Tout dans une seule interface (2026-01-07)
+
+### Objectif
+Fusionner le chat principal avec les capacités de l'Agent pour que tout fonctionne dans une seule interface comme Manus.
+
+### Problème Actuel
+- Le chat "Conversation" utilise juste le LLM basique
+- Le mode "Agent" a accès aux 62 outils
+- L'utilisateur doit changer de page pour utiliser les outils
+
+### Solution
+- [ ] Analyser l'architecture actuelle du chat et de l'agent
+- [ ] Modifier le backend pour que le chat utilise l'orchestrateur Phoenix avec tous les outils
+- [ ] Adapter le frontend Dashboard pour afficher les actions de l'agent inline
+- [ ] Tester le chat unifié avec différentes demandes
+
+### Résultat Attendu
+Un seul chat intelligent qui peut tout faire : conversation, exécution de code, création de sites, recherche web, génération d'images, etc.
+
+---
+
+## Phase 48: Chat Unifié (Agent + Conversation fusionnés)
+
+- [x] Analyser l'architecture actuelle du chat et de l'agent
+- [x] Créer le endpoint /api/stream/unified avec détection intelligente
+- [x] Améliorer les regex de détection pour les demandes d'agent
+- [x] Adapter le Dashboard pour afficher les actions de l'agent inline
+- [x] Afficher le thinking de l'agent en temps réel
+- [x] Afficher les tool_call avec leurs arguments
+- [x] Afficher les tool_result (succès/erreur)
+- [x] Afficher les artifacts (URLs, code, etc.)
+- [x] Tester le chat unifié avec création de page web
+- [x] L'agent peut maintenant créer des projets depuis le chat principal
+
+**Résultat:** Le chat principal a maintenant TOUTES les capacités de l'Agent!
+Plus besoin de changer de page pour créer des sites, exécuter du code, etc.
