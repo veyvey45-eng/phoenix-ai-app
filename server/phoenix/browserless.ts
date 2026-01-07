@@ -119,19 +119,28 @@ export class BrowserlessModule {
         method: 'browserless-chrome'
       };
     } catch (error) {
-      console.error('[Browserless] Erreur:', error);
-      
-      // Retry sur erreur TLS/socket
       const errorStr = String(error);
-      if (retryCount < maxRetries && (errorStr.includes('socket') || errorStr.includes('TLS') || errorStr.includes('fetch failed'))) {
-        console.log(`[Browserless] Retry ${retryCount + 1}/${maxRetries} après erreur réseau...`);
+      console.error('[Browserless] Erreur:', errorStr);
+      
+      // Retry sur erreurs spécifiques (frame detached, TLS, socket, HTTP 500)
+      const isRetryableError = 
+        errorStr.includes('frame was detached') ||
+        errorStr.includes('Navigating frame') ||
+        errorStr.includes('socket') || 
+        errorStr.includes('TLS') || 
+        errorStr.includes('fetch failed') ||
+        errorStr.includes('HTTP 500') ||
+        errorStr.includes('timeout');
+      
+      if (retryCount < maxRetries && isRetryableError) {
+        console.log(`[Browserless] Retry ${retryCount + 1}/${maxRetries} après erreur...`);
         return this.getContent(url, retryCount + 1);
       }
       
       return {
         success: false,
         url,
-        error: String(error),
+        error: errorStr,
         duration: Date.now() - startTime,
         method: 'browserless-chrome'
       };
@@ -217,10 +226,11 @@ export class BrowserlessModule {
   }
 
   /**
-   * Prend un screenshot d'une page
+   * Prend un screenshot d'une page avec retry automatique
    */
-  async screenshot(url: string, fullPage: boolean = false): Promise<BrowserlessResult> {
+  async screenshot(url: string, fullPage: boolean = false, retryCount: number = 0): Promise<BrowserlessResult> {
     const startTime = Date.now();
+    const maxRetries = 3;
 
     if (!this.isConfigured()) {
       return {
@@ -233,7 +243,12 @@ export class BrowserlessModule {
     }
 
     try {
-      console.log('[Browserless] Screenshot:', url);
+      console.log(`[Browserless] Screenshot (tentative ${retryCount + 1}):`, url);
+
+      // Délai avant retry pour éviter les problèmes de frame detached
+      if (retryCount > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1500 * retryCount));
+      }
 
       const response = await fetch(`${this.baseUrl}/screenshot?token=${this.apiToken}`, {
         method: 'POST',
@@ -248,11 +263,14 @@ export class BrowserlessModule {
             type: 'png'
           },
           gotoOptions: {
-            waitUntil: 'networkidle2',
+            waitUntil: 'domcontentloaded', // Plus rapide et moins sujet aux erreurs frame detached
             timeout: this.timeout
-          }
+          },
+          // Options supplémentaires pour éviter les erreurs frame detached
+          waitForSelector: 'body',
+          waitForTimeout: 2000
         }),
-        signal: AbortSignal.timeout(this.timeout + 5000)
+        signal: AbortSignal.timeout(this.timeout + 10000)
       });
 
       if (!response.ok) {
@@ -274,11 +292,28 @@ export class BrowserlessModule {
         method: 'browserless-chrome'
       };
     } catch (error) {
-      console.error('[Browserless] Erreur screenshot:', error);
+      const errorStr = String(error);
+      console.error('[Browserless] Erreur screenshot:', errorStr);
+      
+      // Retry sur erreurs spécifiques (frame detached, timeout, socket)
+      const isRetryableError = 
+        errorStr.includes('frame was detached') ||
+        errorStr.includes('Navigating frame') ||
+        errorStr.includes('timeout') ||
+        errorStr.includes('socket') ||
+        errorStr.includes('TLS') ||
+        errorStr.includes('fetch failed') ||
+        errorStr.includes('HTTP 500');
+      
+      if (retryCount < maxRetries && isRetryableError) {
+        console.log(`[Browserless] Retry ${retryCount + 1}/${maxRetries} après erreur...`);
+        return this.screenshot(url, fullPage, retryCount + 1);
+      }
+      
       return {
         success: false,
         url,
-        error: String(error),
+        error: errorStr,
         duration: Date.now() - startTime,
         method: 'browserless-chrome'
       };

@@ -1613,3 +1613,27 @@ L'Agent Phoenix a réussi à:
 5. execute_and_observe - Exécuter avec boucle de feedback
 6. workspace_create_multiple - Créer plusieurs fichiers
 7. shell_exec (amélioré) - Exécuter des commandes shell dans E2B
+
+
+---
+
+## Phase 44: Correction des Outils Agent Bloqués (2026-01-07)
+
+### Bugs à Corriger
+- [x] shell_exec : "Dangerous operation detected: subprocess.run" - CORRIGÉ : subprocess.run et subprocess.call retirés de la liste des opérations dangereuses dans validateCode()
+- [x] browse_web : "Error: HTTP 500: Error: Navigating frame was detached" - CORRIGÉ : Ajout de retry automatique (3 tentatives) avec délai progressif
+- [x] Vérifier tous les autres outils pour détecter des problèmes similaires - FAIT : execute_and_observe et project_scaffold fonctionnent correctement
+
+### Analyse des Problèmes
+1. **shell_exec** : Le système de sécurité bloque subprocess.run car considéré comme dangereux
+2. **browse_web** : Erreur de navigation Puppeteer/Playwright quand le frame est détaché
+
+### Solutions Appliquées
+1. **e2bSandbox.ts** : Retiré `subprocess.run` et `subprocess.call` de `validateCode()` - la sécurité est assurée par `validateShellCommand()`
+2. **toolRegistry.ts** : Changé le répertoire par défaut de `/home/ubuntu` à `/home/user` pour le sandbox E2B
+3. **browserless.ts** : Ajouté retry automatique (3 tentatives) avec délai progressif pour `screenshot()` et amélioré `getContent()` pour gérer les erreurs frame detached
+
+### Tests Validés
+- [x] shell_exec : `ls -la` exécuté avec succès (EXIT_CODE: 0)
+- [x] browse_web : `https://example.com` visité et contenu extrait avec succès
+

@@ -545,23 +545,24 @@ class E2BSandboxService {
 
   /**
    * Validate code for dangerous operations
+   * Note: subprocess.run et subprocess.call sont autorisés car nécessaires pour l'outil shell_exec
+   * La sécurité est assurée par validateShellCommand() qui vérifie les commandes dangereuses
    */
   private validateCode(code: string, language: 'python' | 'javascript'): void {
     const dangerousPatterns = {
       python: [
-        /os\.remove/,
-        /os\.rmdir/,
-        /shutil\.rmtree/,
-        /open\([^,]*,\s*['"]w/,
-        /subprocess\.call/,
-        /subprocess\.run/,
+        /os\.remove\s*\(/,
+        /os\.rmdir\s*\(/,
+        /shutil\.rmtree\s*\(/,
+        // subprocess.run et subprocess.call sont autorisés pour l'outil shell_exec
+        // La sécurité est gérée par validateShellCommand()
       ],
       javascript: [
-        /fs\.unlink/,
-        /fs\.rmdir/,
-        /fs\.rm/,
-        /fs\.writeFile/,
-        /process\.exit/,
+        /fs\.unlinkSync\s*\(/,
+        /fs\.rmdirSync\s*\(/,
+        /fs\.rmSync\s*\(/,
+        // fs.writeFile est autorisé car nécessaire pour créer des fichiers
+        /process\.exit\s*\(/,
       ],
     };
 

@@ -808,11 +808,11 @@ except Exception as e:
     // Outil d'exécution shell
     this.register({
       name: 'shell_exec',
-      description: 'Exécute des commandes shell dans un environnement sécurisé.',
+      description: 'Exécute des commandes shell dans un environnement sécurisé (sandbox E2B).',
       category: 'system',
       parameters: [
         { name: 'command', type: 'string', description: 'Commande shell à exécuter', required: true },
-        { name: 'cwd', type: 'string', description: 'Répertoire de travail', required: false, default: '/home/ubuntu' }
+        { name: 'cwd', type: 'string', description: 'Répertoire de travail', required: false, default: '/home/user' }
       ],
       execute: async (args, context) => {
         try {
@@ -842,7 +842,7 @@ try:
         capture_output=True,
         text=True,
         timeout=30,
-        cwd=${JSON.stringify(args.cwd || '/home/ubuntu')}
+        cwd=${JSON.stringify(args.cwd || '/home/user')}
     )
     if result.stdout:
         print(result.stdout)
