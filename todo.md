@@ -1989,3 +1989,23 @@ Rendre Phoenix indépendant des limites E2B pour la création de sites web.
 - [x] Bug 2: Image générée non visible dans l'interface (problème d'affichage)
 - [x] Bug 3: browse_web "Action non reconnue" dans l'agent autonome
 - [ ] Bug 4: Procédures tRPC manquantes (phoenix.admin.isAdmin, phoenix.conversations, etc.)
+
+
+---
+
+## Bug Critique - Génération d'Images (2026-01-07) - CORRIGÉ ✅
+
+### Problème
+Phoenix décrivait l'image mais ne la générait pas réellement. L'utilisateur voyait une description textuelle au lieu de l'image générée.
+
+### Cause
+Le endpoint `/api/stream/unified` ne gérait pas directement la génération d'images. Quand l'intention `image_generation` était détectée, le flux passait par le mode conversation au lieu d'appeler l'API de génération.
+
+### Solution
+- [x] Analyser le flux de génération d'images dans unifiedChatEndpoint.ts
+- [x] Ajouter la fonction `handleImageGenerationDirect` pour gérer la génération d'images
+- [x] Ajouter la détection prioritaire de l'intention `image_generation` avant le mode agent
+- [x] Tester la génération d'images en production - SUCCÈS!
+
+### Résultat
+Les images sont maintenant générées et affichées correctement dans le chat.

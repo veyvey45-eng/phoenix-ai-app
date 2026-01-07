@@ -14,6 +14,7 @@ import { contextEnricher } from '../phoenix/contextEnricher';
 import { getDb } from '../db';
 import { conversationMessages } from '../../drizzle/schema';
 import { eq, desc } from 'drizzle-orm';
+import { generateImage } from './imageGeneration';
 
 // Types pour les événements de streaming
 interface StreamEvent {
@@ -173,6 +174,80 @@ Quand tu as terminé ou pour une conversation normale:
 // Envoie un événement SSE
 function sendEvent(res: Response, event: StreamEvent) {
   res.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+/**
+ * Gère la génération d'images directement dans le chat unifié
+ */
+async function handleImageGenerationDirect(res: Response, intent: any, message: string) {
+  try {
+    // Extraire le prompt de l'image
+    const imagePrompt = intent.details?.imagePrompt || extractImagePrompt(message);
+    
+    console.log('[UnifiedChat] Generating image with prompt:', imagePrompt);
+    
+    // Envoyer un message indiquant que l'image est en cours de génération
+    sendEvent(res, { type: 'token', content: '🎨 Je génère ton image...\n\n' });
+    
+    try {
+      const result = await generateImage({ prompt: imagePrompt });
+      
+      if (result.url) {
+        console.log('[UnifiedChat] Image generated successfully:', result.url);
+        
+        // Envoyer l'URL de l'image générée comme événement 'image'
+        sendEvent(res, { 
+          type: 'image', 
+          url: result.url
+        });
+        
+        // Envoyer aussi un message texte avec l'image en markdown
+        sendEvent(res, { 
+          type: 'token', 
+          content: `\n\nVoici ton image ! 🖼️\n\n![Image générée](${result.url})\n\n*Prompt utilisé: "${imagePrompt}"*` 
+        });
+      } else {
+        sendEvent(res, { 
+          type: 'token', 
+          content: "Désolé, je n'ai pas pu générer l'image. Réessaie avec une description différente." 
+        });
+      }
+    } catch (imageError: any) {
+      console.error('[UnifiedChat] Image generation error:', imageError);
+      sendEvent(res, { 
+        type: 'token', 
+        content: `Désolé, une erreur s'est produite lors de la génération de l'image: ${imageError.message}` 
+      });
+    }
+    
+    sendEvent(res, { type: 'done' });
+    res.end();
+  } catch (error: any) {
+    console.error('[UnifiedChat] Error in image generation handler:', error);
+    sendEvent(res, { type: 'error', content: error.message });
+    res.end();
+  }
+}
+
+/**
+ * Extrait le prompt pour la génération d'image
+ */
+function extractImagePrompt(message: string): string {
+  // Enlever les mots de commande et de politesse pour garder la description
+  const cleanedMessage = message
+    // Enlever les formules de politesse au début
+    .replace(/^(?:je vais très bien|je vais bien|merci|salut|bonjour|bonsoir|coucou|hello|hi)[\s,]*(?:merci)?[\s,]*/gi, '')
+    // Enlever "est-ce que tu peux", "peux-tu", etc.
+    .replace(/(?:est-ce que|est ce que)?[\s-]*(?:tu|vous)?[\s-]*(?:peux|peut|pourrais|pourrait|pouvez)[\s-]*(?:tu|vous)?[\s-]*(?:me)?[\s-]*/gi, '')
+    // Enlever les mots de commande pour la génération
+    .replace(/(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire|generate|create|make|draw|produce)[\s-]*(?:moi)?[\s-]*/gi, '')
+    // Enlever les articles et prépositions inutiles au début
+    .replace(/^(?:une|un|l'|le|la|les|an?|the)?[\s-]*/gi, '')
+    // Enlever "s'il te plaît", "please", etc. à la fin
+    .replace(/[\s,]*(?:s'il te plaît|s'il vous plaît|stp|svp|please|pls)[\s,]*$/gi, '')
+    .trim();
+  
+  return cleanedMessage || message;
 }
 
 // Exécute une boucle d'agent avec streaming
@@ -378,6 +453,17 @@ export async function unifiedChatEndpoint(req: Request, res: Response) {
       fullMessage += `\n\n[CONTENU DU FICHIER]\n${fileContent}\n[FIN CONTENU]`;
     }
 
+    // Détecter l'intention de l'utilisateur
+    const intent = detectIntent(fullMessage, !!fileContent);
+    console.log('[UnifiedChat] Detected intent:', intent.type, 'confidence:', intent.confidence);
+
+    // PRIORITÉ 1: Génération d'images - traitement direct et immédiat
+    if (intent.type === 'image_generation') {
+      console.log('[UnifiedChat] Image generation detected, generating directly...');
+      await handleImageGenerationDirect(res, intent, fullMessage);
+      return;
+    }
+
     // Détecter si on a besoin des capacités d'agent
     const needsAgent = needsAgentCapabilities(fullMessage);
     console.log('[UnifiedChat] Needs agent capabilities:', needsAgent);
@@ -387,7 +473,6 @@ export async function unifiedChatEndpoint(req: Request, res: Response) {
       await runAgentLoop(res, fullMessage, conversationHistory, userId);
     } else {
       // Mode Conversation - streaming simple avec enrichissement
-      const intent = detectIntent(fullMessage, !!fileContent);
       let systemPrompt = generateSystemPromptForIntent(intent);
       
       // Enrichir si nécessaire
