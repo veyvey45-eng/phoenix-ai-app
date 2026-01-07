@@ -1338,3 +1338,39 @@ Phoenix génère du code Python au lieu d'utiliser Browserless.io quand l'utilis
 - Résultat: 5050 ✅
 - Temps d'exécution: ~5 étapes, ~7 secondes
 - Statut: Tâche terminée avec succès
+
+---
+
+## Phase 66: Amélioration Phoenix - Correction Intelligente & Outils Manus (2026-01-07)
+
+### Objectif
+Rapprocher Phoenix de Manus avec correction intelligente d'erreurs, génération web, et outils manquants.
+
+### Phase 1: Correction Intelligente d'Erreurs
+- [x] Créer smartErrorCorrector.ts - Analyse intelligente des erreurs
+- [x] Implémenter patterns de correction automatique (15 patterns Python/JS)
+- [x] Ajouter apprentissage des erreurs récurrentes
+- [x] Intégrer dans toolRegistry.ts (outil smart_fix)
+
+### Phase 2: Génération Web (HTML/CSS/React)
+- [x] Créer webGenerator.ts - Génération de pages web
+- [x] Ajouter templates HTML/CSS/React
+- [x] Implémenter création de composants
+- [x] Ajouter sauvegarde et prévisualisation S3
+
+### Phase 3: Outils Manus Manquants
+- [x] Implémenter file_read - Lire fichiers du projet
+- [x] Implémenter file_write - Écrire fichiers dans le projet
+- [x] Implémenter file_edit - Éditer fichiers existants
+- [x] Implémenter file_list - Lister fichiers d'un répertoire
+- [x] Implémenter browse_web - Navigation web complète (Browserless)
+- [x] Implémenter shell_exec - Commandes système sécurisées
+- [x] Implémenter generate_web_page - Génération HTML/React
+- [x] Ajouter tous les outils au toolRegistry.ts (19 outils total)
+
+### Tests
+- [x] Tester correction intelligente (smart_fix enregistré)
+- [x] Tester génération web (generate_web_page enregistré)
+- [x] Tester tous les nouveaux outils (15/15 tests passés)
+- [x] Valider intégration dans l'Agent (19 outils disponibles)
+

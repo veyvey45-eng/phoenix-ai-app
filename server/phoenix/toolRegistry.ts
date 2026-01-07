@@ -10,6 +10,11 @@ import { generateImage } from '../_core/imageGeneration';
 import { contextEnricher as contextEnricherModule } from './contextEnricher';
 import { invokeLLM } from '../_core/llm';
 import { storagePut, storageGet } from '../storage';
+import { smartErrorCorrector } from './smartErrorCorrector';
+import { webGenerator } from './webGenerator';
+import { browserless } from './browserless';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Types
 export interface ToolParameter {
@@ -483,6 +488,512 @@ except Exception as e:
             success: true,
             output: typeof content === 'string' ? content : JSON.stringify(content),
             metadata: { targetLanguage: args.target_language }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // ===== NOUVEAUX OUTILS MANUS =====
+
+    // Outil de lecture de fichiers
+    this.register({
+      name: 'file_read',
+      description: 'Lit le contenu d\'un fichier. Peut lire des fichiers texte, JSON, code source, etc.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à lire', required: true },
+        { name: 'encoding', type: 'string', description: 'Encodage du fichier (utf-8 par défaut)', required: false, default: 'utf-8' }
+      ],
+      execute: async (args, context) => {
+        try {
+          // Sécuriser le chemin pour éviter les accès non autorisés
+          const safePath = path.resolve('/home/ubuntu', args.path);
+          if (!safePath.startsWith('/home/ubuntu')) {
+            return {
+              success: false,
+              output: '',
+              error: 'Accès refusé: chemin hors du répertoire autorisé'
+            };
+          }
+
+          if (!fs.existsSync(safePath)) {
+            return {
+              success: false,
+              output: '',
+              error: `Fichier non trouvé: ${args.path}`
+            };
+          }
+
+          const content = fs.readFileSync(safePath, args.encoding || 'utf-8');
+          const stats = fs.statSync(safePath);
+
+          return {
+            success: true,
+            output: content,
+            metadata: {
+              path: args.path,
+              size: stats.size,
+              modified: stats.mtime.toISOString()
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil d'écriture de fichiers
+    this.register({
+      name: 'file_write',
+      description: 'Écrit du contenu dans un fichier. Crée le fichier s\'il n\'existe pas.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à écrire', required: true },
+        { name: 'content', type: 'string', description: 'Contenu à écrire', required: true },
+        { name: 'append', type: 'boolean', description: 'Ajouter au fichier au lieu de le remplacer', required: false, default: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const safePath = path.resolve('/home/ubuntu', args.path);
+          if (!safePath.startsWith('/home/ubuntu')) {
+            return {
+              success: false,
+              output: '',
+              error: 'Accès refusé: chemin hors du répertoire autorisé'
+            };
+          }
+
+          // Créer le répertoire parent si nécessaire
+          const dir = path.dirname(safePath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+
+          if (args.append) {
+            fs.appendFileSync(safePath, args.content, 'utf-8');
+          } else {
+            fs.writeFileSync(safePath, args.content, 'utf-8');
+          }
+
+          return {
+            success: true,
+            output: `Fichier ${args.append ? 'mis à jour' : 'créé'}: ${args.path}`,
+            metadata: {
+              path: args.path,
+              size: Buffer.byteLength(args.content, 'utf-8'),
+              append: args.append
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil d'édition de fichiers
+    this.register({
+      name: 'file_edit',
+      description: 'Édite un fichier existant en remplaçant du texte ou en insérant du contenu.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à éditer', required: true },
+        { name: 'find', type: 'string', description: 'Texte à trouver', required: true },
+        { name: 'replace', type: 'string', description: 'Texte de remplacement', required: true },
+        { name: 'all', type: 'boolean', description: 'Remplacer toutes les occurrences', required: false, default: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const safePath = path.resolve('/home/ubuntu', args.path);
+          if (!safePath.startsWith('/home/ubuntu')) {
+            return {
+              success: false,
+              output: '',
+              error: 'Accès refusé: chemin hors du répertoire autorisé'
+            };
+          }
+
+          if (!fs.existsSync(safePath)) {
+            return {
+              success: false,
+              output: '',
+              error: `Fichier non trouvé: ${args.path}`
+            };
+          }
+
+          let content = fs.readFileSync(safePath, 'utf-8');
+          const originalContent = content;
+
+          if (args.all) {
+            content = content.split(args.find).join(args.replace);
+          } else {
+            content = content.replace(args.find, args.replace);
+          }
+
+          if (content === originalContent) {
+            return {
+              success: false,
+              output: '',
+              error: 'Texte à trouver non présent dans le fichier'
+            };
+          }
+
+          fs.writeFileSync(safePath, content, 'utf-8');
+
+          return {
+            success: true,
+            output: `Fichier édité: ${args.path}`,
+            metadata: {
+              path: args.path,
+              replacements: args.all ? (originalContent.split(args.find).length - 1) : 1
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil de navigation web
+    this.register({
+      name: 'browse_web',
+      description: 'Navigue sur le web, extrait le contenu des pages, prend des screenshots.',
+      category: 'web',
+      parameters: [
+        { name: 'url', type: 'string', description: 'URL de la page à visiter', required: true },
+        { name: 'action', type: 'string', description: 'Action: content, screenshot, click, fill', required: false, default: 'content' },
+        { name: 'selector', type: 'string', description: 'Sélecteur CSS pour click/fill', required: false },
+        { name: 'value', type: 'string', description: 'Valeur pour fill', required: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const action = args.action || 'content';
+
+          if (action === 'content') {
+            const result = await browserless.getContent(args.url);
+            return {
+              success: result.success,
+              output: result.content || '',
+              error: result.error,
+              metadata: { url: args.url, title: result.title }
+            };
+          } else if (action === 'screenshot') {
+            const result = await browserless.screenshot(args.url);
+            if (result.success && result.screenshot) {
+              // Extraire le base64 du data URL si nécessaire
+              const base64Data = result.screenshot.replace(/^data:image\/png;base64,/, '');
+              const filename = `screenshot-${Date.now()}.png`;
+              const { url } = await storagePut(
+                `${context.userId}/screenshots/${filename}`,
+                Buffer.from(base64Data, 'base64'),
+                'image/png'
+              );
+              return {
+                success: true,
+                output: `Screenshot capturé`,
+                artifacts: [{
+                  type: 'image',
+                  content: url,
+                  mimeType: 'image/png',
+                  name: filename
+                }],
+                metadata: { url: args.url }
+              };
+            }
+            return {
+              success: false,
+              output: '',
+              error: result.error || 'Erreur lors de la capture'
+            };
+          } else if (action === 'scrape' && args.selector) {
+            const result = await browserless.scrape(args.url, [args.selector]);
+            return {
+              success: result.success,
+              output: result.content || '',
+              error: result.error
+            };
+          }
+
+          return {
+            success: false,
+            output: '',
+            error: 'Action non reconnue'
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil d'exécution shell
+    this.register({
+      name: 'shell_exec',
+      description: 'Exécute des commandes shell dans un environnement sécurisé.',
+      category: 'system',
+      parameters: [
+        { name: 'command', type: 'string', description: 'Commande shell à exécuter', required: true },
+        { name: 'cwd', type: 'string', description: 'Répertoire de travail', required: false, default: '/home/ubuntu' }
+      ],
+      execute: async (args, context) => {
+        try {
+          // Liste des commandes dangereuses interdites
+          const dangerousCommands = ['rm -rf /', 'mkfs', 'dd if=', ':(){:|:&};:', 'chmod -R 777 /', 'shutdown', 'reboot'];
+          const cmdLower = args.command.toLowerCase();
+          
+          for (const dangerous of dangerousCommands) {
+            if (cmdLower.includes(dangerous)) {
+              return {
+                success: false,
+                output: '',
+                error: 'Commande dangereuse interdite'
+              };
+            }
+          }
+
+          // Exécuter via Python subprocess pour isolation
+          const shellCode = `
+import subprocess
+import shlex
+
+try:
+    result = subprocess.run(
+        ${JSON.stringify(args.command)},
+        shell=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=${JSON.stringify(args.cwd || '/home/ubuntu')}
+    )
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print("STDERR:", result.stderr)
+    print("EXIT_CODE:", result.returncode)
+except subprocess.TimeoutExpired:
+    print("ERROR: Command timed out")
+except Exception as e:
+    print(f"ERROR: {e}")
+`;
+          const result = await e2bSandbox.executePython(shellCode, context.userId, context.sessionId);
+          
+          return {
+            success: result.success,
+            output: result.output,
+            error: result.error,
+            metadata: {
+              command: args.command,
+              executionTime: result.executionTime
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil de génération web
+    this.register({
+      name: 'generate_web_page',
+      description: 'Génère une page web HTML/CSS complète à partir d\'une description.',
+      category: 'code',
+      parameters: [
+        { name: 'description', type: 'string', description: 'Description de la page à générer', required: true },
+        { name: 'type', type: 'string', description: 'Type: html, landing, react', required: false, default: 'html' },
+        { name: 'style', type: 'string', description: 'Style: modern, minimal, creative', required: false, default: 'modern' }
+      ],
+      execute: async (args, context) => {
+        try {
+          let result;
+          
+          if (args.type === 'landing') {
+            result = await webGenerator.generateLandingPage(args.description, { colorScheme: args.style });
+          } else if (args.type === 'react') {
+            result = await webGenerator.generateReactComponent(args.description, 'GeneratedComponent');
+          } else {
+            result = await webGenerator.generateHTML(args.description, { style: args.style });
+          }
+
+          if (result.success && 'html' in result.content) {
+            // Sauvegarder et obtenir l'URL de prévisualisation
+            const preview = await webGenerator.saveAndPreview(result.content as any, context.userId);
+            
+            return {
+              success: true,
+              output: `Page générée avec succès`,
+              artifacts: [{
+                type: 'code',
+                content: (result.content as any).html,
+                mimeType: 'text/html',
+                name: 'generated-page.html'
+              }],
+              metadata: {
+                type: args.type,
+                previewUrl: preview.url
+              }
+            };
+          } else if (result.success && 'code' in result.content) {
+            return {
+              success: true,
+              output: `Composant React généré`,
+              artifacts: [{
+                type: 'code',
+                content: (result.content as any).code,
+                mimeType: 'text/typescript',
+                name: `${(result.content as any).name}.tsx`
+              }]
+            };
+          }
+
+          return {
+            success: false,
+            output: '',
+            error: result.error || 'Erreur de génération'
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil de correction intelligente
+    this.register({
+      name: 'smart_fix',
+      description: 'Corrige automatiquement les erreurs de code Python ou JavaScript.',
+      category: 'code',
+      parameters: [
+        { name: 'code', type: 'string', description: 'Code à corriger', required: true },
+        { name: 'error', type: 'string', description: 'Message d\'erreur', required: true },
+        { name: 'language', type: 'string', description: 'Langage: python ou javascript', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const result = await smartErrorCorrector.correctAndExecute(
+            args.code,
+            args.error,
+            args.language as 'python' | 'javascript',
+            context.userId,
+            context.sessionId
+          );
+
+          return {
+            success: result.success,
+            output: result.success ? result.finalOutput || '' : '',
+            error: result.finalError,
+            artifacts: result.success ? [{
+              type: 'code',
+              content: result.correctedCode,
+              mimeType: args.language === 'python' ? 'text/x-python' : 'text/javascript',
+              name: `corrected.${args.language === 'python' ? 'py' : 'js'}`
+            }] : undefined,
+            metadata: {
+              attempts: result.attempts,
+              errorType: result.errorAnalysis.errorType,
+              confidence: result.errorAnalysis.confidence
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil de liste de fichiers
+    this.register({
+      name: 'file_list',
+      description: 'Liste les fichiers et dossiers dans un répertoire.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du répertoire', required: true },
+        { name: 'recursive', type: 'boolean', description: 'Lister récursivement', required: false, default: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const safePath = path.resolve('/home/ubuntu', args.path);
+          if (!safePath.startsWith('/home/ubuntu')) {
+            return {
+              success: false,
+              output: '',
+              error: 'Accès refusé: chemin hors du répertoire autorisé'
+            };
+          }
+
+          if (!fs.existsSync(safePath)) {
+            return {
+              success: false,
+              output: '',
+              error: `Répertoire non trouvé: ${args.path}`
+            };
+          }
+
+          const listDir = (dir: string, prefix: string = ''): string[] => {
+            const items: string[] = [];
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            
+            for (const entry of entries) {
+              const fullPath = path.join(dir, entry.name);
+              const relativePath = path.join(prefix, entry.name);
+              
+              if (entry.isDirectory()) {
+                items.push(`📁 ${relativePath}/`);
+                if (args.recursive) {
+                  items.push(...listDir(fullPath, relativePath));
+                }
+              } else {
+                const stats = fs.statSync(fullPath);
+                items.push(`📄 ${relativePath} (${formatSize(stats.size)})`);
+              }
+            }
+            return items;
+          };
+
+          const formatSize = (bytes: number): string => {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+          };
+
+          const files = listDir(safePath);
+          
+          return {
+            success: true,
+            output: files.join('\n'),
+            metadata: {
+              path: args.path,
+              count: files.length
+            }
           };
         } catch (error: any) {
           return {
