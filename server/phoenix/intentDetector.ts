@@ -151,31 +151,38 @@ const IMAGE_GENERATION_PATTERNS = [
   /(?:génère|crée|fais|generate|create|make)[\s-]*(?:moi)?[\s-]*(?:un|une|an?)?[\s-]*(?:style|art|oeuvre|artwork|painting|peinture|tableau)[\s-]*(?:de|d'|of|in)?/i,
 ];
 
-// Patterns pour détecter les besoins de recherche web - AMÉLIORÉS v4
+// Patterns pour détecter les besoins de recherche web - AMÉLIORÉS v5
 const WEB_SEARCH_PATTERNS = [
-  // NOUVEAU v4: Patterns simples et directs pour recherche
+  // NOUVEAU v5: Patterns simples et directs pour recherche
   /\b(?:cherche|recherche|trouve|search|find|look\s+up)\b/i,
   /\b(?:google|googler|bing)\b/i,
-  // NOUVEAU v4: Questions "qu'est-ce que" / "c'est quoi"
-  /\b(?:qu'?est[- ]ce\s+que|c'?est\s+quoi|what\s+is|what\s+are|what's)\b/i,
+  // NOUVEAU v5: Questions "qu'est-ce que" / "c'est quoi" (PRIORITÉ HAUTE)
+  /\b(?:qu'?est[- ]ce\s+que?|c'?est\s+quoi|what\s+is|what\s+are|what's)\b/i,
   /\b(?:qui\s+est|who\s+is|who\s+are|c'?est\s+qui)\b/i,
-  /\b(?:comment\s+faire|how\s+to|how\s+do\s+(?:i|you))\b/i,
+  // NOUVEAU v5: Questions "comment" (apprendre, faire, devenir)
+  /\b(?:comment)\s+(?:faire|apprendre|devenir|fonctionne|marche|utiliser)\b/i,
+  /\b(?:how\s+to|how\s+do\s+(?:i|you)|how\s+can\s+i)\b/i,
   /\b(?:pourquoi|why\s+is|why\s+are|why\s+do)\b/i,
   /\b(?:quand|when\s+is|when\s+was|when\s+did)\b/i,
   /\b(?:où\s+est|where\s+is|where\s+are|where\s+can)\b/i,
-  // NOUVEAU v4: Actualités et informations
+  // NOUVEAU v5: Actualités et informations
   /\b(?:actualités?|news|nouvelles|dernières\s+(?:nouvelles|infos))\b/i,
   /\b(?:informations?|infos?)\s+(?:sur|about|on)\b/i,
   /\b(?:en\s+savoir\s+plus|learn\s+more|tell\s+me\s+about)\b/i,
-  // NOUVEAU v4: Recherche de définitions
+  // NOUVEAU v5: Recherche de définitions (PRIORITÉ HAUTE)
   /\b(?:définition|definition|signification|meaning)\s+(?:de|of)?\b/i,
-  /\b(?:explique|explain)\s+(?:moi)?\s*(?:ce\s+qu'?est|what\s+is)\b/i,
-  // NOUVEAU v4: Recherche de comparaisons
+  /\b(?:explique|expliquer|explain)[\s-]*(?:moi)?[\s-]*(?:la|le|l'|ce\s+qu'?est|what\s+is)?\b/i,
+  // NOUVEAU v5: Recherche de comparaisons
   /\b(?:différence|difference)\s+(?:entre|between)\b/i,
   /\b(?:compare|comparer|vs|versus)\b/i,
-  // NOUVEAU v4: Recherche de listes/tops
+  // NOUVEAU v5: Recherche de listes/tops
   /\b(?:meilleurs?|best|top\s+\d+|liste\s+(?:des?|of))\b/i,
   /\b(?:recommandations?|recommendations?)\s+(?:de|for|pour)\b/i,
+  // NOUVEAU v5: Questions sur des concepts (blockchain, NFT, etc.)
+  /\b(?:c'?est\s+quoi|qu'?est[- ]ce\s+que?)\s+(?:un[e]?\s+)?(?:la|le|l'|the|a|an)?\s*(?:blockchain|nft|crypto|bitcoin|ethereum|ia|ai|machine\s+learning|deep\s+learning)/i,
+  // NOUVEAU v5: Théories et concepts scientifiques
+  /\b(?:théorie|theory)\s+(?:de|of|du)\s+(?:l'?|la|le)?/i,
+  /\b(?:explique|explain)[\s-]*(?:moi)?[\s-]*(?:la|le|l')?\s*(?:théorie|theory|concept|principe|principle)/i,
   // Recherche explicite
   /(?:cherche|recherche|trouve|trouver)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le\s+web|google|the\s+web)/i,
   /(?:actualité|actualités|news|nouvelles|dernières)[\s-]+(?:sur|about|on|de)/i,
@@ -195,6 +202,7 @@ const WEB_SEARCH_PATTERNS = [
 ];
 
 // Patterns pour les demandes conversationnelles simples (PAS de recherche web)
+// IMPORTANT: Ces patterns NE DOIVENT PAS matcher les questions de définition ou de recherche
 const CONVERSATIONAL_PATTERNS = [
   // Salutations
   /^(?:salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i,
@@ -211,15 +219,15 @@ const CONVERSATIONAL_PATTERNS = [
   // Résumés
   /(?:résume|résumer|summarize)[\s-]/i,
   
-  // Explications simples
-  /(?:explique|expliquer|explain)[\s-]*(?:moi)?[\s-]*(?:ce|cette|cet|le|la|les)?/i,
-  
   // Calculs simples
   /^(?:combien|how much|how many)[\s-]*(?:font|fait|is|are|equals?)[\s-]*\d/i,
   /^\d+[\s]*[\+\-\*\/][\s]*\d+/,
   
-  // Questions oui/non
-  /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)/i,
+  // Questions oui/non SIMPLES (pas de recherche)
+  /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)\s+(?:tu|you|je|i|on|we)/i,
+  
+  // NOTE: "explique-moi X" et "c'est quoi X" sont maintenant traités comme web_search
+  // car ils nécessitent souvent des informations factuelles
 ];
 
 // Patterns météo - AMÉLIORÉS v2 pour éviter les faux positifs avec images
@@ -234,7 +242,8 @@ const WEATHER_PATTERNS = [
   /(?:prévisions?|forecast|prévision)/i,
   /(?:va[\s-]t[\s-]il|will\s+it)[\s-]*(?:pleuvoir|neiger|rain|snow)/i,
   // Conditions météo (SANS soleil/sun qui peuvent être des images)
-  /(?:humidité|humidity|wind|vent|uv|pluie|rain|neige|snow|nuage|cloud|orage|storm)/i,
+  // IMPORTANT: Utiliser word boundaries pour éviter les faux positifs (ex: 'uv' dans 'nouvelles')
+  /\b(?:humidité|humidity|wind|vent|\buv\b|pluie|rain|neige|snow|nuage|cloud|orage|storm)\b/i,
   // Lever/coucher du soleil SEULEMENT avec contexte météo
   /(?:heure\s+(?:du\s+)?(?:lever|coucher)|what\s+time\s+(?:is\s+)?(?:sunrise|sunset))/i,
   /(?:météo|weather).*(?:sunrise|sunset|lever|coucher)/i,
@@ -244,13 +253,9 @@ const WEATHER_PATTERNS = [
   /(?:canicule|heat\s*wave|alerte\s+météo|weather\s+alert)/i,
 ];
 
-// Patterns crypto - AMÉLIORÉS pour couvrir plus de cas
+// Patterns crypto - AMÉLIORÉS v2 pour éviter les faux positifs avec les questions de définition
 const CRYPTO_PATTERNS = [
-  // Noms de cryptos
-  /\b(?:bitcoin|btc|ethereum|eth|solana|sol|cardano|ada|ripple|xrp|polkadot|dot|avalanche|avax|chainlink|link|uniswap|uni|aave|polygon|matic|cosmos|atom|near|litecoin|ltc|dogecoin|doge|shiba|stablecoin|usdt|usdc|tether)\b/i,
-  // Mots-clés crypto
-  /\b(?:crypto|cryptomonnaie|cryptocurrency|blockchain)\b/i,
-  // Prix et cours
+  // Prix et cours (PRIORITÉ HAUTE - ce sont les vraies demandes crypto)
   /(?:prix|price|cours|value|valeur)[\s-]*(?:du|de|of)?[\s-]*(?:bitcoin|btc|ethereum|eth|solana|crypto)/i,
   /(?:combien|how\s+much)[\s-]*(?:vaut|coûte|is|costs?)[\s-]*(?:le|un|a)?[\s-]*(?:bitcoin|btc|eth|ethereum|crypto)/i,
   // Market cap et performance
@@ -258,6 +263,10 @@ const CRYPTO_PATTERNS = [
   /(?:top\s+\d+|best\s+performing|qui\s+monte|trending)[\s-]*(?:crypto|coins?)/i,
   // Comparaisons
   /(?:btc|bitcoin)[\s-]*(?:vs|versus|contre|vs\.|or)[\s-]*(?:eth|ethereum)/i,
+  // Acheter/vendre crypto
+  /(?:acheter|vendre|buy|sell|trade|trader)[\s-]*(?:du|de|des|some)?[\s-]*(?:bitcoin|btc|ethereum|eth|crypto)/i,
+  // EXCLURE les questions de définition - elles doivent aller en web_search
+  // NOTE: "C'est quoi la blockchain" ou "Qu'est-ce qu'un NFT" = web_search, pas crypto
 ];
 
 

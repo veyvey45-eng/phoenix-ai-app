@@ -14,6 +14,8 @@ import { autonomousBrowser } from './autonomousBrowser';
 import { staticSiteGenerator } from './staticSiteGenerator';
 import { createHostedSite } from '../hostedSites';
 import { detectRequestType, extractSiteName, shouldResetContext, updateContext, getContext, resetContext, RequestType } from './contextManager';
+import { getAutonomyCore, AutonomyConfig } from './autonomyCore';
+import { detectIntent } from './intentDetector';
 
 interface StreamingOptions {
   temperature?: number;
@@ -719,6 +721,18 @@ export async function* streamChatResponse(
     }
     
     console.log(`[StreamingChat] Request type detected: ${currentRequestType}, previous: ${previousContext?.lastRequestType || 'none'}`);
+    
+    // === INTÉGRATION AUTONOMYCORE ===
+    // Utiliser le noyau d'autonomie pour les requêtes complexes
+    const intentResult = detectIntent(userMessage);
+    const autonomyCore = getAutonomyCore();
+    
+    // Stocker le contexte dans la mémoire de travail
+    autonomyCore['workingMemory'].store('user_message', userMessage, { type: 'context' });
+    autonomyCore['workingMemory'].store('intent', intentResult.type, { type: 'context' });
+    autonomyCore['workingMemory'].store('confidence', intentResult.confidence, { type: 'context' });
+    
+    console.log(`[StreamingChat] Intent detected: ${intentResult.type} (confidence: ${intentResult.confidence})`);
     
     // PRIORITÉ 0: Demandes conversationnelles simples - utiliser Google AI directement
     // Cela évite les problèmes de rate limit de Groq pour les questions simples
