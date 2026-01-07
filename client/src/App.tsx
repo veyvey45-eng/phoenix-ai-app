@@ -20,11 +20,17 @@ import AgentMode from "./pages/AgentMode";
 import Workspace from "./pages/Workspace";
 import MyProjects from "./pages/MyProjects";
 import { CommandPalette } from "./components/CommandPalette";
+import Landing from "./pages/Landing";
+import { CookieBanner } from "./components/CookieBanner";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Legal from "./pages/Legal";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/landing" component={Landing} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/code-executor" component={CodeExecutorPage} />
       <Route path="/web-generator" component={WebPageGeneratorPage} />
@@ -37,6 +43,9 @@ function Router() {
       <Route path="/agent" component={AgentMode} />
       <Route path="/workspace" component={Workspace} />
       <Route path="/projects" component={MyProjects} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/legal" component={Legal} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -57,6 +66,7 @@ function App() {
           <main role="main" aria-label="Contenu principal de Phoenix AI">
             <Router />
           </main>
+          <CookieBanner />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
