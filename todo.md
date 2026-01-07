@@ -1522,3 +1522,40 @@ Tester et intégrer complètement l'affichage des images : génération HTML, su
 ### Fichiers Modifiés
 - server/phoenix/toolRegistry.ts - Ajout artifacts pour execute_python et execute_javascript
 - server/phoenix/agentLoopV2.ts - Intégration E2B et gestion filesGenerated
+
+---
+
+## Phase 71: Système de Fichiers Persistant - EN COURS
+
+### Date: 2026-01-07
+
+### Objectif
+Implémenter un système de fichiers persistant complet pour Phoenix, similaire à Manus, permettant de créer, lire, éditer des fichiers dans un workspace qui persiste.
+
+### Tâches
+- [x] Créer la table user_workspace_files dans la DB (schema Drizzle) - SUCCÈS
+- [x] Créer les helpers DB pour les opérations fichiers - SUCCÈS (workspaceDb.ts)
+- [x] Créer l'API tRPC workspace (createFile, readFile, editFile, deleteFile, listFiles) - SUCCÈS
+- [x] Ajouter les outils fichiers au toolRegistry de l'Agent - SUCCÈS (8 outils workspace_*)
+- [x] Créer l'interface explorateur de fichiers dans le Dashboard - SUCCÈS (FileExplorer.tsx)
+- [x] Intégrer l'explorateur avec le Code Executor - SUCCÈS (Workspace.tsx)
+- [x] Tester l'intégration complète Agent + Fichiers - SUCCÈS
+- [x] Valider la persistance des fichiers - SUCCÈS (4 fichiers testés)
+
+### Résultats des Tests
+| Opération | Résultat |
+|-----------|----------|
+| Créer dossier | ✅ SUCCÈS |
+| Créer fichier HTML | ✅ SUCCÈS |
+| Créer fichier CSS | ✅ SUCCÈS |
+| Lire fichier | ✅ SUCCÈS |
+| Éditer fichier | ✅ SUCCÈS (v2) |
+| Lister fichiers | ✅ SUCCÈS (4 fichiers) |
+
+### Fichiers Créés
+- drizzle/schema.ts - Tables workspace_files et workspace_file_history
+- server/workspaceDb.ts - Helpers CRUD pour le workspace
+- server/routers/workspaceRouter.ts - API tRPC
+- server/phoenix/toolRegistry.ts - 8 nouveaux outils workspace_*
+- client/src/components/FileExplorer.tsx - Explorateur de fichiers
+- client/src/pages/Workspace.tsx - Page workspace avec éditeur

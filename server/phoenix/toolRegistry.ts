@@ -15,6 +15,17 @@ import { webGenerator } from './webGenerator';
 import { browserless } from './browserless';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  createWorkspaceFile,
+  readWorkspaceFile,
+  editWorkspaceFile,
+  deleteWorkspaceFile,
+  listWorkspaceFiles,
+  createWorkspaceDirectory,
+  moveWorkspaceFile,
+  workspaceFileExists,
+  getWorkspaceFileHistory
+} from '../workspaceDb';
 
 // Types
 export interface ToolParameter {
@@ -978,7 +989,349 @@ except Exception as e:
       }
     });
 
-    // Outil de liste de fichiers
+    // ===== OUTILS WORKSPACE (Système de fichiers persistant) =====
+
+    this.register({
+      name: 'workspace_create',
+      description: 'Crée un nouveau fichier dans le workspace persistant de l\'utilisateur. Le fichier sera sauvegardé et accessible lors des prochaines sessions.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier (ex: /projects/app/index.ts)', required: true },
+        { name: 'content', type: 'string', description: 'Contenu du fichier', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await createWorkspaceFile(userId, args.path, args.content, { modifiedBy: 'agent' });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: `Fichier créé: ${args.path}`,
+            metadata: {
+              path: args.path,
+              size: result.file?.size,
+              version: result.file?.version
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_read',
+      description: 'Lit le contenu d\'un fichier du workspace persistant.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à lire', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await readWorkspaceFile(userId, args.path);
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: result.content || '',
+            metadata: {
+              path: args.path,
+              size: result.file?.size,
+              language: result.file?.language,
+              version: result.file?.version
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_edit',
+      description: 'Édite un fichier existant dans le workspace persistant. Remplace entièrement le contenu.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à éditer', required: true },
+        { name: 'content', type: 'string', description: 'Nouveau contenu du fichier', required: true },
+        { name: 'description', type: 'string', description: 'Description du changement', required: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await editWorkspaceFile(userId, args.path, args.content, {
+            modifiedBy: 'agent',
+            changeDescription: args.description
+          });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: `Fichier modifié: ${args.path} (v${result.file?.version})`,
+            metadata: {
+              path: args.path,
+              size: result.file?.size,
+              version: result.file?.version
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_delete',
+      description: 'Supprime un fichier du workspace persistant.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier à supprimer', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await deleteWorkspaceFile(userId, args.path, { modifiedBy: 'agent' });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: `Fichier supprimé: ${args.path}`,
+            metadata: { path: args.path }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_list',
+      description: 'Liste tous les fichiers du workspace persistant de l\'utilisateur.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du répertoire (optionnel, / par défaut)', required: false },
+        { name: 'recursive', type: 'boolean', description: 'Lister récursivement', required: false, default: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await listWorkspaceFiles(userId, {
+            path: args.path,
+            recursive: args.recursive !== false
+          });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          const files = result.files || [];
+          if (files.length === 0) {
+            return {
+              success: true,
+              output: 'Workspace vide - aucun fichier',
+              metadata: { count: 0 }
+            };
+          }
+          
+          const fileList = files.map(f => {
+            const icon = f.fileType === 'directory' ? '📁' : '📄';
+            const size = f.size ? ` (${f.size} bytes)` : '';
+            return `${icon} ${f.path}${size}`;
+          }).join('\n');
+          
+          return {
+            success: true,
+            output: fileList,
+            metadata: {
+              count: files.length,
+              totalSize: files.reduce((sum, f) => sum + (f.size || 0), 0)
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_mkdir',
+      description: 'Crée un répertoire dans le workspace persistant.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du répertoire à créer', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await createWorkspaceDirectory(userId, args.path);
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: `Répertoire créé: ${args.path}`,
+            metadata: { path: args.path }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_move',
+      description: 'Déplace ou renomme un fichier dans le workspace persistant.',
+      category: 'file',
+      parameters: [
+        { name: 'old_path', type: 'string', description: 'Chemin actuel du fichier', required: true },
+        { name: 'new_path', type: 'string', description: 'Nouveau chemin du fichier', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await moveWorkspaceFile(userId, args.old_path, args.new_path, { modifiedBy: 'agent' });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          return {
+            success: true,
+            output: `Fichier déplacé: ${args.old_path} → ${args.new_path}`,
+            metadata: {
+              oldPath: args.old_path,
+              newPath: args.new_path,
+              version: result.file?.version
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    this.register({
+      name: 'workspace_history',
+      description: 'Affiche l\'historique des modifications d\'un fichier.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin du fichier', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await getWorkspaceFileHistory(userId, args.path);
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          const history = result.history || [];
+          if (history.length === 0) {
+            return {
+              success: true,
+              output: 'Aucun historique disponible',
+              metadata: { count: 0 }
+            };
+          }
+          
+          const historyList = history.map(h => {
+            const date = new Date(h.createdAt).toLocaleString('fr-FR');
+            return `v${h.version} - ${h.changeType} - ${date} (${h.changedBy})`;
+          }).join('\n');
+          
+          return {
+            success: true,
+            output: historyList,
+            metadata: { count: history.length }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Outil de liste de fichiers (système local - pour compatibilité)
     this.register({
       name: 'file_list',
       description: 'Liste les fichiers et dossiers dans un répertoire.',

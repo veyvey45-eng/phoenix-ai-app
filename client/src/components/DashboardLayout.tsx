@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Shield, Code, Bitcoin, Wrench, Plug, Brain, Sparkles, Activity, Database, Eye, ArrowRight, Zap, Lock, Target } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Shield, Code, Bitcoin, Wrench, Plug, Brain, Sparkles, Activity, Database, Eye, ArrowRight, Zap, Lock, Target, FolderOpen } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -32,6 +32,7 @@ const menuItems = [
   { icon: Wrench, label: "Outils", path: "/tools" },
   { icon: Plug, label: "MCP Bridge", path: "/mcp-bridge" },
   { icon: Code, label: "Code Executor", path: "/code-executor" },
+  { icon: FolderOpen, label: "Workspace", path: "/workspace" },
   { icon: Shield, label: "Administration", path: "/admin" },
 ];
 

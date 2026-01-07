@@ -790,3 +790,77 @@ export const userFiles = mysqlTable("user_files", {
 
 export type UserFile = typeof userFiles.$inferSelect;
 export type InsertUserFile = typeof userFiles.$inferInsert;
+
+
+// ============================================================================
+// WORKSPACE FILES - Système de fichiers persistant (comme Manus)
+// ============================================================================
+
+/**
+ * Workspace Files - Fichiers créés/édités par Phoenix dans le workspace utilisateur
+ * Permet à l'agent de créer, lire, éditer des fichiers qui persistent
+ */
+export const workspaceFiles = mysqlTable("workspace_files", {
+  id: varchar("id", { length: 64 }).primaryKey(), // nanoid
+  userId: int("userId").notNull(),
+  
+  // Chemin et nom du fichier (structure de dossiers virtuelle)
+  path: varchar("path", { length: 1024 }).notNull(), // ex: /projects/myapp/src/index.ts
+  name: varchar("name", { length: 255 }).notNull(), // ex: index.ts
+  
+  // Type de fichier
+  fileType: mysqlEnum("fileType", [
+    "file",      // Fichier normal
+    "directory"  // Dossier (pour la structure)
+  ]).default("file").notNull(),
+  
+  // Contenu et stockage
+  mimeType: varchar("mimeType", { length: 100 }), // ex: text/typescript, text/plain
+  size: int("size").default(0), // Taille en bytes
+  content: text("content"), // Contenu texte (pour petits fichiers < 64KB)
+  storageKey: varchar("storageKey", { length: 512 }), // S3 key pour gros fichiers
+  storageUrl: text("storageUrl"), // S3 URL pour gros fichiers
+  
+  // Métadonnées
+  language: varchar("language", { length: 50 }), // Langage de programmation détecté
+  encoding: varchar("encoding", { length: 20 }).default("utf-8"),
+  lineCount: int("lineCount"), // Nombre de lignes
+  
+  // Versioning simple
+  version: int("version").default(1),
+  lastModifiedBy: mysqlEnum("lastModifiedBy", ["user", "agent"]).default("agent"),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WorkspaceFile = typeof workspaceFiles.$inferSelect;
+export type InsertWorkspaceFile = typeof workspaceFiles.$inferInsert;
+
+/**
+ * Workspace File History - Historique des modifications pour rollback
+ */
+export const workspaceFileHistory = mysqlTable("workspace_file_history", {
+  id: int("id").autoincrement().primaryKey(),
+  fileId: varchar("fileId", { length: 64 }).notNull(),
+  userId: int("userId").notNull(),
+  
+  // Snapshot du contenu
+  content: text("content"),
+  storageKey: varchar("storageKey", { length: 512 }),
+  
+  // Métadonnées de la modification
+  version: int("version").notNull(),
+  changeType: mysqlEnum("changeType", ["create", "edit", "delete", "rename"]).notNull(),
+  changeDescription: text("changeDescription"), // Description du changement
+  changedBy: mysqlEnum("changedBy", ["user", "agent"]).default("agent"),
+  
+  // Diff pour les éditions (optionnel)
+  diffPatch: text("diffPatch"), // Unified diff format
+  
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WorkspaceFileHistory = typeof workspaceFileHistory.$inferSelect;
+export type InsertWorkspaceFileHistory = typeof workspaceFileHistory.$inferInsert;
