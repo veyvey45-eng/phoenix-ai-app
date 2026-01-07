@@ -29,6 +29,7 @@ import {
 import { advancedTools } from './advancedTools';
 import { moreAdvancedTools } from './moreAdvancedTools';
 import { realTools } from './realTools';
+import { smartWebTools } from './smartWebTools';
 
 // Types
 export interface ToolParameter {
@@ -92,7 +93,10 @@ class ToolRegistryService {
     for (const tool of realTools) {
       this.register(tool);
     }
-    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length + realTools.length} outils avancés enregistrés`);
+    for (const tool of smartWebTools) {
+      this.register(tool);
+    }
+    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length + realTools.length + smartWebTools.length} outils avancés enregistrés`);
   }
 
   /**

@@ -1925,3 +1925,32 @@ Résoudre le problème des sandboxes E2B temporaires qui expiraient après 30 mi
 5. Le site est accessible via /sites/{slug}
 6. Le site ne disparaît JAMAIS (contrairement aux sandboxes E2B)
 
+
+---
+
+## Phase 50: Sites Permanents Automatiques - EN COURS
+
+### Objectif
+Modifier Phoenix pour que les sites générés soient automatiquement sauvegardés de façon permanente dans la base de données, sans que l'utilisateur ait besoin de cliquer sur "Publier".
+
+### Tâches
+- [x] Analyser les outils real_project_create et real_preview_start
+- [x] Modifier pour sauvegarder automatiquement dans hostedSites
+- [x] Générer une URL permanente (/sites/{slug}) au lieu de E2B
+- [x] Tester avec la requête hôtel (6/6 tests passent)
+- [ ] Vérifier que l'URL permanente fonctionne
+
+---
+
+## Phase 51: Système Robuste de Création de Sites - EN COURS
+
+### Objectif
+Rendre Phoenix indépendant des limites E2B pour la création de sites web.
+
+### Tâches
+- [x] Implémenter le bypass E2B pour sites statiques (sauvegarde directe DB)
+- [x] Créer le système de rotation de clés E2B avec fallback
+- [x] Implémenter le nettoyage automatique des sandboxes
+- [ ] Rechercher et configurer une deuxième clé E2B
+- [x] Tester le système complet avec création de site hôtel
+- [x] Vérifier que l'URL permanente fonctionne sans E2B

@@ -3,10 +3,13 @@
  * 
  * Ces outils utilisent le vrai système de fichiers E2B
  * et peuvent exposer des URLs publiques
+ * 
+ * MODIFICATION: Sauvegarde automatique dans hostedSites pour URLs permanentes
  */
 
 import { Tool, ToolContext, ToolResult } from './toolRegistry';
 import { realProjectSystem } from './realProjectSystem';
+import { createHostedSite } from '../hostedSites';
 
 // ==================== REAL FILE CREATE ====================
 
@@ -79,6 +82,8 @@ export const realFileReadTool: Tool = {
 };
 
 // ==================== REAL PROJECT CREATE ====================
+// Stockage temporaire des fichiers du projet pour la sauvegarde permanente
+const projectFilesCache: Map<string, { name: string; files: Array<{ path: string; content: string }> }> = new Map();
 
 export const realProjectCreateTool: Tool = {
   name: 'real_project_create',
@@ -86,6 +91,9 @@ export const realProjectCreateTool: Tool = {
 
 Ce projet est créé dans un vrai système de fichiers.
 Après création, tu peux le servir avec 'real_preview_start'.
+
+⚡ NOUVEAU: Le site sera AUTOMATIQUEMENT sauvegardé de façon permanente!
+L'utilisateur recevra une URL permanente qui ne disparaîtra jamais.
 
 Exemple de fichiers:
 - index.html
@@ -112,6 +120,13 @@ Exemple de fichiers:
       );
       
       if (result.success) {
+        // Stocker les fichiers pour la sauvegarde permanente lors du preview
+        const cacheKey = `${context.sessionId}:${args.name}`;
+        projectFilesCache.set(cacheKey, {
+          name: args.name,
+          files: files.map((f: any) => ({ path: f.path, content: f.content }))
+        });
+        
         return {
           success: true,
           output: `✅ Projet "${args.name}" créé avec ${result.filesCreated.length} fichiers!\n\nChemin: ${result.projectPath}\n\nFichiers:\n${result.filesCreated.map(f => `- ${f}`).join('\n')}\n\n💡 Utilise 'real_preview_start' pour obtenir une URL publique!`,
@@ -139,8 +154,10 @@ export const realPreviewStartTool: Tool = {
   name: 'real_preview_start',
   description: `Démarre un serveur HTTP pour servir un projet et retourne une URL PUBLIQUE.
 
-Cette URL est accessible depuis n'importe où sur Internet!
-Parfait pour montrer un site web ou une application à l'utilisateur.
+⚡ NOUVEAU: Le site est AUTOMATIQUEMENT sauvegardé de façon PERMANENTE!
+L'utilisateur reçoit DEUX URLs:
+1. URL E2B temporaire (30 min) pour le preview immédiat
+2. URL PERMANENTE qui ne disparaîtra JAMAIS
 
 Types de projets supportés:
 - Sites statiques (HTML/CSS/JS) → Serveur Python HTTP
@@ -172,17 +189,93 @@ Types de projets supportés:
       }
       
       if (result.success && result.publicUrl) {
+        // Extraire le nom du projet du chemin
+        const projectName = args.project_path.split('/').pop() || args.project_path;
+        const cacheKey = `${context.sessionId}:${projectName}`;
+        const cachedProject = projectFilesCache.get(cacheKey);
+        
+        let permanentUrl = '';
+        let permanentMessage = '';
+        
+        // Essayer de sauvegarder le site de façon permanente
+        if (cachedProject) {
+          try {
+            // Trouver les fichiers HTML, CSS et JS
+            const htmlFile = cachedProject.files.find(f => f.path === 'index.html' || f.path.endsWith('.html'));
+            const cssFile = cachedProject.files.find(f => f.path === 'style.css' || f.path.endsWith('.css'));
+            const jsFile = cachedProject.files.find(f => f.path === 'script.js' || f.path.endsWith('.js'));
+            
+            if (htmlFile) {
+              // Extraire l'userId du context (convertir en nombre)
+              const userId = parseInt(context.userId, 10) || 1;
+              
+              // Créer le site hébergé permanent
+              const hostedSite = await createHostedSite({
+                userId,
+                name: cachedProject.name,
+                description: `Site généré par Phoenix AI`,
+                siteType: 'custom',
+                htmlContent: htmlFile.content,
+                cssContent: cssFile?.content,
+                jsContent: jsFile?.content,
+                isPublic: true
+              });
+              
+              if (hostedSite) {
+                permanentUrl = `/sites/${hostedSite.slug}`;
+                permanentMessage = `\n\n🔗 **URL PERMANENTE:** ${permanentUrl}\n   Cette URL ne disparaîtra JAMAIS!`;
+                
+                // Nettoyer le cache
+                projectFilesCache.delete(cacheKey);
+              }
+            }
+          } catch (saveError: any) {
+            console.error('[realPreviewStart] Erreur sauvegarde permanente:', saveError);
+            permanentMessage = '\n\n⚠️ Sauvegarde permanente non disponible (erreur interne)';
+          }
+        } else {
+          // Essayer de lire les fichiers directement depuis le sandbox
+          try {
+            const htmlResult = await realProjectSystem.readRealFile(context.sessionId, `${args.project_path}/index.html`);
+            const cssResult = await realProjectSystem.readRealFile(context.sessionId, `${args.project_path}/style.css`);
+            const jsResult = await realProjectSystem.readRealFile(context.sessionId, `${args.project_path}/script.js`);
+            
+            if (htmlResult.success && htmlResult.content) {
+              const userId = parseInt(context.userId, 10) || 1;
+              
+              const hostedSite = await createHostedSite({
+                userId,
+                name: projectName,
+                description: `Site généré par Phoenix AI`,
+                siteType: 'custom',
+                htmlContent: htmlResult.content,
+                cssContent: cssResult.content,
+                jsContent: jsResult.content,
+                isPublic: true
+              });
+              
+              if (hostedSite) {
+                permanentUrl = `/sites/${hostedSite.slug}`;
+                permanentMessage = `\n\n🔗 **URL PERMANENTE:** ${permanentUrl}\n   Cette URL ne disparaîtra JAMAIS!`;
+              }
+            }
+          } catch (readError: any) {
+            console.error('[realPreviewStart] Erreur lecture fichiers:', readError);
+          }
+        }
+        
         return {
           success: true,
-          output: `🚀 Serveur démarré!\n\n🌐 **URL PUBLIQUE:** ${result.publicUrl}\n\nCette URL est accessible depuis n'importe où sur Internet.\nLe serveur restera actif pendant 30 minutes.`,
+          output: `🚀 Serveur démarré!\n\n🌐 **URL TEMPORAIRE (30 min):** ${result.publicUrl}\n   Pour preview immédiat.${permanentMessage}\n\nLe serveur E2B restera actif pendant 30 minutes.`,
           metadata: {
             publicUrl: result.publicUrl,
+            permanentUrl: permanentUrl || undefined,
             port,
             type
           },
           artifacts: [{
             type: 'text',
-            content: result.publicUrl,
+            content: permanentUrl || result.publicUrl,
             mimeType: 'text/uri-list',
             name: 'URL du projet'
           }]
