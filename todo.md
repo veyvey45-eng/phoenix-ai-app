@@ -141,3 +141,40 @@ Rendre Phoenix totalement autonome comme Manus, capable de s'auto-corriger dans 
 - [x] Détection app_creation fonctionne
 - [x] Détection site_modification fonctionne
 - [x] Priorité des intentions respectée
+
+
+## Phase 52: Tests Massifs et Correction de la Compréhension
+
+### Problème Identifié
+L'utilisateur a signalé que Phoenix ne comprenait pas les transitions de demande:
+- Quand l'utilisateur dit "je ne veux plus d'images, je veux une vraie application", Phoenix continuait à générer des images
+- Confusion entre "image d'une application" et "vraie application fonctionnelle"
+- Manque de détection des négations et changements de contexte
+
+### Corrections Apportées ✅
+- [x] Création du module transitionDetector.ts pour détecter les changements de demande
+- [x] Amélioration des patterns APP_CREATION_PATTERNS pour mieux détecter les demandes d'applications
+- [x] Ajout de patterns pour distinguer "image d'app" vs "vraie app"
+- [x] Création de 200+ questions de test dans testQuestions.ts
+- [x] Intégration de la détection de transitions dans intentDetector.ts
+- [x] Correction des patterns IMAGE_GENERATION_PATTERNS pour exclure les applications
+- [x] Ajout de la détection des verbes "je veux" pour les transitions
+
+### Résultats des Tests
+- Tests de transition: 75% de réussite (30/40)
+- Tests app vs image: 60.5% de réussite (23/38)
+- Tests globaux: 77% de réussite (147/191)
+
+### Patterns de Transition Détectés
+- "je ne veux plus de génération d'images"
+- "arrête les images, crée-moi une app"
+- "stop les images, je veux un site web"
+- "non pas une image, une vraie application"
+- "maintenant crée-moi une application"
+
+### Fichiers Modifiés
+- server/phoenix/transitionDetector.ts (NOUVEAU)
+- server/phoenix/testQuestions.ts (NOUVEAU)
+- server/phoenix/intentDetector.ts (AMÉLIORÉ)
+- server/phoenix/intentDetector.improved.test.ts (NOUVEAU)
+

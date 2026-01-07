@@ -1,7 +1,12 @@
 /**
  * Intent Detector - Détecte intelligemment l'intention de l'utilisateur
  * pour décider comment Phoenix doit répondre
+ * 
+ * VERSION AMÉLIORÉE: Intègre la détection de transitions et la distinction
+ * entre "image d'application" et "vraie application"
  */
+
+import { analyzeMessageForTransition } from './transitionDetector';
 
 export type IntentType = 
   | 'conversation'      // Discussion normale
@@ -49,21 +54,21 @@ const CODE_EXECUTION_PATTERNS = [
 ];
 
 // Patterns pour détecter les demandes de génération d'IMAGE
+// IMPORTANT: Ces patterns ne doivent PAS matcher les demandes d'applications
 const IMAGE_GENERATION_PATTERNS = [
-  // Français - patterns plus flexibles
-  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire)[\s-]*(?:moi)?[\s-]*(?:une|un|l')?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art)/i,
-  /(?:image|photo|illustration|dessin)[\s-]*(?:de|d'|du|des|avec|représentant|montrant)/i,
-  /(?:montre|montrer|visualise|visualiser)[\s-]*(?:moi)?[\s-]*(?:une|un)?/i,
-  // NOUVEAU: Patterns pour "peux-tu me générer" sans "image" explicite
-  /(?:peux|peut|pourrais|pourrait)[\s-]*(?:tu|vous)?[\s-]*(?:me)?[\s-]*(?:génér|créer|faire|dessiner)/i,
-  /(?:génère|générer|crée|créer|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)/i,
-  // NOUVEAU: Patterns pour objets visuels communs
-  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|robot|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment)/i,
+  // Français - patterns avec "image" explicite
+  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire)[\s-]*(?:moi)?[\s-]*(?:une|un|l')?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art)(?!.*(?:application|app|chatbot|site))/i,
+  /(?:image|photo|illustration|dessin)[\s-]*(?:de|d'|du|des|avec|représentant|montrant)(?!.*(?:application|app|chatbot|site))/i,
+  // SUPPRIMÉ: Pattern trop générique "montre/visualise" qui matchait les apps
+  // SUPPRIMÉ: Pattern trop générique "peux-tu me générer" qui matchait les apps
+  // SUPPRIMÉ: Pattern trop générique "génère-moi un/une" qui matchait les apps
+  // Patterns pour objets visuels communs (PAS d'applications)
+  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment)(?!.*(?:application|app|chatbot|site))/i,
   // Anglais
-  /(?:generate|create|make|draw|produce)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:image|photo|picture|illustration|drawing|visual|artwork)/i,
-  /(?:image|photo|picture)[\s-]*(?:of|with|showing|depicting)/i,
-  // NOUVEAU: Patterns anglais pour objets
-  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|robot|animal|monster|dragon|bird|flower|tree|mountain|city|building)/i,
+  /(?:generate|create|make|draw|produce)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:image|photo|picture|illustration|drawing|visual|artwork)(?!.*(?:application|app|chatbot|site))/i,
+  /(?:image|photo|picture)[\s-]*(?:of|with|showing|depicting)(?!.*(?:application|app|chatbot|site))/i,
+  // Patterns anglais pour objets (PAS d'applications)
+  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|animal|monster|dragon|bird|flower|tree|mountain|city|building)(?!.*(?:application|app|chatbot|site))/i,
 ];
 
 // Patterns pour détecter les besoins de recherche web
@@ -124,16 +129,18 @@ const CALCULATION_PATTERNS = [
 
 // Patterns pour la CRÉATION de site web (PRIORITÉ HAUTE)
 const SITE_CREATION_PATTERNS = [
-  // Français - Patterns explicites
-  /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site|page)/i,
+  // Français - Patterns explicites avec "site web"
+  /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s*-?\s*(?:moi\s+)?(?:un[e]?\s+)?(?:site\s*web|site\s*internet|site|page\s*web|landing\s*page)/i,
   // "crée un site pour X" - pattern très commun
-  /cr[ée]e[rz]?\s+(?:moi\s+)?(?:un[e]?\s+)?site\s+(?:web\s+)?(?:pour|d'|de)/i,
+  /cr[ée]e[rz]?\s*-?\s*(?:moi\s+)?(?:un[e]?\s+)?site\s+(?:web\s+)?(?:pour|d'|de)/i,
   // "site pour un X" avec types de business
   /(?:un[e]?\s+)?site\s+(?:web\s+)?pour\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio|coach|avocat|dentiste|plombier|fleuriste|architecte|musicien|photographe|boulanger|[ée]lectricien|psychologue|startup|salon|cabinet|boutique|magasin|agence|studio)/i,
   /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:site|page)/i,
-  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
+  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:me\s+)?(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
+  // NOUVEAU: "site web" seul avec verbe d'action
+  /(?:fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer)\s*-?\s*(?:moi\s+)?(?:un[e]?\s+)?landing\s*page/i,
   // Anglais
-  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:a\s+)?(?:website|web\s+page|landing\s+page|site)/i,
+  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:a\s+)?(?:website|web\s*site|web\s+page|landing\s+page|site)/i,
   /(?:can\s+you|could\s+you|please)\s+(?:create|make|build|generate)\s+(?:a\s+)?(?:website|site|page)/i,
   /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:a\s+)?(?:website|site|page)\s+for/i,
   // Allemand
@@ -165,22 +172,93 @@ const SITE_MODIFICATION_PATTERNS = [
 
 // Patterns pour la CRÉATION d'APPLICATION/AGENT IA (PRIORITÉ MAXIMALE)
 const APP_CREATION_PATTERNS = [
-  // Français - Création d'application/agent
-  /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:application|app|agent|assistant|bot|chatbot|IA|AI)/i,
-  /(?:cr[ée]e|cr[ée]er)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:application|app)\s+(?:web|mobile)?\s*(?:d'|de)?\s*(?:agent|assistant|IA|AI|chat)/i,
-  /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:application|app|agent)/i,
-  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:application|app|agent)/i,
+  // Français - Création d'application/agent - patterns flexibles
+  /(?:cr[éeè]e|cr[éeè]er|fais|faire|g[éeè]n[èe]re|g[éeè]n[éeè]rer|construis|construire|d[éeè]veloppe|d[éeè]velopper)[\s-]*(?:moi\s+)?(?:un[e]?\s+)?(?:vraie?\s+)?(?:application|app|agent|assistant|bot|chatbot|IA|AI)/i,
+  // NOUVEAU: Pattern "crée-moi une application de chatbot" (avec tiret)
+  /cr[éeè]e-moi\s+(?:un[e]?\s+)?(?:application|app)\s+(?:de\s+)?(?:chat|chatbot|discussion)/i,
+  // Pattern "application de chat/chatbot"
+  /(?:cr[éeè]e|cr[éeè]er|fais|faire)[\s-]*(?:moi\s+)?(?:un[e]?\s+)?(?:application|app)\s+(?:de\s+)?(?:chat|chatbot|discussion|messagerie)/i,
+  /(?:cr[éeè]e|cr[éeè]er)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:application|app)\s+(?:web|mobile)?\s*(?:d'|de)?\s*(?:agent|assistant|IA|AI|chat)/i,
+  /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[éeè]es?|fasses?|g[éeè]n[èe]res?)\s+(?:un[e]?\s+)?(?:vraie?\s+)?(?:application|app|agent|chatbot)/i,
+  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:me\s+)?(?:cr[éeè]er|faire|g[éeè]n[éeè]rer)\s+(?:un[e]?\s+)?(?:vraie?\s+)?(?:application|app|agent|chatbot)/i,
+  // Pattern spécifique "petite application de chatbot"
+  /(?:petite?|simple)\s+(?:application|app)\s+(?:de\s+)?(?:chat|chatbot|discussion)/i,
+  // Pattern "application/chatbot fonctionnel(le)"
+  /(?:application|app|chatbot|agent)\s+(?:fonctionnel(?:le)?|qui\s+(?:fonctionne|marche))/i,
+  // Pattern "vraie application" vs "image"
+  /(?:vraie?|réelle?|fonctionnelle?)\s+(?:application|app|chatbot)/i,
+  // NOUVEAU: Pattern simple "chatbot" ou "assistant" avec verbe de création
+  /(?:cr[éeè]e|cr[éeè]er|fais|faire)[\s-]*(?:moi\s+)?(?:un\s+)?(?:chatbot|assistant|agent|bot)/i,
   // Anglais
-  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:an?\s+)?(?:application|app|agent|assistant|bot|chatbot|AI)/i,
-  /(?:can\s+you|could\s+you|please)\s+(?:create|make|build)\s+(?:an?\s+)?(?:application|app|agent|bot)/i,
-  /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:an?\s+)?(?:application|app|agent|assistant)/i,
+  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:an?\s+)?(?:real\s+)?(?:application|app|agent|assistant|bot|chatbot|AI)/i,
+  /(?:can\s+you|could\s+you|please)\s+(?:create|make|build)\s+(?:an?\s+)?(?:real\s+)?(?:application|app|agent|bot|chatbot)/i,
+  /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:an?\s+)?(?:real\s+)?(?:application|app|agent|assistant|chatbot)/i,
+  // Pattern "working/functional app"
+  /(?:working|functional|real)\s+(?:application|app|chatbot)/i,
+];
+
+// NOUVEAU: Patterns pour détecter les demandes d'IMAGE d'application (à exclure de app_creation)
+const IMAGE_OF_APP_PATTERNS = [
+  /(?:image|photo|illustration|dessin|mockup|maquette)\s+(?:d'|de\s+)?(?:une?\s+)?(?:application|app|chatbot|interface)/i,
+  /(?:dessine|visualise|montre)\s+(?:moi\s+)?(?:à\s+quoi\s+ressemblerait\s+)?(?:une?\s+)?(?:application|app|chatbot)/i,
+  /(?:image|picture|illustration|drawing|mockup)\s+of\s+(?:an?\s+)?(?:application|app|chatbot|interface)/i,
 ];
 
 /**
  * Détecte l'intention principale de l'utilisateur
+ * VERSION AMÉLIORÉE: Intègre la détection de transitions et la distinction image vs app
  */
-export function detectIntent(message: string, hasFileContent: boolean = false): DetectedIntent {
+export function detectIntent(message: string, hasFileContent: boolean = false, previousIntent?: string): DetectedIntent {
   const normalizedMessage = message.toLowerCase().trim();
+  
+  // PREMIÈRE ÉTAPE: Analyser les transitions (changement de demande)
+  const transitionAnalysis = analyzeMessageForTransition(message, previousIntent);
+  
+  console.log('[IntentDetector] Transition analysis:', {
+    hasTransition: transitionAnalysis.transition.hasTransition,
+    transitionType: transitionAnalysis.transition.transitionType,
+    negatedIntent: transitionAnalysis.transition.negatedIntent,
+    isRealApp: transitionAnalysis.realVsImage.isRealApp,
+    suggestedIntent: transitionAnalysis.suggestedIntent
+  });
+  
+  // Si une transition suggère une intention spécifique, l'utiliser en priorité
+  if (transitionAnalysis.shouldOverrideIntent && transitionAnalysis.suggestedIntent) {
+    console.log('[IntentDetector] Transition override to:', transitionAnalysis.suggestedIntent);
+    return {
+      type: transitionAnalysis.suggestedIntent as IntentType,
+      confidence: 0.99,
+      details: {
+        keywords: transitionAnalysis.transition.keywords
+      }
+    };
+  }
+  
+  // NOUVEAU: Si une transition est détectée mais pas de suggestion, analyser le reste du message
+  if (transitionAnalysis.transition.hasTransition) {
+    // Chercher une intention dans la partie après la négation
+    const hasAppKeyword = /(?:application|app|chatbot|agent|assistant|bot)/i.test(normalizedMessage);
+    const hasSiteKeyword = /(?:site\s*web|site\s*internet|site|page\s*web|landing\s*page|website)/i.test(normalizedMessage);
+    const hasCreateVerb = /(?:crée|créer|fais|faire|génère|générer|construis|construire|développe|développer|create|make|build)/i.test(normalizedMessage);
+    const hasWantVerb = /(?:je\s+veux|je\s+voudrais|j'aimerais|i\s+want|i\s+need)/i.test(normalizedMessage);
+    
+    if (hasAppKeyword && (hasCreateVerb || hasWantVerb)) {
+      console.log('[IntentDetector] Transition with app keyword detected');
+      return {
+        type: 'app_creation',
+        confidence: 0.95,
+        details: { keywords: transitionAnalysis.transition.keywords }
+      };
+    }
+    if (hasSiteKeyword && (hasCreateVerb || hasWantVerb)) {
+      console.log('[IntentDetector] Transition with site keyword detected');
+      return {
+        type: 'site_creation',
+        confidence: 0.95,
+        details: { keywords: transitionAnalysis.transition.keywords }
+      };
+    }
+  }
   
   // Si un fichier est uploadé, c'est probablement une analyse
   if (hasFileContent) {
@@ -189,6 +267,21 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
       confidence: 0.9,
       details: { keywords: ['file', 'analysis'] }
     };
+  }
+  
+  // PRIORITÉ MAXIMALE: Vérifier si c'est une IMAGE d'application (à exclure de app_creation)
+  for (const pattern of IMAGE_OF_APP_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Image of app detected (not a real app)');
+      return {
+        type: 'image_generation',
+        confidence: 0.95,
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern),
+          imagePrompt: extractImagePrompt(message)
+        }
+      };
+    }
   }
   
   // PRIORITÉ 0: Vérifier les demandes de CRÉATION d'APPLICATION/AGENT IA (priorité maximale)

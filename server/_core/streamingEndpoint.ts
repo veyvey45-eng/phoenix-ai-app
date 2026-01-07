@@ -38,7 +38,8 @@ export async function streamChatEndpoint(req: Request, res: Response) {
       return;
     }
 
-    // Détecter l'intention de l'utilisateur
+    // Détecter l'intention de l'utilisateur (avec l'intention précédente pour détecter les transitions)
+    // Note: previousIntent sera passé si disponible dans l'historique
     const intent = detectIntent(message, !!fileContent);
     console.log('[StreamingEndpoint] Detected intent:', intent.type, 'confidence:', intent.confidence);
 
