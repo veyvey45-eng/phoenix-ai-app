@@ -230,7 +230,7 @@ export async function executeCode(
 }
 
 /**
- * Flux COMPLET: génère et exécute le code
+ * Flux COMPLET: génère et exécute le code AVEC AUTO-CORRECTION VISIBLE
  */
 export async function generateAndExecuteCompleteFlow(
   userMessage: string,
@@ -242,6 +242,7 @@ export async function generateAndExecuteCompleteFlow(
   error?: string;
   executionTime?: number;
   fullResponse?: string;
+  wasAutoCorrected?: boolean;
 }> {
   try {
     // Vérifier si c'est une demande de code
@@ -259,28 +260,27 @@ export async function generateAndExecuteCompleteFlow(
 
     console.log('[SmartCodeExecutor] Generated code:', code.substring(0, 150));
 
-    // Exécuter le code
-    const execution = await executeCode(code, language);
+    // Utiliser l'auto-correction visible
+    const { executeWithVisibleAutoCorrection } = await import('./visibleAutoCorrection');
+    const result = await executeWithVisibleAutoCorrection(code, language, userMessage);
 
-    if (!execution.success) {
+    if (result.success) {
+      return {
+        success: true,
+        code: result.finalCode,
+        output: result.finalOutput,
+        fullResponse: result.formattedResponse,
+        wasAutoCorrected: result.wasAutoCorrected
+      };
+    } else {
       return {
         success: false,
-        code,
-        error: execution.error,
-        executionTime: execution.executionTime
+        code: result.finalCode,
+        error: 'Échec après auto-correction',
+        fullResponse: result.formattedResponse,
+        wasAutoCorrected: result.wasAutoCorrected
       };
     }
-
-    // Formater la réponse complète
-    const fullResponse = `**Code généré et exécuté:**\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n✅ **Résultat RÉEL de l'exécution (${execution.executionTime}ms):**\n\n\`\`\`\n${execution.output}\n\`\`\``;
-
-    return {
-      success: true,
-      code,
-      output: execution.output,
-      executionTime: execution.executionTime,
-      fullResponse
-    };
   } catch (error) {
     console.error('[SmartCodeExecutor] Error:', error);
     return {
