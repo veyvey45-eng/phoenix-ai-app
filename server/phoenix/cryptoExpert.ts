@@ -116,15 +116,46 @@ export interface CryptoAnalysis {
 }
 
 // ============================================================================
+// CACHE SYSTEM - Éviter les erreurs 429
+// ============================================================================
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const priceCache = new Map<string, CacheEntry<CryptoPrice>>();
+const topCryptosCache: CacheEntry<CryptoPrice[]> | null = { data: [], timestamp: 0 };
+const CACHE_TTL = 60000; // 1 minute cache
+const CACHE_TTL_LONG = 300000; // 5 minutes for top cryptos
+
+function getCachedPrice(cryptoId: string): CryptoPrice | null {
+  const cached = priceCache.get(cryptoId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[CryptoExpert] Using cached price for ${cryptoId}`);
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedPrice(cryptoId: string, data: CryptoPrice): void {
+  priceCache.set(cryptoId, { data, timestamp: Date.now() });
+}
+
+// ============================================================================
 // API COINGECKO - ACCÈS COMPLET
 // ============================================================================
 
 const COINGECKO_BASE_URL = 'https://api.coingecko.com/api/v3';
 
 /**
- * Récupère le prix et les données d'une crypto
+ * Récupère le prix et les données d'une crypto (avec cache)
  */
 export async function getCryptoPrice(cryptoId: string): Promise<CryptoPrice | null> {
+  // Vérifier le cache d'abord
+  const cached = getCachedPrice(cryptoId);
+  if (cached) return cached;
+  
   try {
     const response = await fetch(
       `${COINGECKO_BASE_URL}/coins/markets?vs_currency=usd&ids=${cryptoId}&order=market_cap_desc&sparkline=false&price_change_percentage=1h,24h,7d,30d`,
@@ -133,13 +164,34 @@ export async function getCryptoPrice(cryptoId: string): Promise<CryptoPrice | nu
     
     if (!response.ok) {
       console.error(`[CryptoExpert] API error: ${response.status}`);
+      // En cas d'erreur 429, retourner le dernier cache même expiré
+      if (response.status === 429) {
+        const expiredCache = priceCache.get(cryptoId);
+        if (expiredCache) {
+          console.log(`[CryptoExpert] Rate limited, using expired cache for ${cryptoId}`);
+          return expiredCache.data;
+        }
+      }
       return null;
     }
     
     const data = await response.json();
-    return data[0] || null;
+    const result = data[0] || null;
+    
+    // Mettre en cache
+    if (result) {
+      setCachedPrice(cryptoId, result);
+    }
+    
+    return result;
   } catch (error) {
     console.error('[CryptoExpert] getCryptoPrice error:', error);
+    // En cas d'erreur, retourner le cache expiré si disponible
+    const expiredCache = priceCache.get(cryptoId);
+    if (expiredCache) {
+      console.log(`[CryptoExpert] Error, using expired cache for ${cryptoId}`);
+      return expiredCache.data;
+    }
     return null;
   }
 }
