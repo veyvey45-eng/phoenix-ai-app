@@ -42,24 +42,37 @@ export interface DetectedIntent {
 
 // Patterns pour détecter les demandes EXPLICITES de code
 const CODE_REQUEST_PATTERNS = [
-  // Français
-  /(?:écris|écrire|crée|créer|génère|générer|fais|faire|donne|donner)[\s-]*(?:moi)?[\s-]*(?:un|une|le|la|du)?[\s-]*(?:code|script|programme|fonction|classe|algorithme)/i,
-  /(?:code|script|programme)[\s-]*(?:pour|qui|en)/i,
+  // Français - patterns avec langages de programmation (PRIORITÉ HAUTE)
+  /(?:écris|écrire|crée|créer|génère|générer|fais|faire|donne|donner)[\s-]*(?:moi)?[\s-]*(?:un|une|le|la|du)?[\s-]*(?:code|script|fonction|classe|algorithme)/i,
+  /(?:code|script)[\s-]*(?:pour|qui|en)/i,
   /(?:en|avec)[\s-]*(?:python|javascript|typescript|java|c\+\+|rust|go|php|ruby|swift)/i,
   /(?:montre|montrer)[\s-]*(?:moi)?[\s-]*(?:comment|le)[\s-]*(?:coder|programmer|écrire)/i,
-  // Anglais
-  /(?:write|create|generate|make|give|show)[\s-]*(?:me)?[\s-]*(?:a|an|the|some)?[\s-]*(?:code|script|program|function|class|algorithm)/i,
-  /(?:code|script|program)[\s-]*(?:for|that|to|in)/i,
+  // NOUVEAU v3: Patterns avec langage explicite
+  /\b(?:python|javascript|typescript|java|c\+\+|rust|go|php|ruby|swift|bash|sql)\s+(?:code|script|function|classe)/i,
+  /\b(?:code|script)\s+(?:python|javascript|typescript|java|c\+\+|rust|go|php|ruby|swift|bash|sql)/i,
+  // Anglais - patterns avec langages de programmation
+  /(?:write|create|generate|make|give|show)[\s-]*(?:me)?[\s-]*(?:a|an|the|some)?[\s-]*(?:code|script|function|class|algorithm)/i,
+  /(?:code|script)[\s-]*(?:for|that|to|in)/i,
   /(?:how to|how do i)[\s-]*(?:code|program|write)/i,
+  // NOUVEAU v3: Patterns "programme un algorithme" vs "programme/application"
+  /(?:programme|program)\s+(?:un|une|a|an)?\s*(?:algorithme|algorithm|fonction|function)/i,
+  // NOUVEAU v3: "code une classe" pattern
+  /\b(?:code)[\s-]*(?:une?|a|an)?[\s-]*(?:classe|class|fonction|function|méthode|method)/i,
+  // NOUVEAU v3: Patterns anglais simples avec "code"
+  /\b(?:write|make)\s+(?:python|javascript|js|typescript|ts)\s+(?:code|script)/i,
+  /\b(?:write|make)\s+(?:a|some)?\s*(?:code|script)\s+(?:in|with|using)\s+(?:python|javascript|js)/i,
 ];
 
-// Patterns pour détecter les demandes d'EXÉCUTION de code
+// Patterns pour détecter les demandes d'EXÉCUTION de code - AMÉLIORÉS v3
 const CODE_EXECUTION_PATTERNS = [
   // Français - exécution explicite
   /(?:exécute|exécuter|lance|lancer|fais\s+tourner)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script|programme)/i,
-  /(?:teste|tester|test|debug|débugue)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
+  /(?:teste|tester|test)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
   // Anglais - exécution explicite
   /(?:run|execute|launch)[\s-]*(?:this|the|my)?[\s-]*(?:code|script|program)/i,
+  // NOUVEAU v3: Débogage et correction
+  /(?:debug|débugue|déboguer|fix|fixe|corrige|corriger|répare|réparer)[\s-]*(?:ce|le|this|the|my|mon)?[\s-]*(?:code|script|programme|program|bug|erreur|error)/i,
+  /(?:trouve|trouver|find|cherche|chercher)[\s-]*(?:le|la|l'|the)?[\s-]*(?:bug|erreur|error|problème|problem)/i,
   // Calculs et algorithmes
   /(?:calcule|calculer|calculate|compute)[\s-]/i,
   /(?:combien\s+fait|what\s+is)[\s-]*\d+/i,
@@ -74,36 +87,67 @@ const CODE_EXECUTION_PATTERNS = [
   /(?:factorielle|factorial|fibonacci)/i,
   /(?:aire|area|rayon|radius|cercle|circle)/i,
   /(?:celsius|fahrenheit|kelvin)/i,
+  // NOUVEAU v3: Calculs mathématiques complexes
+  /(?:résous|résoudre|solve)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:équation|equation|expression)/i,
+  /(?:résous|résoudre|solve)[\s-]*[x²³]|x\^\d/i,
+  /(?:nombres?\s+premiers?|prime\s+numbers?)/i,
+  /(?:diviseurs?|divisors?|facteurs?|factors?)/i,
+  /(?:pgcd|ppcm|gcd|lcm)/i,
+  /(?:base64|base\s*64|hexadécimal|hex)/i,
+  // NOUVEAU v3: Qualité de l'air et indices
+  /(?:qualité\s+(?:de\s+l')?air|air\s+quality)/i,
   // Code inline
   /print\s*\(/i,
   /console\.log/i,
   /\[\d+(?:,\s*\d+)*\]/i,  // Arrays comme [1, 2, 3]
 ];
 
-// Patterns pour détecter les demandes de génération d'IMAGE - AMÉLIORÉS v2
+// Patterns pour détecter les demandes de génération d'IMAGE - AMÉLIORÉS v5
 // IMPORTANT: Ces patterns ne doivent PAS matcher les demandes d'applications
 const IMAGE_GENERATION_PATTERNS = [
-  // Français - patterns avec "image" explicite
+  // NOUVEAU v5: Patterns simples et directs pour images
+  /\b(?:image|photo|illustration|dessin|picture|drawing|artwork|art)\s+(?:de|d'|of|du|des|style|avec)\b/i,
+  /\b(?:style|art)\s+(?:impressionniste|vintage|minimaliste|manga|cyberpunk|aquarelle|réaliste|abstrait|pop\s*art|art\s*déco|rétro)/i,
+  /\b(?:impressionist|vintage|minimalist|manga|cyberpunk|watercolor|realistic|abstract|pop\s*art|art\s*deco|retro)\s+(?:style|image|photo|art)/i,
+  /\b(?:dragon|unicorn|fairy|wizard|knight|warrior|robot|spaceship|alien|mermaid|phoenix|griffin|centaur)\s+(?:illustration|image|drawing|art)/i,
+  // Français - patterns avec "image" explicite (PRIORITÉ HAUTE)
   /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire)[\s-]*(?:moi)?[\s-]*(?:une|un|l')?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art)(?!.*(?:application|app|chatbot|site))/i,
   /(?:image|photo|illustration|dessin)[\s-]*(?:de|d'|du|des|avec|représentant|montrant)(?!.*(?:application|app|chatbot|site))/i,
-  // Patterns pour objets visuels communs (PAS d'applications)
-  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment|papillon|lune|soleil|coucher|lever)(?!.*(?:application|app|chatbot|site))/i,
-  // Anglais - patterns avec "image/picture" explicite
+  // Patterns français pour objets visuels communs (PAS d'applications)
+  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment|papillon|lune|robot|château|forêt|océan|plage|désert|jungle|espace|planète|étoile|galaxie|licorne|fée|sorcier|chevalier|pirate|ninja|samouraï|guerrier|prince|princesse|roi|reine)(?!.*(?:application|app|chatbot|site))/i,
+  // Anglais - patterns avec "image/picture" explicite (PRIORITÉ HAUTE)
   /(?:generate|create|make|draw|produce)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:image|photo|picture|illustration|drawing|visual|artwork)(?!.*(?:application|app|chatbot|site))/i,
   /(?:image|photo|picture)[\s-]*(?:of|with|showing|depicting)(?!.*(?:application|app|chatbot|site))/i,
-  // NOUVEAU: Patterns anglais "Generate a X" pour objets visuels courants
-  /generate\s+(?:an?\s+)?(?:sunset|sunrise|castle|fantasy|cyberpunk|scene|landscape|rainbow|space\s*station|luxury\s*car|beach\s*resort|northern\s*lights|thunderstorm|abstract|portrait)/i,
-  /create\s+(?:an?\s+)?(?:image\s+of\s+)?(?:sunset|sunrise|castle|fantasy|cyberpunk|scene|landscape|rainbow|space\s*station|luxury\s*car|beach\s*resort|northern\s*lights|thunderstorm|abstract|portrait)/i,
-  // Patterns anglais pour objets (PAS d'applications)
-  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|animal|monster|dragon|bird|flower|tree|mountain|city|building|butterfly|moon|sun|sunset|sunrise)(?!.*(?:application|app|chatbot|site))/i,
+  // NOUVEAU v3: Patterns anglais "Generate a X" pour objets visuels courants (SANS météo)
+  /(?:generate|create)[\s-]+(?:an?\s+)?(?:image\s+of\s+)?(?:castle|fantasy|cyberpunk|scene|landscape|space\s*station|luxury\s*car|beach\s*resort|abstract|portrait|dragon|unicorn|fairy|wizard|knight|warrior|robot|spaceship|alien|mermaid|phoenix|griffin|centaur)(?!.*(?:application|app|chatbot|site|weather|météo|température))/i,
+  // Patterns anglais pour objets (PAS d'applications, PAS de météo)
+  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|animal|monster|dragon|bird|flower|tree|mountain|city|building|butterfly|moon|robot|castle|forest|ocean|beach|desert|jungle|space|planet|star|galaxy|unicorn|fairy|wizard|knight|pirate|ninja|samurai|warrior|prince|princess|king|queen)(?!.*(?:application|app|chatbot|site|weather|météo|température))/i,
+  // NOUVEAU v3: Patterns français implicites "dessine-moi un X"
+  /dessine[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*\w+/i,
+  // NOUVEAU v3: Patterns anglais "draw me a X"
+  /draw[\s-]*(?:me)?[\s-]*(?:an?)?[\s-]*\w+/i,
+  // NOUVEAU v3: Patterns pour styles artistiques
+  /(?:génère|crée|fais|generate|create|make)[\s-]*(?:moi)?[\s-]*(?:un|une|an?)?[\s-]*(?:style|art|oeuvre|artwork|painting|peinture|tableau)[\s-]*(?:de|d'|of|in)?/i,
 ];
 
-// Patterns pour détecter les besoins de recherche web
-// IMPORTANT: Ces patterns doivent être EXPLICITES pour éviter les faux positifs
+// Patterns pour détecter les besoins de recherche web - AMÉLIORÉS v3
 const WEB_SEARCH_PATTERNS = [
+  // Recherche explicite
   /(?:cherche|recherche|trouve|trouver)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le web|google|the web)/i,
   /(?:actualité|actualités|news|nouvelles|dernières)[\s-]+(?:sur|about|on|de)/i,
   /(?:information|infos?)[\s-]+(?:récentes?|actuelles?|en ligne|online)/i,
+  // Questions factuelles FR
+  /\b(?:qui\s+est|c'?est\s+qui)\s+[A-ZÀ-Ü][a-zà-ü]+/i,
+  /\b(?:qu'?est[- ]ce\s+que|what\s+is)\s+(?:le|la|l'|the|a|an)?\s*[A-ZÀ-Ü]/i,
+  /\b(?:quand|when)\s+(?:a\s+[eé]t[eé]|est|was|is)\s+(?:fond[eé]|cr[eé][eé]|founded|created)/i,
+  // Questions factuelles EN
+  /\b(?:who\s+is|who\s+are)\s+(?:the)?\s*[A-Z]/i,
+  /\b(?:when\s+was|when\s+were)\s+[A-Z]/i,
+  /\b(?:where\s+is|where\s+are)\s+[A-Z]/i,
+  // Recherche Google explicite
+  /\b(?:google|bing|recherche\s+sur|search\s+for|look\s+up)\b/i,
+  // Questions sur des personnes/entreprises
+  /\b(?:qui\s+est|who\s+is)\s+(?:le|la|the)?\s*(?:pr[eé]sident|CEO|fondateur|founder|directeur|director)\b/i,
 ];
 
 // Patterns pour les demandes conversationnelles simples (PAS de recherche web)
@@ -172,6 +216,8 @@ const CRYPTO_PATTERNS = [
   /(?:btc|bitcoin)[\s-]*(?:vs|versus|contre|vs\.|or)[\s-]*(?:eth|ethereum)/i,
 ];
 
+
+
 // Patterns calcul
 const CALCULATION_PATTERNS = [
   /(?:calcule|calculer|calculate|compute)[\s-]/i,
@@ -179,8 +225,26 @@ const CALCULATION_PATTERNS = [
   /\d+[\s]*[\+\-\*\/\^][\s]*\d+/,  // Expressions mathématiques simples
 ];
 
-// Patterns pour la CRÉATION de site web (PRIORITÉ HAUTE) - AMÉLIORÉS
+// Patterns pour la CRÉATION de site web (PRIORITÉ HAUTE) - AMÉLIORÉS v3
 const SITE_CREATION_PATTERNS = [
+  // NOUVEAU v3: Patterns simples et directs
+  /\b(?:site\s*web|website|web\s*site)\b/i,  // Tout message contenant "site web" ou "website"
+  /\b(?:landing\s*page|page\s*d'atterrissage)\b/i,  // Landing page
+  /\b(?:page\s*web|web\s*page)\b/i,  // Page web
+  /\b(?:site\s*vitrine|showcase\s*site)\b/i,  // Site vitrine
+  /\b(?:site\s*e-?commerce|e-?commerce\s*site|online\s*store|boutique\s*en\s*ligne)\b/i,  // E-commerce
+  /\b(?:portfolio\s*(?:website|site)?|site\s*portfolio)\b/i,  // Portfolio
+  // NOUVEAU v3: Patterns avec "site" seul + contexte
+  /\b(?:un|une|a|an)\s+site\b/i,  // "un site", "a site"
+  /\bsite\s+(?:pour|for|de|d')\b/i,  // "site pour", "site for"
+  /\b(?:je\s+veux|i\s+want|i\s+need)\s+(?:un\s+)?site\b/i,  // "je veux un site"
+  // NOUVEAU v3: Patterns anglais simples
+  /\b(?:website|site)\s+(?:please|svp|s'il\s+(?:te|vous)\s+pla[iî]t)\b/i,  // "website please"
+  /\b(?:need|want)\s+(?:a\s+)?(?:website|site)\b/i,  // "need a website"
+  // NOUVEAU v3: Types de sites spécifiques
+  /\b(?:blog|blogue)\s*(?:site|website)?\b/i,  // Blog
+  /\b(?:corporate|company|business)\s+(?:website|site)\b/i,  // Corporate site
+  /\b(?:personal|personnel)\s+(?:website|site)\b/i,  // Personal site
   // Français - Patterns explicites avec "site web"
   /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s*-?\s*(?:moi\s+)?(?:un[e]?\s+)?(?:site\s*web|site\s*internet|site|page\s*web|landing\s*page)/i,
   // "crée un site pour X" - pattern très commun
@@ -227,8 +291,42 @@ const SITE_MODIFICATION_PATTERNS = [
   /(?:modifie|change|update|edit)\s+(?:mon|le|my)?\s*(?:site|page|app)\s*[:\-]/i,
 ];
 
-// Patterns pour la CRÉATION d'APPLICATION/AGENT IA (PRIORITÉ MAXIMALE) - AMÉLIORÉS v2
+// Patterns pour la CRÉATION d'APPLICATION/AGENT IA (PRIORITÉ MAXIMALE) - AMÉLIORÉS v5
+// Équilibre entre détection large et évitement des faux positifs
 const APP_CREATION_PATTERNS = [
+  // Mots-clés d'application (détection large mais avec contexte)
+  /\b(?:application|app)\b(?!.*(?:image|photo|illustration|dessin|picture))/i,
+  /\b(?:chatbot|chat\s*bot)\b/i,
+  /\b(?:dashboard|tableau\s*de\s*bord)\b/i,
+  /\b(?:admin\s*panel|panneau\s*d'?administration)\b/i,
+  /\b(?:agent\s*(?:IA|AI|virtuel|intelligent))\b/i,
+  /\b(?:assistant\s*(?:virtuel|intelligent|IA|AI))\b/i,
+  /\b(?:logiciel|software)\b/i,
+  // Systèmes et outils
+  /\b(?:syst[eè]me|system)\s+(?:de|of|pour|for)\b/i,
+  /\b(?:outil|tool)\s+(?:de|of|pour|for)\b/i,
+  /\b(?:bot|robot)\s+(?:de|for|pour)\b/i,
+  // Acronymes business
+  /\b(?:CRM|ERP|SaaS)\b/i,
+  // Systèmes spécifiques
+  /\b(?:booking|r[eé]servation)\s+(?:system|syst[eè]me)\b/i,
+  /\b(?:ordering|commande)\s+(?:system|syst[eè]me)\b/i,
+  /\b(?:inventory|inventaire|stock)\s+(?:management|gestion)\b/i,
+  // Applications de productivité
+  /\b(?:todo|to-do|task\s*list|liste\s*de\s*t[aâ]ches)\b/i,
+  /\b(?:tracker|suivi|tracking)\b/i,
+  /\b(?:planificateur|planner|scheduler)\b/i,
+  /\b(?:gestionnaire|manager)\s+(?:de|of)\b/i,
+  // Quiz et sondages
+  /\b(?:quiz|questionnaire|survey|sondage)\b/i,
+  /\b(?:feedback|avis|review)\s+(?:system|form|syst[eè]me|formulaire)\b/i,
+  /\b(?:voting|vote)\s+(?:system|app|syst[eè]me)\b/i,
+  // Monitoring et analytics
+  /\b(?:monitoring|surveillance)\s+(?:dashboard|tool|outil)\b/i,
+  /\b(?:analytics|statistiques)\s+(?:dashboard|tool|outil)\b/i,
+  // Note taking et calendar
+  /\b(?:note-?taking|prise\s*de\s*notes)\b/i,
+  /\b(?:calendar|calendrier)\s+(?:app|application)?\b/i,
   // Français - Création d'application/agent - patterns flexibles
   /(?:cr[éeè]e|cr[éeè]er|fais|faire|g[éeè]n[èe]re|g[éeè]n[éeè]rer|construis|construire|d[éeè]veloppe|d[éeè]velopper)[\s-]*(?:moi\s+)?(?:un[e]?\s+)?(?:vraie?\s+)?(?:application|app|agent|assistant|bot|chatbot|IA|AI)/i,
   // Pattern "crée-moi une application de chatbot" (avec tiret)
@@ -277,7 +375,7 @@ const IMAGE_OF_APP_PATTERNS = [
   /(?:image|picture|illustration|drawing|mockup)\s+of\s+(?:an?\s+)?(?:application|app|chatbot|interface)/i,
 ];
 
-// Patterns pour les transitions - AMÉLIORÉS v2
+// Patterns pour les transitions - AMÉLIORÉS v3
 const TRANSITION_SITE_PATTERNS = [
   // "En fait, je préfère un site"
   /(?:en\s+fait|finalement|actually|finally)\s*[,]?\s*(?:je\s+)?(?:préfère|veux|voudrais|want|prefer)\s+(?:un[e]?\s+)?(?:site|website|page)/i,
@@ -287,19 +385,31 @@ const TRANSITION_SITE_PATTERNS = [
   /(?:laisse\s+tomber|drop|forget)\s+(?:les?\s+)?(?:images?|photos?)\s*[,]?\s*(?:je\s+)?(?:veux|want)\s+(?:un[e]?\s+)?(?:site|website)/i,
   // "je préfère un site"
   /je\s+préfère\s+(?:un[e]?\s+)?(?:site|website|page)/i,
-  // NOUVEAU: "Plus d'images, maintenant un site"
+  // NOUVEAU v3: "Non pas ça, un site"
+  /(?:non|no)\s+(?:pas\s+)?(?:ça|that|this)\s*[,]?\s*(?:un[e]?\s+)?(?:site|website)/i,
+  // NOUVEAU v3: "Plutôt un site"
+  /(?:plutôt|rather|instead)\s+(?:un[e]?\s+)?(?:site|website)/i,
+  // NOUVEAU v3: "Change pour un site"
+  /(?:change|switch|passe)\s+(?:pour|to|vers)\s+(?:un[e]?\s+)?(?:site|website)/i,
+  // NOUVEAU v3: "à la place, un site"
+  /(?:à\s+la\s+place|instead)\s*[,]?\s*(?:un[e]?\s+)?(?:site|website)/i,
+  // NOUVEAU v3: "No, a website instead"
+  /(?:no|non)\s*[,]?\s*(?:a\s+)?(?:website|site)\s+(?:instead|plutôt)/i,
+  // NOUVEAU v3: "Actually I want a website"
+  /(?:actually|en\s+fait)\s+(?:i\s+want|je\s+veux)\s+(?:a\s+)?(?:website|site)/i,
+  // Plus d'images, maintenant un site
   /plus\s+d'?images?\s*[,]?\s*(?:maintenant\s+)?(?:un[e]?\s+)?(?:site|website)/i,
-  // NOUVEAU: "Pas d'images, un site web s'il te plaît"
+  // Pas d'images, un site web s'il te plaît
   /pas\s+d'?images?\s*[,]?\s*(?:un[e]?\s+)?(?:site|website)/i,
-  // NOUVEAU: "No images, a website please"
+  // No images, a website please
   /no\s+images?\s*[,]?\s*(?:a\s+)?(?:website|site)/i,
-  // NOUVEAU: "I prefer a website over an image"
+  // I prefer a website over an image
   /i\s+prefer\s+(?:a\s+)?(?:website|site)\s+(?:over|to)\s+(?:an?\s+)?image/i,
-  // NOUVEAU: "Je préfère un site à une image"
+  // Je préfère un site à une image
   /je\s+préfère\s+(?:un[e]?\s+)?(?:site|website)\s+(?:à|plutôt\s+qu')\s*(?:une?\s+)?image/i,
-  // NOUVEAU: "Un site web serait plus utile"
+  // Un site web serait plus utile
   /(?:un[e]?\s+)?(?:site|website)\s+(?:serait|would\s+be)\s+(?:plus\s+utile|more\s+useful)/i,
-  // NOUVEAU: "A website would be more useful"
+  // A website would be more useful
   /(?:a\s+)?(?:website|site)\s+would\s+be\s+(?:more\s+useful|better)/i,
 ];
 
@@ -395,7 +505,24 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
     }
   }
   
-  // PRIORITÉ 0: Vérifier les demandes de CRÉATION d'APPLICATION/AGENT IA (priorité maximale)
+  // PRIORITÉ 0: Vérifier les demandes explicites de CODE (AVANT app_creation)
+  // Ceci évite que "programme un algorithme" soit détecté comme app_creation
+  for (const pattern of CODE_REQUEST_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      const language = detectProgrammingLanguage(normalizedMessage);
+      console.log('[IntentDetector] Code request detected with pattern:', pattern);
+      return {
+        type: 'code_request',
+        confidence: 0.96,
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern),
+          language 
+        }
+      };
+    }
+  }
+  
+  // PRIORITÉ 1: Vérifier les demandes de CRÉATION d'APPLICATION/AGENT IA
   for (const pattern of APP_CREATION_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       console.log('[IntentDetector] App/Agent creation detected with pattern:', pattern);
@@ -409,7 +536,7 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
     }
   }
   
-  // PRIORITÉ 1: Vérifier les demandes de MODIFICATION de site existant
+  // PRIORITÉ 2: Vérifier les demandes de MODIFICATION de site existant
   for (const pattern of SITE_MODIFICATION_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       console.log('[IntentDetector] Site modification detected with pattern:', pattern);
@@ -423,7 +550,7 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
     }
   }
   
-  // PRIORITÉ 2: Vérifier les demandes de CRÉATION de site web
+  // PRIORITÉ 3: Vérifier les demandes de CRÉATION de site web
   for (const pattern of SITE_CREATION_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       console.log('[IntentDetector] Site creation detected with pattern:', pattern);
@@ -437,33 +564,21 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
     }
   }
   
-  // Vérifier les demandes explicites de code
-  for (const pattern of CODE_REQUEST_PATTERNS) {
-    if (pattern.test(normalizedMessage)) {
-      const language = detectProgrammingLanguage(normalizedMessage);
-      return {
-        type: 'code_request',
-        confidence: 0.95,
-        details: { 
-          keywords: extractKeywords(normalizedMessage, pattern),
-          language 
-        }
-      };
-    }
-  }
-  
+  // SUPPRIMÉ: Vérification dupliquée de code_request (déjà fait en priorité 0)
   // Vérifier les demandes d'exécution de code
   for (const pattern of CODE_EXECUTION_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       return {
         type: 'code_execution',
         confidence: 0.95,
-        details: { keywords: extractKeywords(normalizedMessage, pattern) }
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern)
+        }
       };
     }
   }
   
-  // PRIORITÉ 1: Vérifier les demandes crypto EN PREMIER (avant images)
+  // PRIORITÉ 4: Vérifier les demandes crypto (avant images)
   for (const pattern of CRYPTO_PATTERNS) {
     if (pattern.test(normalizedMessage)) {
       return {
