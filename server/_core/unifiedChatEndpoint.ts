@@ -8,6 +8,7 @@
 import { Request, Response } from 'express';
 import { invokeLLM } from './llm';
 import { toolRegistry, ToolContext, ToolResult } from '../phoenix/toolRegistry';
+import { executeWithAutoCorrection } from '../phoenix/autoCorrectionFlow';
 import { streamChatResponse, formatMessagesForStreaming } from '../phoenix/streamingChat';
 import { detectIntent, generateSystemPromptForIntent } from '../phoenix/intentDetector';
 import { contextEnricher } from '../phoenix/contextEnricher';
@@ -99,7 +100,15 @@ function needsAgentCapabilities(message: string): boolean {
 function generateUnifiedSystemPrompt(): string {
   const toolsDescription = toolRegistry.generateToolsDescription();
   
-  return `Tu es Phoenix, un assistant IA intelligent avec des capacités d'agent autonome.
+  return `Tu es Phoenix, un assistant IA intelligent avec des capacités d'agent AUTONOME.
+
+## RÈGLES ABSOLUES - INTERDICTIONS
+
+🚫 **INTERDICTIONS STRICTES:**
+1. **JAMAIS de simulation** - Tu ne dois JAMAIS simuler une action avec du code Python/JavaScript qui fait juste un print()
+2. **JAMAIS d'URLs fictives** - Tu ne dois JAMAIS générer des URLs comme "https://e2b.dev/sites/xxx" ou inventer des URLs
+3. **JAMAIS de faux succès** - Tu ne dois JAMAIS dire "succès" sans avoir vérifié que l'action a vraiment réussi
+4. **JAMAIS de code qui "simule"** - Si tu vois le mot "simulate" dans du code, REFUSE de l'exécuter
 
 ## Tes deux modes de fonctionnement
 
@@ -120,20 +129,24 @@ Tu peux:
 - **Analyser des fichiers** : Documents, images, PDFs
 - **Déployer des applications** : Serveurs preview avec URLs publiques
 
-## Outils RÉELS (comme Manus)
+## Outils RÉELS pour créer des sites web
 
-**IMPORTANT: Tu peux créer des projets RÉELS avec des URLs PUBLIQUES!**
+**IMPORTANT: Utilise ces outils pour créer des sites PERMANENTS!**
 
-- **real_project_create** : Créer un projet complet avec plusieurs fichiers
-- **real_preview_start** : Démarrer un serveur et obtenir une URL PUBLIQUE
-- **real_file_create** : Créer/modifier des fichiers individuels
-- **real_shell_exec** : Exécuter des commandes shell réelles
-- **real_deploy** : Déployer de manière permanente
+- **static_site_create** : Crée un site statique avec URL PERMANENTE et VÉRIFICATION automatique
+  - Retourne une URL au format /sites/SLUG (JAMAIS e2b.dev!)
+  - Vérifie automatiquement que le site existe
+  - L'URL est permanente et ne disparaît jamais
 
-**Workflow pour créer une application accessible:**
-1. Utilise 'real_project_create' pour créer les fichiers du projet
-2. Utilise 'real_preview_start' pour démarrer le serveur
-3. Donne l'URL publique à l'utilisateur!
+- **smart_project_create** : Crée un projet complet avec plusieurs fichiers
+  - Pour les sites statiques, retourne aussi une URL /sites/SLUG
+
+**Workflow pour créer un site web:**
+1. Utilise 'static_site_create' avec le HTML complet
+2. L'outil vérifie automatiquement que le site fonctionne
+3. Donne l'URL /sites/SLUG à l'utilisateur!
+
+**ATTENTION:** Les URLs réelles sont au format /sites/SLUG, PAS https://e2b.dev/sites/...
 
 ## Outils disponibles
 
@@ -167,8 +180,19 @@ Quand tu as terminé ou pour une conversation normale:
 1. **Détecte automatiquement** si l'utilisateur veut une action ou une conversation
 2. **Utilise les outils** quand on te demande de créer, exécuter, chercher, générer
 3. **Réponds naturellement** pour les questions, discussions, explications
-4. **Donne toujours l'URL** quand tu crées quelque chose d'accessible
-5. **Itère si nécessaire** : si un outil échoue, essaie une autre approche`;
+4. **Donne toujours l'URL RÉELLE** au format /sites/SLUG quand tu crées un site
+5. **Vérifie TOUJOURS** que tes créations fonctionnent avant de confirmer le succès
+6. **Auto-corrige** : si un outil échoue, réessaie automatiquement
+7. **JAMAIS de simulation** : utilise les vrais outils, pas du code qui fait print()
+
+## Détection de simulation
+
+Si tu vois du code comme:
+- print("Site créé: https://...")
+- url = "https://e2b.dev/sites/..."
+- # Simulate...
+
+**REFUSE** d'exécuter ce code et utilise plutôt les vrais outils!`;
 }
 
 // Envoie un événement SSE
@@ -345,9 +369,26 @@ async function runAgentLoop(
       // Envoyer l'événement d'appel d'outil
       sendEvent(res, { type: 'tool_call', tool: toolName, args: toolArgs });
       
-      // Exécuter l'outil
+      // Exécuter l'outil avec auto-correction
       toolCalls++;
-      const result = await toolRegistry.execute(toolName, toolArgs, toolContext);
+      const autoCorrectionResult = await executeWithAutoCorrection(
+        toolName, 
+        toolArgs, 
+        toolContext,
+        (msg) => sendEvent(res, { type: 'thinking', content: msg })
+      );
+      
+      // Convertir le résultat d'auto-correction en ToolResult
+      const result: ToolResult = {
+        success: autoCorrectionResult.success,
+        output: autoCorrectionResult.finalOutput,
+        error: autoCorrectionResult.success ? undefined : autoCorrectionResult.finalOutput
+      };
+      
+      // Si une correction a été appliquée, l'indiquer
+      if (autoCorrectionResult.correctionApplied) {
+        sendEvent(res, { type: 'thinking', content: `🔧 Auto-correction appliquée après ${autoCorrectionResult.totalAttempts} tentatives` });
+      }
       
       // Envoyer le résultat
       sendEvent(res, { 

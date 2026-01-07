@@ -30,6 +30,7 @@ import { advancedTools } from './advancedTools';
 import { moreAdvancedTools } from './moreAdvancedTools';
 import { realTools } from './realTools';
 import { smartWebTools } from './smartWebTools';
+import { autonomousTools, interceptSimulation } from './autonomousAgentSystem';
 
 // Types
 export interface ToolParameter {
@@ -96,7 +97,11 @@ class ToolRegistryService {
     for (const tool of smartWebTools) {
       this.register(tool);
     }
-    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length + realTools.length + smartWebTools.length} outils avancés enregistrés`);
+    // Outils autonomes avec vérification automatique
+    for (const tool of autonomousTools) {
+      this.register(tool);
+    }
+    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length + realTools.length + smartWebTools.length + autonomousTools.length} outils avancés enregistrés`);
   }
 
   /**
@@ -2178,6 +2183,17 @@ main {
     }
 
     console.log(`[ToolRegistry] Exécution de ${toolName} avec args:`, JSON.stringify(args).substring(0, 200));
+    
+    // Intercepter les simulations
+    const simulationCheck = interceptSimulation(toolName, args);
+    if (simulationCheck.blocked) {
+      console.warn(`[ToolRegistry] ⚠️ SIMULATION BLOQUÉE: ${simulationCheck.reason}`);
+      return {
+        success: false,
+        output: '',
+        error: `🚫 SIMULATION REFUSÉE: ${simulationCheck.reason}\n\nUtilise les vrais outils (static_site_create, smart_project_create) au lieu de simuler avec du code!`
+      };
+    }
     
     try {
       const result = await tool.execute(args, context);
