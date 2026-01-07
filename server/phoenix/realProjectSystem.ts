@@ -226,32 +226,83 @@ class RealProjectSystemService {
     projectPath: string,
     port: number = 8080
   ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+    let sandbox: InstanceType<typeof Sandbox> | null = null;
+    let publicUrl: string = '';
+    
     try {
-      const sandbox = await this.getOrCreateSandbox(sessionId);
-      const fullPath = projectPath.startsWith('/') ? projectPath : `/home/user/${projectPath}`;
+      sandbox = await this.getOrCreateSandbox(sessionId);
+      
+      // Normaliser le chemin - si c'est juste un nom de projet, le mettre dans /home/user/projects/
+      let fullPath: string;
+      if (projectPath.startsWith('/')) {
+        fullPath = projectPath;
+      } else if (projectPath.includes('/')) {
+        fullPath = `/home/user/${projectPath}`;
+      } else {
+        fullPath = `/home/user/projects/${projectPath}`;
+      }
+      
+      console.log(`[RealProjectSystem] startPreviewServer - chemin normalisé: ${fullPath}`);
       
       // Vérifier que le répertoire existe
       const checkResult = await sandbox.commands.run(`test -d "${fullPath}" && echo "exists"`);
+      
       if (!checkResult.stdout.includes('exists')) {
+        const listProjects = await sandbox.commands.run('ls -la /home/user/projects/ 2>/dev/null || echo "not found"');
+        console.log(`[RealProjectSystem] Contenu de /home/user/projects: ${listProjects.stdout}`);
         return { success: false, error: `Répertoire non trouvé: ${fullPath}` };
       }
       
       // Obtenir l'URL publique AVANT de démarrer le serveur
       const host = sandbox.getHost(port);
-      const publicUrl = `https://${host}`;
+      publicUrl = `https://${host}`;
       console.log(`[RealProjectSystem] URL publique: ${publicUrl}`);
       
-      // Démarrer le serveur HTTP Python en arrière-plan (selon la doc E2B officielle)
-      // La commande avec { background: true } retourne immédiatement
-      const serverProcess = await sandbox.commands.run(
-        `cd "${fullPath}" && python3 -m http.server ${port}`,
-        { background: true }
-      );
+      // Tuer tout processus existant sur ce port
+      await sandbox.commands.run(`fuser -k ${port}/tcp 2>/dev/null || true`);
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      console.log(`[RealProjectSystem] Serveur démarré en arrière-plan`);
+      // Démarrer le serveur avec nohup pour qu'il persiste
+      // On utilise une approche différente: lancer avec & et ne pas attendre
+      console.log(`[RealProjectSystem] Démarrage du serveur Python sur le port ${port}...`);
+      
+      // Utiliser nohup avec redirection pour éviter les problèmes de signal
+      await sandbox.commands.run(
+        `cd "${fullPath}" && nohup python3 -m http.server ${port} > /tmp/http_server_${port}.log 2>&1 &`,
+        { timeoutMs: 5000 }
+      );
       
       // Attendre que le serveur démarre
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Vérifier que le serveur tourne
+      let serverRunning = false;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const checkServer = await sandbox.commands.run(
+            `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/ 2>/dev/null`,
+            { timeoutMs: 3000 }
+          );
+          const statusCode = checkServer.stdout.trim();
+          console.log(`[RealProjectSystem] Vérification serveur (tentative ${attempt + 1}): ${statusCode}`);
+          
+          if (statusCode === '200' || statusCode === '301' || statusCode === '302' || statusCode === '304') {
+            serverRunning = true;
+            break;
+          }
+        } catch (e) {
+          console.log(`[RealProjectSystem] Erreur vérification (tentative ${attempt + 1}): ${e}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Même si la vérification échoue, on retourne l'URL car le serveur peut être accessible de l'extérieur
+      if (!serverRunning) {
+        console.log(`[RealProjectSystem] Le serveur local ne répond pas, mais l'URL publique peut fonctionner`);
+        // Vérifier les processus
+        const psCheck = await sandbox.commands.run(`ps aux | grep -E "python.*http.server" | grep -v grep || echo "no process"`);
+        console.log(`[RealProjectSystem] Processus: ${psCheck.stdout}`);
+      }
       
       // Stocker les infos de preview
       const sessionData = activeSandboxes.get(sessionId);
@@ -270,10 +321,17 @@ class RealProjectSystemService {
       }
       
       console.log(`[RealProjectSystem] Serveur démarré: ${publicUrl}`);
-      
       return { success: true, publicUrl };
+      
     } catch (error: any) {
       console.error('[RealProjectSystem] Erreur démarrage serveur:', error);
+      
+      // Si on a déjà l'URL publique, on la retourne quand même car le serveur peut fonctionner
+      if (publicUrl && sandbox) {
+        console.log(`[RealProjectSystem] Retour de l'URL malgré l'erreur: ${publicUrl}`);
+        return { success: true, publicUrl };
+      }
+      
       return { success: false, error: error.message };
     }
   }

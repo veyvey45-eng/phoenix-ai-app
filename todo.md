@@ -1842,3 +1842,18 @@ Un seul chat intelligent qui peut tout faire : conversation, exécution de code,
 
 **Résultat:** Le chat principal a maintenant TOUTES les capacités de l'Agent!
 Plus besoin de changer de page pour créer des sites, exécuter du code, etc.
+
+---
+
+## Phase 49: Correction bug "exit status 1" sur real_preview_start
+
+- [ ] Analyser la cause exacte de l'erreur
+- [ ] Corriger le problème de chemin ou de sandbox
+- [ ] Ajouter une meilleure gestion des erreurs
+- [ ] Tester la correction avec création de page web
+
+### Corrections effectuées
+- [x] Analysé la cause: background: true de E2B lève "signal: terminated"
+- [x] Corrigé avec nohup et & au lieu de background: true
+- [x] Ajouté vérification du serveur avec curl
+- [x] Testé avec succès - URL publique générée et accessible
