@@ -28,6 +28,7 @@ import {
 } from '../workspaceDb';
 import { advancedTools } from './advancedTools';
 import { moreAdvancedTools } from './moreAdvancedTools';
+import { realTools } from './realTools';
 
 // Types
 export interface ToolParameter {
@@ -88,7 +89,10 @@ class ToolRegistryService {
     for (const tool of moreAdvancedTools) {
       this.register(tool);
     }
-    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length} outils avancés enregistrés`);
+    for (const tool of realTools) {
+      this.register(tool);
+    }
+    console.log(`[ToolRegistry] ${advancedTools.length + moreAdvancedTools.length + realTools.length} outils avancés enregistrés`);
   }
 
   /**
