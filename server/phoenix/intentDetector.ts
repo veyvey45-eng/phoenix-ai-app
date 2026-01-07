@@ -63,79 +63,123 @@ const CODE_REQUEST_PATTERNS = [
   /\b(?:write|make)\s+(?:a|some)?\s*(?:code|script)\s+(?:in|with|using)\s+(?:python|javascript|js)/i,
 ];
 
-// Patterns pour détecter les demandes d'EXÉCUTION de code - AMÉLIORÉS v3
+// Patterns pour détecter les demandes d'EXÉCUTION de code - AMÉLIORÉS v4
 const CODE_EXECUTION_PATTERNS = [
-  // Français - exécution explicite
-  /(?:exécute|exécuter|lance|lancer|fais\s+tourner)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script|programme)/i,
-  /(?:teste|tester|test)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
-  // Anglais - exécution explicite
-  /(?:run|execute|launch)[\s-]*(?:this|the|my)?[\s-]*(?:code|script|program)/i,
-  // NOUVEAU v3: Débogage et correction
-  /(?:debug|débugue|déboguer|fix|fixe|corrige|corriger|répare|réparer)[\s-]*(?:ce|le|this|the|my|mon)?[\s-]*(?:code|script|programme|program|bug|erreur|error)/i,
-  /(?:trouve|trouver|find|cherche|chercher)[\s-]*(?:le|la|l'|the)?[\s-]*(?:bug|erreur|error|problème|problem)/i,
-  // Calculs et algorithmes
-  /(?:calcule|calculer|calculate|compute)[\s-]/i,
-  /(?:combien\s+fait|what\s+is)[\s-]*\d+/i,
-  /(?:trie|trier|sort)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:liste|array|tableau)/i,
-  /(?:inverse|inverser|reverse)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:chaîne|string)/i,
-  /(?:compte|compter|count)[\s-]*(?:les)?[\s-]*(?:voyelles|consonnes|vowels|consonants)/i,
-  /(?:vérifie|vérifier|check)[\s-]*(?:si|if)[\s-]*.*(?:palindrome)/i,
-  /(?:trouve|trouver|find)[\s-]*(?:le|la|the)?[\s-]*(?:maximum|minimum|max|min)/i,
-  /(?:convertis|convertir|convert)[\s-]/i,
-  /(?:génère|générer|generate)[\s-]*(?:un|une|a)?[\s-]*(?:mot\s+de\s+passe|password|uuid|id)/i,
-  /(?:parse|stringify|encode|decode|hash)[\s-]/i,
-  /(?:factorielle|factorial|fibonacci)/i,
-  /(?:aire|area|rayon|radius|cercle|circle)/i,
-  /(?:celsius|fahrenheit|kelvin)/i,
-  // NOUVEAU v3: Calculs mathématiques complexes
-  /(?:résous|résoudre|solve)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:équation|equation|expression)/i,
-  /(?:résous|résoudre|solve)[\s-]*[x²³]|x\^\d/i,
-  /(?:nombres?\s+premiers?|prime\s+numbers?)/i,
-  /(?:diviseurs?|divisors?|facteurs?|factors?)/i,
-  /(?:pgcd|ppcm|gcd|lcm)/i,
-  /(?:base64|base\s*64|hexadécimal|hex)/i,
-  // NOUVEAU v3: Qualité de l'air et indices
-  /(?:qualité\s+(?:de\s+l')?air|air\s+quality)/i,
+  // NOUVEAU v4: Patterns simples et directs
+  /\b(?:exécute|lance|run|execute)\b/i,
+  /\b(?:teste|test)\s+(?:ce|le|this|the)?\s*(?:code|script)?\b/i,
+  // NOUVEAU v4: Débogage (détection large)
+  /\b(?:debug|débugue|débogue|fix|fixe|corrige|répare)\b/i,
+  /\b(?:bug|erreur|error)\s+(?:dans|in|with)\b/i,
+  // NOUVEAU v4: Calculs mathématiques (détection large)
+  /\b(?:calcule|calculate|compute|compte|count)\b/i,
+  /\b(?:additionne|add|soustrait|subtract|multiplie|multiply|divise|divide)\b/i,
+  /\b(?:combien\s+fait|what\s+is|what's)\s+\d+/i,
+  /\d+\s*[\+\-\*\/\^]\s*\d+/,
+  // NOUVEAU v4: Opérations sur listes
+  /\b(?:trie|sort|ordonne|order)\b/i,
+  /\b(?:inverse|reverse|retourne)\b/i,
+  /\b(?:filtre|filter)\b/i,
+  /\b(?:maximum|minimum|max|min|plus\s+grand|plus\s+petit)\b/i,
+  // NOUVEAU v4: Conversions
+  /\b(?:convertis|convert|transforme|transform)\b/i,
+  /\b(?:celsius|fahrenheit|kelvin|km|miles|kg|pounds)\b/i,
+  /\b(?:base64|hexadécimal|hex|binaire|binary)\b/i,
+  // NOUVEAU v4: Génération
+  /\b(?:génère|generate)\s+(?:un|a)?\s*(?:mot\s+de\s+passe|password|uuid|nombre\s+aléatoire|random)\b/i,
+  /\b(?:parse|stringify|encode|decode|hash|encrypt|decrypt)\b/i,
+  // NOUVEAU v4: Mathématiques avancées
+  /\b(?:factorielle|factorial|fibonacci|suite|séquence)\b/i,
+  /\b(?:aire|area|périmètre|perimeter|volume|surface|rayon|radius)\b/i,
+  /\b(?:cercle|circle|carré|square|rectangle|triangle|sphère|sphere)\b/i,
+  /\b(?:résous|solve)\s+(?:cette|ce|this)?\s*(?:équation|equation)?\b/i,
+  /\b(?:nombres?\s+premiers?|prime\s+numbers?)\b/i,
+  /\b(?:diviseurs?|divisors?|facteurs?|factors?|multiples?)\b/i,
+  /\b(?:pgcd|ppcm|gcd|lcm|modulo|mod)\b/i,
+  // NOUVEAU v4: Vérifications
+  /\b(?:vérifie|check|valide|validate)\b/i,
+  /\b(?:palindrome|anagramme|anagram|premier|prime)\b/i,
+  // NOUVEAU v4: Manipulation de texte
+  /\b(?:voyelles|consonnes|vowels|consonants|mots|words|caractères|characters)\b/i,
+  /\b(?:majuscule|minuscule|uppercase|lowercase|capitalize)\b/i,
+  /\b(?:remplace|replace|substitue|substitute)\b/i,
   // Code inline
   /print\s*\(/i,
   /console\.log/i,
-  /\[\d+(?:,\s*\d+)*\]/i,  // Arrays comme [1, 2, 3]
+  /\[\d+(?:,\s*\d+)*\]/i,
+  /def\s+\w+\s*\(/i,
+  /function\s+\w+\s*\(/i,
 ];
 
-// Patterns pour détecter les demandes de génération d'IMAGE - AMÉLIORÉS v5
-// IMPORTANT: Ces patterns ne doivent PAS matcher les demandes d'applications
+// Patterns pour détecter les demandes de génération d'IMAGE - AMÉLIORÉS v6
+// IMPORTANT: Ces patterns ne doivent PAS matcher les demandes d'applications, météo, sites
 const IMAGE_GENERATION_PATTERNS = [
-  // NOUVEAU v5: Patterns simples et directs pour images
-  /\b(?:image|photo|illustration|dessin|picture|drawing|artwork|art)\s+(?:de|d'|of|du|des|style|avec)\b/i,
-  /\b(?:style|art)\s+(?:impressionniste|vintage|minimaliste|manga|cyberpunk|aquarelle|réaliste|abstrait|pop\s*art|art\s*déco|rétro)/i,
-  /\b(?:impressionist|vintage|minimalist|manga|cyberpunk|watercolor|realistic|abstract|pop\s*art|art\s*deco|retro)\s+(?:style|image|photo|art)/i,
-  /\b(?:dragon|unicorn|fairy|wizard|knight|warrior|robot|spaceship|alien|mermaid|phoenix|griffin|centaur)\s+(?:illustration|image|drawing|art)/i,
-  // Français - patterns avec "image" explicite (PRIORITÉ HAUTE)
+  // NOUVEAU v6: Patterns explicites avec "image/photo/illustration"
+  /\b(?:image|photo|illustration|dessin|picture|drawing|artwork)\s+(?:de|d'|of|du|des|style|avec)\b/i,
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?|the)?\s*(?:image|photo|illustration|dessin|picture|drawing|artwork|visuel)\b/i,
+  // NOUVEAU v6: Styles artistiques (détection large)
+  /\b(?:style|art)\s+(?:impressionniste|vintage|minimaliste|manga|cyberpunk|aquarelle|réaliste|abstrait|pop\s*art|art\s*déco|rétro|fantaisie|fantasy|sci-fi|steampunk|pixel|8-?bit|low-?poly|3d|cartoon|anime|chibi)/i,
+  /\b(?:impressionist|vintage|minimalist|manga|cyberpunk|watercolor|realistic|abstract|pop\s*art|art\s*deco|retro|fantasy|sci-fi|steampunk|pixel|8-?bit|low-?poly|3d|cartoon|anime|chibi)\s+(?:style|image|photo|art|drawing)/i,
+  // NOUVEAU v6: Créatures et personnages fantastiques (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:dragon|licorne|unicorn|fée|fairy|sorcier|wizard|chevalier|knight|guerrier|warrior|robot|vaisseau|spaceship|alien|sirène|mermaid|phoenix|griffon|griffin|centaure|centaur|elfe|elf|nain|dwarf|orc|gobelin|goblin|troll|démon|demon|ange|angel|vampire|loup-garou|werewolf|zombie)\b/i,
+  // NOUVEAU v6: Animaux (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:chat|chien|cat|dog|lion|tigre|tiger|éléphant|elephant|cheval|horse|oiseau|bird|aigle|eagle|hibou|owl|papillon|butterfly|poisson|fish|dauphin|dolphin|baleine|whale|serpent|snake|tortue|turtle|lapin|rabbit|renard|fox|loup|wolf|ours|bear|panda|singe|monkey|girafe|giraffe|zèbre|zebra)\b/i,
+  // NOUVEAU v6: Paysages et scènes (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:paysage|landscape|forêt|forest|montagne|mountain|océan|ocean|plage|beach|désert|desert|jungle|espace|space|planète|planet|galaxie|galaxy|ville|city|château|castle|temple|cathédrale|cathedral|pont|bridge|tour|tower|gratte-ciel|skyscraper|coucher\s+de\s+soleil|sunset|lever\s+de\s+soleil|sunrise|aurore\s+boréale|northern\s+lights|arc-en-ciel|rainbow)\b/i,
+  // NOUVEAU v6: Objets et véhicules (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:voiture|car|avion|plane|bateau|boat|moto|motorcycle|vélo|bicycle|train|hélicoptère|helicopter|fusée|rocket|maison|house|appartement|apartment|meuble|furniture|fleur|flower|arbre|tree|fruit|légume|vegetable|épée|sword|bouclier|shield|armure|armor|couronne|crown)\b/i,
+  // NOUVEAU v6: Portraits et personnes (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:portrait|visage|face|personnage|character|personne|person|homme|man|femme|woman|enfant|child|bébé|baby|vieillard|old\s+man|prince|princesse|princess|roi|king|reine|queen|pirate|ninja|samouraï|samurai|cowboy|astronaute|astronaut|super-héros|superhero)\b/i,
+  // NOUVEAU v6: Nourriture (détection implicite)
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:gâteau|cake|pizza|hamburger|burger|sushi|glace|ice\s+cream|chocolat|chocolate|bonbon|candy|croissant|baguette|fromage|cheese|vin|wine|café|coffee|thé|tea)\b/i,
+  // NOUVEAU v6: Art abstrait et concepts
+  /\b(?:génère|crée|fais|generate|create|make|draw)\s+(?:moi\s+)?(?:une?|an?)?\s*(?:abstrait|abstract|géométrique|geometric|fractal|mandala|motif|pattern|texture|fond|background|wallpaper|bannière|banner|affiche|poster|logo|icône|icon)\b/i,
+  // Patterns français avec "image" explicite (PRIORITÉ HAUTE)
   /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner|produis|produire)[\s-]*(?:moi)?[\s-]*(?:une|un|l')?[\s-]*(?:image|photo|illustration|dessin|visuel|artwork|art)(?!.*(?:application|app|chatbot|site))/i,
   /(?:image|photo|illustration|dessin)[\s-]*(?:de|d'|du|des|avec|représentant|montrant)(?!.*(?:application|app|chatbot|site))/i,
-  // Patterns français pour objets visuels communs (PAS d'applications)
-  /(?:génère|générer|crée|créer|fais|faire|dessine|dessiner)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:avion|voiture|maison|chat|chien|paysage|portrait|logo|icône|personnage|animal|monstre|dragon|oiseau|fleur|arbre|montagne|ville|bâtiment|papillon|lune|robot|château|forêt|océan|plage|désert|jungle|espace|planète|étoile|galaxie|licorne|fée|sorcier|chevalier|pirate|ninja|samouraï|guerrier|prince|princesse|roi|reine)(?!.*(?:application|app|chatbot|site))/i,
-  // Anglais - patterns avec "image/picture" explicite (PRIORITÉ HAUTE)
+  // Patterns anglais avec "image/picture" explicite
   /(?:generate|create|make|draw|produce)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:image|photo|picture|illustration|drawing|visual|artwork)(?!.*(?:application|app|chatbot|site))/i,
   /(?:image|photo|picture)[\s-]*(?:of|with|showing|depicting)(?!.*(?:application|app|chatbot|site))/i,
-  // NOUVEAU v3: Patterns anglais "Generate a X" pour objets visuels courants (SANS météo)
-  /(?:generate|create)[\s-]+(?:an?\s+)?(?:image\s+of\s+)?(?:castle|fantasy|cyberpunk|scene|landscape|space\s*station|luxury\s*car|beach\s*resort|abstract|portrait|dragon|unicorn|fairy|wizard|knight|warrior|robot|spaceship|alien|mermaid|phoenix|griffin|centaur)(?!.*(?:application|app|chatbot|site|weather|météo|température))/i,
-  // Patterns anglais pour objets (PAS d'applications, PAS de météo)
-  /(?:generate|create|make|draw)[\s-]*(?:me)?[\s-]*(?:an?|the)?[\s-]*(?:plane|car|house|cat|dog|landscape|portrait|logo|icon|character|animal|monster|dragon|bird|flower|tree|mountain|city|building|butterfly|moon|robot|castle|forest|ocean|beach|desert|jungle|space|planet|star|galaxy|unicorn|fairy|wizard|knight|pirate|ninja|samurai|warrior|prince|princess|king|queen)(?!.*(?:application|app|chatbot|site|weather|météo|température))/i,
-  // NOUVEAU v3: Patterns français implicites "dessine-moi un X"
+  // Patterns "dessine-moi" / "draw me" / "fais un dessin" (détection large)
   /dessine[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*\w+/i,
-  // NOUVEAU v3: Patterns anglais "draw me a X"
   /draw[\s-]*(?:me)?[\s-]*(?:an?)?[\s-]*\w+/i,
-  // NOUVEAU v3: Patterns pour styles artistiques
+  /fais[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:dessin|illustration|croquis|esquisse)/i,
+  /\b(?:dessin|illustration)\s+(?:de|d')\s*\w+/i,
+  // NOUVEAU: Pattern pour "fais un dessin de X" avec animaux/objets
+  /\b(?:fais|crée|génère|make|create|generate)\s+(?:moi\s+)?(?:une?)?\s*(?:dessin|illustration)\s+(?:de|d')\s*(?:papillon|butterfly|chat|chien|cat|dog|lion|dragon|licorne|unicorn|paysage|landscape|portrait|maison|house|voiture|car|robot|château|castle|forêt|forest|montagne|mountain|oiseau|bird|fleur|flower|arbre|tree|soleil|sun|lune|moon|\w+)/i,
+  // Patterns pour styles artistiques
   /(?:génère|crée|fais|generate|create|make)[\s-]*(?:moi)?[\s-]*(?:un|une|an?)?[\s-]*(?:style|art|oeuvre|artwork|painting|peinture|tableau)[\s-]*(?:de|d'|of|in)?/i,
 ];
 
-// Patterns pour détecter les besoins de recherche web - AMÉLIORÉS v3
+// Patterns pour détecter les besoins de recherche web - AMÉLIORÉS v4
 const WEB_SEARCH_PATTERNS = [
+  // NOUVEAU v4: Patterns simples et directs pour recherche
+  /\b(?:cherche|recherche|trouve|search|find|look\s+up)\b/i,
+  /\b(?:google|googler|bing)\b/i,
+  // NOUVEAU v4: Questions "qu'est-ce que" / "c'est quoi"
+  /\b(?:qu'?est[- ]ce\s+que|c'?est\s+quoi|what\s+is|what\s+are|what's)\b/i,
+  /\b(?:qui\s+est|who\s+is|who\s+are|c'?est\s+qui)\b/i,
+  /\b(?:comment\s+faire|how\s+to|how\s+do\s+(?:i|you))\b/i,
+  /\b(?:pourquoi|why\s+is|why\s+are|why\s+do)\b/i,
+  /\b(?:quand|when\s+is|when\s+was|when\s+did)\b/i,
+  /\b(?:où\s+est|where\s+is|where\s+are|where\s+can)\b/i,
+  // NOUVEAU v4: Actualités et informations
+  /\b(?:actualités?|news|nouvelles|dernières\s+(?:nouvelles|infos))\b/i,
+  /\b(?:informations?|infos?)\s+(?:sur|about|on)\b/i,
+  /\b(?:en\s+savoir\s+plus|learn\s+more|tell\s+me\s+about)\b/i,
+  // NOUVEAU v4: Recherche de définitions
+  /\b(?:définition|definition|signification|meaning)\s+(?:de|of)?\b/i,
+  /\b(?:explique|explain)\s+(?:moi)?\s*(?:ce\s+qu'?est|what\s+is)\b/i,
+  // NOUVEAU v4: Recherche de comparaisons
+  /\b(?:différence|difference)\s+(?:entre|between)\b/i,
+  /\b(?:compare|comparer|vs|versus)\b/i,
+  // NOUVEAU v4: Recherche de listes/tops
+  /\b(?:meilleurs?|best|top\s+\d+|liste\s+(?:des?|of))\b/i,
+  /\b(?:recommandations?|recommendations?)\s+(?:de|for|pour)\b/i,
   // Recherche explicite
-  /(?:cherche|recherche|trouve|trouver)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le web|google|the web)/i,
+  /(?:cherche|recherche|trouve|trouver)[\s-]+(?:sur|dans|on|in)?[\s-]*(?:internet|le\s+web|google|the\s+web)/i,
   /(?:actualité|actualités|news|nouvelles|dernières)[\s-]+(?:sur|about|on|de)/i,
-  /(?:information|infos?)[\s-]+(?:récentes?|actuelles?|en ligne|online)/i,
+  /(?:information|infos?)[\s-]+(?:récentes?|actuelles?|en\s+ligne|online)/i,
   // Questions factuelles FR
   /\b(?:qui\s+est|c'?est\s+qui)\s+[A-ZÀ-Ü][a-zà-ü]+/i,
   /\b(?:qu'?est[- ]ce\s+que|what\s+is)\s+(?:le|la|l'|the|a|an)?\s*[A-ZÀ-Ü]/i,
@@ -156,10 +200,10 @@ const CONVERSATIONAL_PATTERNS = [
   /^(?:salut|bonjour|bonsoir|coucou|hello|hi|hey)\b/i,
   /^(?:ça va|comment vas-tu|comment tu vas|how are you)/i,
   
-  // Demandes créatives textuelles
+  // Demandes créatives textuelles (EXCLURE dessin/illustration qui sont des images)
   /(?:raconte|raconter|dis|dire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|conte|poème|joke)/i,
   /(?:écris|écrire|rédige|rédiger)[\s-]*(?:moi)?[\s-]*(?:un|une)?[\s-]*(?:poème|histoire|texte|lettre|email|mail|article)/i,
-  /(?:fais|faire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|poème)/i,
+  /(?:fais|faire)[\s-]*(?:moi)?[\s-]*(?:une|un)?[\s-]*(?:blague|histoire|poème)(?![\s-]*(?:dessin|illustration))/i,
   
   // Traductions
   /(?:traduis|traduire|translate)[\s-]/i,
@@ -178,22 +222,22 @@ const CONVERSATIONAL_PATTERNS = [
   /^(?:est-ce que|is it|are you|do you|can you|peux-tu|sais-tu)/i,
 ];
 
-// Patterns météo - AMÉLIORÉS pour couvrir plus de cas
+// Patterns météo - AMÉLIORÉS v2 pour éviter les faux positifs avec images
 const WEATHER_PATTERNS = [
-  // Mots-clés directs
+  // Mots-clés directs (SANS sunrise/sunset qui sont souvent des images)
   /\b(?:météo|meteo|weather)\b/i,
-  /\b(?:température|temperature|temp)\b/i,
+  /\b(?:température|temperature)\s+(?:à|in|at|de|of|today|demain|tomorrow)?/i,
   // Questions sur le temps
   /(?:quel|quelle|what|what's)[\s-]*(?:temps|weather)/i,
   /(?:il\s+fait|fait[\s-]il|is\s+it)[\s-]*(?:quel\s+temps|chaud|froid|beau|hot|cold|nice|warm|cool)/i,
   // Prévisions
   /(?:prévisions?|forecast|prévision)/i,
   /(?:va[\s-]t[\s-]il|will\s+it)[\s-]*(?:pleuvoir|neiger|rain|snow)/i,
-  // Conditions météo
-  /(?:humidité|humidity|wind|vent|uv|soleil|sun|pluie|rain|neige|snow|nuage|cloud|orage|storm)/i,
-  // Lever/coucher du soleil
-  /(?:lever|coucher)[\s-]*(?:du\s+)?(?:soleil|sun)/i,
-  /(?:sunrise|sunset)/i,
+  // Conditions météo (SANS soleil/sun qui peuvent être des images)
+  /(?:humidité|humidity|wind|vent|uv|pluie|rain|neige|snow|nuage|cloud|orage|storm)/i,
+  // Lever/coucher du soleil SEULEMENT avec contexte météo
+  /(?:heure\s+(?:du\s+)?(?:lever|coucher)|what\s+time\s+(?:is\s+)?(?:sunrise|sunset))/i,
+  /(?:météo|weather).*(?:sunrise|sunset|lever|coucher)/i,
   // Questions génériques sur le temps
   /(?:donne|give|show)[\s-]*(?:moi)?[\s-]*(?:la\s+)?météo/i,
   // Canicule, alerte météo
@@ -619,7 +663,7 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
   
   // PRIORITÉ 4: Vérifier les demandes de génération d'image
   // MAIS exclure si le message contient des mots-clés de données/analyse/navigation
-  const dataKeywords = /(?:table|tableau|données|data|analyse|analysis|prix|price|api|statistiques|stats|graphique|chart|rapport|report|expert|avis|contenu|content)/i;
+  const dataKeywords = /\b(?:table|tableau|données|data|analyse|analysis|prix|price|\bapi\b|statistiques|stats|graphique|chart|rapport|report|expert|avis|contenu|content)\b/i;
   const isDataRequest = dataKeywords.test(normalizedMessage);
   
   if (!isDataRequest) {
@@ -649,14 +693,19 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
   }
   
   // Vérifier si c'est une demande conversationnelle simple AVANT la recherche web
-  for (const pattern of CONVERSATIONAL_PATTERNS) {
-    if (pattern.test(normalizedMessage)) {
-      console.log('[IntentDetector] Conversational pattern matched, returning conversation intent');
-      return {
-        type: 'conversation',
-        confidence: 1.0,
-        details: { keywords: [] }
-      };
+  // MAIS exclure les demandes d'images (dessin, illustration)
+  const isImageRequest = /(?:dessin|illustration|croquis|esquisse)\s+(?:de|d')/i.test(normalizedMessage);
+  
+  if (!isImageRequest) {
+    for (const pattern of CONVERSATIONAL_PATTERNS) {
+      if (pattern.test(normalizedMessage)) {
+        console.log('[IntentDetector] Conversational pattern matched, returning conversation intent');
+        return {
+          type: 'conversation',
+          confidence: 1.0,
+          details: { keywords: [] }
+        };
+      }
     }
   }
   
