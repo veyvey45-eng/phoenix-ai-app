@@ -995,3 +995,45 @@ export const phoenixProjectLogs = mysqlTable("phoenixProjectLogs", {
 
 export type PhoenixProjectLog = typeof phoenixProjectLogs.$inferSelect;
 export type InsertPhoenixProjectLog = typeof phoenixProjectLogs.$inferInsert;
+
+
+// ============================================================================
+// HOSTED SITES - Sites web hébergés de façon permanente
+// ============================================================================
+
+/**
+ * HOSTED SITE - Site web généré et hébergé de façon permanente
+ * Permet aux utilisateurs de créer des sites qui restent accessibles indéfiniment
+ */
+export const hostedSites = mysqlTable("hostedSites", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  
+  // Identifiant unique pour l'URL
+  slug: varchar("slug", { length: 64 }).notNull().unique(),
+  
+  // Métadonnées du site
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  siteType: mysqlEnum("siteType", ["landing", "portfolio", "business", "ecommerce", "blog", "custom"]).default("custom").notNull(),
+  
+  // Contenu HTML complet
+  htmlContent: text("htmlContent").notNull(),
+  cssContent: text("cssContent"),
+  jsContent: text("jsContent"),
+  
+  // Configuration
+  isPublic: boolean("isPublic").default(true).notNull(),
+  customDomain: varchar("customDomain", { length: 255 }),
+  
+  // Statistiques
+  viewCount: int("viewCount").default(0),
+  lastViewedAt: timestamp("lastViewedAt"),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type HostedSite = typeof hostedSites.$inferSelect;
+export type InsertHostedSite = typeof hostedSites.$inferInsert;

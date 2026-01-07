@@ -1880,3 +1880,48 @@ Plus besoin de changer de page pour créer des sites, exécuter du code, etc.
 - [x] Pages légales dans l'application
 - [x] Routes configurées dans App.tsx
 - [x] Bannière cookies RGPD
+
+
+---
+
+## Phase 49: Système de Sites Hébergés Permanents - COMPLÉTÉE ✅
+
+### Objectif
+Résoudre le problème des sandboxes E2B temporaires qui expiraient après 30 minutes. Les sites créés par Phoenix AI doivent être permanents comme les pages de l'application elle-même.
+
+### Tâches Complétées
+- [x] Créer la table hostedSites dans la base de données
+- [x] Créer le service hostedSites.ts (CRUD complet)
+- [x] Créer le router hostedSitesRouter.ts avec procédures tRPC
+- [x] Créer la page MySites.tsx pour gérer les sites
+- [x] Créer la page HostedSite.tsx pour afficher les sites
+- [x] Modifier WebPageGeneratorUI pour publier les sites
+- [x] Ajouter les routes /my-sites et /sites/:slug
+- [x] Créer les tests unitaires (7/7 passent)
+- [x] Tester la publication d'un site (Hôtel Luxembourg)
+- [x] Vérifier que le site est accessible de façon permanente
+
+### Résultat du Test
+- **Site créé:** Hôtel Luxembourg - 27 rue Joseph Junck
+- **URL permanente:** /sites/hotel-luxembourg-27-rue-joseph-junck-Ixn8_MK-
+- **Statut:** ✅ Accessible indéfiniment (pas de sandbox temporaire)
+
+### Fichiers Créés/Modifiés
+- drizzle/schema.ts (table hostedSites)
+- server/hostedSites.ts
+- server/routers/hostedSitesRouter.ts
+- server/routers.ts (import du router)
+- client/src/pages/MySites.tsx
+- client/src/pages/HostedSite.tsx
+- client/src/components/WebPageGeneratorUI.tsx
+- client/src/App.tsx (nouvelles routes)
+- server/hostedSites.test.ts
+
+### Comment ça fonctionne maintenant
+1. L'utilisateur génère un site via le Web Generator
+2. Il clique sur "Publier (URL permanente)"
+3. Le site est sauvegardé dans la base de données
+4. Une URL unique est générée (slug)
+5. Le site est accessible via /sites/{slug}
+6. Le site ne disparaît JAMAIS (contrairement aux sandboxes E2B)
+

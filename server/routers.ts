@@ -38,6 +38,7 @@ import { mcpBridgeRouter } from './routers/mcpBridgeRouter';
 import { agentRouter } from './routers/agentRouter';
 import { workspaceRouter } from './routers/workspaceRouter';
 import { projectsRouter } from './routers/projectsRouter';
+import { hostedSitesRouter } from './routers/hostedSitesRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -102,6 +103,7 @@ export const appRouter = router({
   agent: agentRouter,
   workspace: workspaceRouter,
   projects: projectsRouter,
+  hostedSites: hostedSitesRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

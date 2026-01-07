@@ -25,6 +25,8 @@ import { CookieBanner } from "./components/CookieBanner";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Legal from "./pages/Legal";
+import MySites from "./pages/MySites";
+import HostedSite from "./pages/HostedSite";
 
 function Router() {
   return (
@@ -46,6 +48,8 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/legal" component={Legal} />
+      <Route path="/my-sites" component={MySites} />
+      <Route path="/sites/:slug" component={HostedSite} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
