@@ -1559,3 +1559,57 @@ Implémenter un système de fichiers persistant complet pour Phoenix, similaire 
 - server/phoenix/toolRegistry.ts - 8 nouveaux outils workspace_*
 - client/src/components/FileExplorer.tsx - Explorateur de fichiers
 - client/src/pages/Workspace.tsx - Page workspace avec éditeur
+
+---
+
+## Phase 72: Phoenix comme Manus - Capacités de développement complètes
+
+### Objectif
+Transformer Phoenix en un agent capable de créer des applications complètes comme Manus.
+
+### Tâches
+- [ ] Ajouter workspace_read_multiple (lire plusieurs fichiers)
+- [ ] Ajouter workspace_tree (voir la structure du projet)
+- [ ] Ajouter workspace_search (chercher dans les fichiers)
+- [ ] Ajouter project_scaffold (créer une structure de projet complète)
+- [ ] Implémenter la boucle de feedback (Phoenix voit et corrige ses erreurs)
+- [ ] Ajouter shell_execute (commandes dans E2B sandbox)
+- [ ] Ajouter browser_screenshot (capturer le rendu)
+- [ ] Mettre à jour le prompt système de l'Agent
+- [ ] Tester la création d'une application complète par Phoenix
+- [ ] Valider toutes les nouvelles capacités
+
+### Résultats des Tests
+| Test | Résultat |
+|------|----------|
+| project_scaffold (Python) | ✅ SUCCÈS |
+| workspace_tree | ✅ SUCCÈS |
+| workspace_read | ✅ SUCCÈS |
+| workspace_edit | ✅ SUCCÈS |
+| execute_and_observe | ✅ SUCCÈS |
+| workspace_search | ✅ SUCCÈS |
+| Intégration Agent UI | ✅ SUCCÈS - 14 étapes exécutées |
+
+### Test Agent Complet
+L'Agent Phoenix a réussi à:
+1. Créer le fichier calculator.py dans le workspace
+2. Lire le contenu du fichier
+3. Exécuter le code Python
+4. Détecter l'erreur d'importation
+5. Corriger en lisant le fichier directement
+6. Exécuter le code corrigé avec succès
+7. Valider tous les tests (addition, soustraction, multiplication, division, gestion erreur)
+
+### Fichiers Modifiés
+- server/phoenix/toolRegistry.ts - 33 outils au total (+12 nouveaux)
+- server/phoenix/agentCore.ts - Nouveau prompt système avec capacités de développement
+- server/phoenix/e2bSandbox.ts - Ajout executeShell pour commandes système
+
+### Nouveaux Outils Ajoutés
+1. workspace_read_multiple - Lire plusieurs fichiers
+2. workspace_tree - Voir la structure du projet
+3. workspace_search - Rechercher dans les fichiers
+4. project_scaffold - Créer des projets structurés (React, Node, Python, HTML)
+5. execute_and_observe - Exécuter avec boucle de feedback
+6. workspace_create_multiple - Créer plusieurs fichiers
+7. shell_exec (amélioré) - Exécuter des commandes shell dans E2B

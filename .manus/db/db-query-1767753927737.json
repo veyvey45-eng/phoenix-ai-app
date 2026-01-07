@@ -1,0 +1,146 @@
+{
+  "query": "DESCRIBE workspace_files;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user LnWcAriB6UDfVBW.root --database 6TyQvWdwhpeQGG2hvgWtQa --execute DESCRIBE workspace_files;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "userId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "path",
+      "Type": "varchar(1024)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "name",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "fileType",
+      "Type": "enum('file','directory')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "file",
+      "Extra": ""
+    },
+    {
+      "Field": "mimeType",
+      "Type": "varchar(100)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "size",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "content",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "storageKey",
+      "Type": "varchar(512)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "storageUrl",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "language",
+      "Type": "varchar(50)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "encoding",
+      "Type": "varchar(20)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "utf-8",
+      "Extra": ""
+    },
+    {
+      "Field": "lineCount",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "version",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "lastModifiedBy",
+      "Type": "enum('user','agent')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "agent",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tvarchar(64)\tNO\tPRI\tNULL\t\nuserId\tint(11)\tNO\t\tNULL\t\npath\tvarchar(1024)\tNO\t\tNULL\t\nname\tvarchar(255)\tNO\t\tNULL\t\nfileType\tenum('file','directory')\tNO\t\tfile\t\nmimeType\tvarchar(100)\tYES\t\tNULL\t\nsize\tint(11)\tYES\t\t0\t\ncontent\ttext\tYES\t\tNULL\t\nstorageKey\tvarchar(512)\tYES\t\tNULL\t\nstorageUrl\ttext\tYES\t\tNULL\t\nlanguage\tvarchar(50)\tYES\t\tNULL\t\nencoding\tvarchar(20)\tYES\t\tutf-8\t\nlineCount\tint(11)\tYES\t\tNULL\t\nversion\tint(11)\tYES\t\t1\t\nlastModifiedBy\tenum('user','agent')\tYES\t\tagent\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

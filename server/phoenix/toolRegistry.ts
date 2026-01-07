@@ -1331,6 +1331,642 @@ except Exception as e:
       }
     });
 
+    // ===== NOUVEAUX OUTILS AVANCÉS POUR PHOENIX =====
+
+    // Lire plusieurs fichiers d'un coup
+    this.register({
+      name: 'workspace_read_multiple',
+      description: 'Lit le contenu de plusieurs fichiers du workspace en une seule opération. Utile pour comprendre le contexte d\'un projet.',
+      category: 'file',
+      parameters: [
+        { name: 'paths', type: 'array', description: 'Liste des chemins de fichiers à lire', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const results: Array<{ path: string; content: string; error?: string }> = [];
+          
+          for (const filePath of args.paths) {
+            const result = await readWorkspaceFile(userId, filePath);
+            if (result.success) {
+              results.push({ path: filePath, content: result.content || '' });
+            } else {
+              results.push({ path: filePath, content: '', error: result.error });
+            }
+          }
+          
+          const output = results.map(r => {
+            if (r.error) {
+              return `=== ${r.path} ===\n[ERREUR: ${r.error}]`;
+            }
+            return `=== ${r.path} ===\n${r.content}`;
+          }).join('\n\n');
+          
+          return {
+            success: true,
+            output,
+            metadata: {
+              filesRead: results.filter(r => !r.error).length,
+              filesError: results.filter(r => r.error).length
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Voir la structure arborescente du projet
+    this.register({
+      name: 'workspace_tree',
+      description: 'Affiche la structure arborescente complète du workspace. Utile pour comprendre l\'organisation d\'un projet.',
+      category: 'file',
+      parameters: [
+        { name: 'path', type: 'string', description: 'Chemin racine ("/" par défaut)', required: false, default: '/' },
+        { name: 'max_depth', type: 'number', description: 'Profondeur maximale (10 par défaut)', required: false, default: 10 }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const result = await listWorkspaceFiles(userId, { path: args.path || '/', recursive: true });
+          
+          if (!result.success) {
+            return {
+              success: false,
+              output: '',
+              error: result.error
+            };
+          }
+          
+          const files = result.files || [];
+          if (files.length === 0) {
+            return {
+              success: true,
+              output: 'Workspace vide',
+              metadata: { count: 0 }
+            };
+          }
+          
+          // Construire l'arbre
+          const buildTree = (items: typeof files, basePath: string, depth: number): string => {
+            if (depth > (args.max_depth || 10)) return '';
+            
+            const directChildren = items.filter(f => {
+              const relativePath = f.path.replace(basePath, '').replace(/^\//, '');
+              return relativePath && !relativePath.includes('/');
+            });
+            
+            return directChildren.map(item => {
+              const indent = '  '.repeat(depth);
+              const icon = item.fileType === 'directory' ? '📁' : '📄';
+              const name = item.name;
+              const size = item.size ? ` (${item.size}B)` : '';
+              
+              let line = `${indent}${icon} ${name}${size}`;
+              
+              if (item.fileType === 'directory') {
+                const children = buildTree(items, item.path, depth + 1);
+                if (children) line += '\n' + children;
+              }
+              
+              return line;
+            }).join('\n');
+          };
+          
+          const tree = buildTree(files, args.path || '/', 0);
+          
+          return {
+            success: true,
+            output: tree || 'Aucun fichier',
+            metadata: {
+              totalFiles: files.filter(f => f.fileType === 'file').length,
+              totalDirs: files.filter(f => f.fileType === 'directory').length
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Rechercher dans les fichiers
+    this.register({
+      name: 'workspace_search',
+      description: 'Recherche du texte dans tous les fichiers du workspace. Retourne les fichiers correspondants avec le contexte.',
+      category: 'file',
+      parameters: [
+        { name: 'query', type: 'string', description: 'Texte ou regex à rechercher', required: true },
+        { name: 'path', type: 'string', description: 'Répertoire de recherche ("/" par défaut)', required: false, default: '/' },
+        { name: 'file_pattern', type: 'string', description: 'Pattern de fichiers (ex: "*.ts", "*.py")', required: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const listResult = await listWorkspaceFiles(userId, { path: args.path || '/', recursive: true });
+          
+          if (!listResult.success) {
+            return {
+              success: false,
+              output: '',
+              error: listResult.error
+            };
+          }
+          
+          const files = (listResult.files || []).filter(f => f.fileType === 'file');
+          
+          // Filtrer par pattern si spécifié
+          const filteredFiles = args.file_pattern
+            ? files.filter(f => {
+                const pattern = args.file_pattern.replace('*', '.*');
+                return new RegExp(pattern).test(f.name);
+              })
+            : files;
+          
+          const matches: Array<{ path: string; line: number; content: string }> = [];
+          
+          for (const file of filteredFiles) {
+            const readResult = await readWorkspaceFile(userId, file.path);
+            if (readResult.success && readResult.content) {
+              const lines = readResult.content.split('\n');
+              lines.forEach((line, idx) => {
+                if (line.toLowerCase().includes(args.query.toLowerCase())) {
+                  matches.push({
+                    path: file.path,
+                    line: idx + 1,
+                    content: line.trim().substring(0, 200)
+                  });
+                }
+              });
+            }
+          }
+          
+          if (matches.length === 0) {
+            return {
+              success: true,
+              output: `Aucune correspondance pour "${args.query}"`,
+              metadata: { matches: 0 }
+            };
+          }
+          
+          const output = matches.map(m => 
+            `${m.path}:${m.line}: ${m.content}`
+          ).join('\n');
+          
+          return {
+            success: true,
+            output,
+            metadata: {
+              matches: matches.length,
+              filesSearched: filteredFiles.length
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Créer un projet structuré complet
+    this.register({
+      name: 'project_scaffold',
+      description: 'Crée une structure de projet complète avec tous les fichiers nécessaires. Types: react, node, python, html.',
+      category: 'file',
+      parameters: [
+        { name: 'name', type: 'string', description: 'Nom du projet', required: true },
+        { name: 'type', type: 'string', description: 'Type: react, node, python, html, fullstack', required: true },
+        { name: 'description', type: 'string', description: 'Description du projet', required: false }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const projectPath = `/projects/${args.name}`;
+          const createdFiles: string[] = [];
+          
+          // Créer le répertoire principal
+          await createWorkspaceDirectory(userId, projectPath);
+          createdFiles.push(projectPath);
+          
+          // Templates selon le type de projet
+          const templates: Record<string, Array<{ path: string; content: string }>> = {
+            react: [
+              { path: `${projectPath}/package.json`, content: JSON.stringify({
+                name: args.name,
+                version: '1.0.0',
+                description: args.description || '',
+                scripts: {
+                  dev: 'vite',
+                  build: 'vite build',
+                  preview: 'vite preview'
+                },
+                dependencies: {
+                  'react': '^18.2.0',
+                  'react-dom': '^18.2.0'
+                },
+                devDependencies: {
+                  'vite': '^5.0.0',
+                  '@vitejs/plugin-react': '^4.0.0'
+                }
+              }, null, 2) },
+              { path: `${projectPath}/index.html`, content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${args.name}</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>` },
+              { path: `${projectPath}/src/main.tsx`, content: `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);` },
+              { path: `${projectPath}/src/App.tsx`, content: `import React from 'react';
+
+function App() {
+  return (
+    <div className="app">
+      <h1>${args.name}</h1>
+      <p>${args.description || 'Bienvenue dans votre application React!'}</p>
+    </div>
+  );
+}
+
+export default App;` },
+              { path: `${projectPath}/src/index.css`, content: `* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a;
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+h1 {
+  color: #10b981;
+  margin-bottom: 1rem;
+}` },
+              { path: `${projectPath}/vite.config.ts`, content: `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()]
+});` },
+              { path: `${projectPath}/tsconfig.json`, content: JSON.stringify({
+                compilerOptions: {
+                  target: 'ES2020',
+                  useDefineForClassFields: true,
+                  lib: ['ES2020', 'DOM', 'DOM.Iterable'],
+                  module: 'ESNext',
+                  skipLibCheck: true,
+                  moduleResolution: 'bundler',
+                  allowImportingTsExtensions: true,
+                  resolveJsonModule: true,
+                  isolatedModules: true,
+                  noEmit: true,
+                  jsx: 'react-jsx',
+                  strict: true
+                },
+                include: ['src']
+              }, null, 2) },
+              { path: `${projectPath}/README.md`, content: `# ${args.name}\n\n${args.description || ''}\n\n## Installation\n\n\`\`\`bash\nnpm install\nnpm run dev\n\`\`\`` }
+            ],
+            node: [
+              { path: `${projectPath}/package.json`, content: JSON.stringify({
+                name: args.name,
+                version: '1.0.0',
+                description: args.description || '',
+                main: 'src/index.js',
+                scripts: {
+                  start: 'node src/index.js',
+                  dev: 'node --watch src/index.js'
+                },
+                dependencies: {}
+              }, null, 2) },
+              { path: `${projectPath}/src/index.js`, content: `// ${args.name}\n// ${args.description || ''}\n\nconsole.log('Hello from ${args.name}!');\n\n// TODO: Add your code here` },
+              { path: `${projectPath}/README.md`, content: `# ${args.name}\n\n${args.description || ''}\n\n## Usage\n\n\`\`\`bash\nnpm start\n\`\`\`` }
+            ],
+            python: [
+              { path: `${projectPath}/main.py`, content: `#!/usr/bin/env python3\n"""${args.name}\n\n${args.description || ''}\n"""\n\ndef main():\n    print(f"Hello from ${args.name}!")\n    # TODO: Add your code here\n\nif __name__ == "__main__":\n    main()` },
+              { path: `${projectPath}/requirements.txt`, content: `# ${args.name} dependencies\n# Add your dependencies here` },
+              { path: `${projectPath}/README.md`, content: `# ${args.name}\n\n${args.description || ''}\n\n## Installation\n\n\`\`\`bash\npip install -r requirements.txt\npython main.py\n\`\`\`` }
+            ],
+            html: [
+              { path: `${projectPath}/index.html`, content: `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${args.name}</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>${args.name}</h1>
+  </header>
+  <main>
+    <p>${args.description || 'Bienvenue!'}</p>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>` },
+              { path: `${projectPath}/style.css`, content: `* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+header {
+  padding: 2rem;
+  text-align: center;
+}
+
+h1 {
+  color: #10b981;
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}` },
+              { path: `${projectPath}/script.js`, content: `// ${args.name}\nconsole.log('${args.name} loaded!');\n\n// TODO: Add your JavaScript here` }
+            ],
+            fullstack: [
+              { path: `${projectPath}/package.json`, content: JSON.stringify({
+                name: args.name,
+                version: '1.0.0',
+                description: args.description || '',
+                scripts: {
+                  dev: 'concurrently "npm run server" "npm run client"',
+                  server: 'node server/index.js',
+                  client: 'cd client && npm run dev'
+                },
+                dependencies: {
+                  'express': '^4.18.0',
+                  'cors': '^2.8.5'
+                }
+              }, null, 2) },
+              { path: `${projectPath}/server/index.js`, content: `const express = require('express');\nconst cors = require('cors');\n\nconst app = express();\napp.use(cors());\napp.use(express.json());\n\napp.get('/api/hello', (req, res) => {\n  res.json({ message: 'Hello from ${args.name}!' });\n});\n\nconst PORT = process.env.PORT || 3001;\napp.listen(PORT, () => {\n  console.log(\`Server running on port \${PORT}\`);\n});` },
+              { path: `${projectPath}/client/index.html`, content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${args.name}</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>` },
+              { path: `${projectPath}/README.md`, content: `# ${args.name}\n\n${args.description || ''}\n\n## Structure\n\n- \`/server\` - Backend Express\n- \`/client\` - Frontend React\n\n## Installation\n\n\`\`\`bash\nnpm install\ncd client && npm install\nnpm run dev\n\`\`\`` }
+            ]
+          };
+          
+          const projectFiles = templates[args.type] || templates.html;
+          
+          // Créer les sous-répertoires nécessaires
+          const dirs = new Set<string>();
+          for (const file of projectFiles) {
+            const dir = file.path.substring(0, file.path.lastIndexOf('/'));
+            if (dir !== projectPath) {
+              dirs.add(dir);
+            }
+          }
+          
+          for (const dir of Array.from(dirs)) {
+            await createWorkspaceDirectory(userId, dir);
+            createdFiles.push(dir);
+          }
+          
+          // Créer les fichiers
+          for (const file of projectFiles) {
+            await createWorkspaceFile(userId, file.path, file.content, { modifiedBy: 'agent' });
+            createdFiles.push(file.path);
+          }
+          
+          return {
+            success: true,
+            output: `Projet "${args.name}" créé avec succès!\n\nFichiers créés:\n${createdFiles.map(f => `  - ${f}`).join('\n')}`,
+            metadata: {
+              projectPath,
+              type: args.type,
+              filesCreated: createdFiles.length
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Exécuter et voir le résultat (boucle de feedback)
+    this.register({
+      name: 'execute_and_observe',
+      description: 'Exécute du code et observe le résultat. Si erreur, analyse et propose une correction. Crée une boucle de feedback.',
+      category: 'code',
+      parameters: [
+        { name: 'code', type: 'string', description: 'Code à exécuter', required: true },
+        { name: 'language', type: 'string', description: 'Langage: python ou javascript', required: true },
+        { name: 'max_retries', type: 'number', description: 'Nombre max de tentatives de correction', required: false, default: 3 }
+      ],
+      execute: async (args, context) => {
+        try {
+          let code = args.code;
+          let attempts = 0;
+          const maxRetries = args.max_retries || 3;
+          const history: Array<{ attempt: number; code: string; output: string; error?: string }> = [];
+          
+          while (attempts < maxRetries) {
+            attempts++;
+            
+            // Exécuter le code
+            const result = args.language === 'python'
+              ? await e2bSandbox.executePython(code, context.userId, context.sessionId)
+              : await e2bSandbox.executeJavaScript(code, context.userId, context.sessionId);
+            
+            history.push({
+              attempt: attempts,
+              code: code.substring(0, 500),
+              output: result.output.substring(0, 500),
+              error: result.error
+            });
+            
+            // Si succès, retourner
+            if (result.success && !result.error) {
+              return {
+                success: true,
+                output: result.output,
+                artifacts: result.filesGenerated?.map(f => ({
+                  type: 'image' as const,
+                  content: f.url,
+                  mimeType: f.mimeType,
+                  name: f.name
+                })),
+                metadata: {
+                  attempts,
+                  history,
+                  executionTime: result.executionTime
+                }
+              };
+            }
+            
+            // Si erreur et encore des tentatives, essayer de corriger
+            if (attempts < maxRetries && result.error) {
+              const correctionResult = await smartErrorCorrector.correctAndExecute(
+                code,
+                result.error,
+                args.language as 'python' | 'javascript',
+                context.userId,
+                context.sessionId
+              );
+              
+              if (correctionResult.success) {
+                return {
+                  success: true,
+                  output: correctionResult.finalOutput || '',
+                  metadata: {
+                    attempts: attempts + 1,
+                    corrected: true,
+                    history
+                  }
+                };
+              }
+              
+              // Utiliser le code corrigé pour la prochaine tentative
+              code = correctionResult.correctedCode;
+            }
+          }
+          
+          // Échec après toutes les tentatives
+          return {
+            success: false,
+            output: history[history.length - 1]?.output || '',
+            error: `Échec après ${attempts} tentatives. Dernière erreur: ${history[history.length - 1]?.error}`,
+            metadata: { attempts, history }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
+    // Créer plusieurs fichiers d'un coup
+    this.register({
+      name: 'workspace_create_multiple',
+      description: 'Crée plusieurs fichiers dans le workspace en une seule opération. Utile pour créer un projet complet.',
+      category: 'file',
+      parameters: [
+        { name: 'files', type: 'array', description: 'Liste d\'objets {path, content} pour chaque fichier', required: true }
+      ],
+      execute: async (args, context) => {
+        try {
+          const userId = parseInt(context.userId) || 0;
+          const results: Array<{ path: string; success: boolean; error?: string }> = [];
+          
+          // D'abord créer les répertoires nécessaires
+          const dirs = new Set<string>();
+          for (const file of args.files) {
+            const dir = file.path.substring(0, file.path.lastIndexOf('/'));
+            if (dir && dir !== '/') {
+              // Ajouter tous les répertoires parents
+              const parts = dir.split('/').filter(Boolean);
+              let currentPath = '';
+              for (const part of parts) {
+                currentPath += '/' + part;
+                dirs.add(currentPath);
+              }
+            }
+          }
+          
+          // Créer les répertoires dans l'ordre
+          const sortedDirs = Array.from(dirs).sort((a, b) => a.length - b.length);
+          for (const dir of sortedDirs) {
+            await createWorkspaceDirectory(userId, dir);
+          }
+          
+          // Créer les fichiers
+          for (const file of args.files) {
+            const result = await createWorkspaceFile(userId, file.path, file.content, { modifiedBy: 'agent' });
+            results.push({
+              path: file.path,
+              success: result.success,
+              error: result.error
+            });
+          }
+          
+          const successCount = results.filter(r => r.success).length;
+          const failCount = results.filter(r => !r.success).length;
+          
+          const output = results.map(r => 
+            r.success ? `✅ ${r.path}` : `❌ ${r.path}: ${r.error}`
+          ).join('\n');
+          
+          return {
+            success: failCount === 0,
+            output: `${successCount} fichiers créés, ${failCount} erreurs\n\n${output}`,
+            metadata: {
+              created: successCount,
+              failed: failCount,
+              results
+            }
+          };
+        } catch (error: any) {
+          return {
+            success: false,
+            output: '',
+            error: error.message
+          };
+        }
+      }
+    });
+
     // Outil de liste de fichiers (système local - pour compatibilité)
     this.register({
       name: 'file_list',

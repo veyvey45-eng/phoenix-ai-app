@@ -574,6 +574,178 @@ class E2BSandboxService {
   }
 
   /**
+   * Execute shell command in E2B Sandbox
+   */
+  async executeShell(command: string, userId: string, cwd: string = '/home/user'): Promise<{
+    success: boolean;
+    output: string;
+    error?: string;
+    exitCode: number;
+    executionTime: number;
+  }> {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`[E2B Sandbox] Executing shell command for user: ${userId}`);
+      console.log(`[E2B Sandbox] Command: ${command.substring(0, 100)}...`);
+      
+      // Validate command for dangerous operations
+      this.validateShellCommand(command);
+      
+      // If E2B is available, use it
+      if (this.isAvailable()) {
+        return await this.executeShellE2B(command, userId, cwd, startTime);
+      }
+      
+      // Otherwise use native shell execution (limited)
+      console.log('[E2B Sandbox] Using native shell execution');
+      return await this.executeShellNative(command, userId, cwd, startTime);
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      console.error('[E2B Sandbox] Shell execution error:', errorMessage);
+      
+      return {
+        success: false,
+        output: '',
+        error: errorMessage,
+        exitCode: 1,
+        executionTime,
+      };
+    }
+  }
+
+  /**
+   * Execute shell command using E2B
+   */
+  private async executeShellE2B(command: string, userId: string, cwd: string, startTime: number): Promise<{
+    success: boolean;
+    output: string;
+    error?: string;
+    exitCode: number;
+    executionTime: number;
+  }> {
+    let sandbox: InstanceType<typeof Sandbox> | null = null;
+    try {
+      sandbox = await Sandbox.create();
+      console.log('[E2B Sandbox] Created E2B sandbox for shell');
+      
+      // Execute the shell command via Python subprocess
+      const pythonCode = `
+import subprocess
+import os
+
+os.chdir('${cwd}')
+result = subprocess.run(
+    ${JSON.stringify(command)},
+    shell=True,
+    capture_output=True,
+    text=True,
+    timeout=60
+)
+print("STDOUT:", result.stdout)
+print("STDERR:", result.stderr)
+print("EXIT_CODE:", result.returncode)
+`;
+      
+      const execution = await sandbox.runCode(pythonCode, { language: 'python' });
+      
+      // Parse output
+      let output = '';
+      let stderr = '';
+      let exitCode = 0;
+      
+      if (execution.logs?.stdout) {
+        const fullOutput = execution.logs.stdout.join('\n');
+        // Parse the output
+        const stdoutMatch = fullOutput.match(/STDOUT: ([\s\S]*?)(?=STDERR:|$)/);
+        const stderrMatch = fullOutput.match(/STDERR: ([\s\S]*?)(?=EXIT_CODE:|$)/);
+        const exitCodeMatch = fullOutput.match(/EXIT_CODE: (\d+)/);
+        
+        if (stdoutMatch) output = stdoutMatch[1].trim();
+        if (stderrMatch) stderr = stderrMatch[1].trim();
+        if (exitCodeMatch) exitCode = parseInt(exitCodeMatch[1], 10);
+      }
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: exitCode === 0,
+        output: output || stderr || '[No output]',
+        error: exitCode !== 0 ? stderr : undefined,
+        exitCode,
+        executionTime,
+      };
+    } finally {
+      // Sandbox cleanup handled by E2B
+    }
+  }
+
+  /**
+   * Execute shell command using native execution (limited)
+   */
+  private async executeShellNative(command: string, userId: string, cwd: string, startTime: number): Promise<{
+    success: boolean;
+    output: string;
+    error?: string;
+    exitCode: number;
+    executionTime: number;
+  }> {
+    try {
+      const output = execSync(command, {
+        encoding: 'utf-8',
+        timeout: 60000,
+        maxBuffer: 10 * 1024 * 1024,
+        cwd: cwd.startsWith('/home/ubuntu') ? cwd : '/home/ubuntu',
+      });
+      
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        output: output.trim() || '[No output]',
+        exitCode: 0,
+        executionTime,
+      };
+    } catch (error: any) {
+      const executionTime = Date.now() - startTime;
+      
+      return {
+        success: false,
+        output: error.stdout?.toString() || '',
+        error: error.stderr?.toString() || error.message,
+        exitCode: error.status || 1,
+        executionTime,
+      };
+    }
+  }
+
+  /**
+   * Validate shell command for dangerous operations
+   */
+  private validateShellCommand(command: string): void {
+    const dangerousPatterns = [
+      /rm\s+-rf\s+\/(?!home)/,  // rm -rf / (except /home)
+      /mkfs/,
+      /dd\s+if=/,
+      new RegExp(':\\(\\)\\{:\\|:&\\};:'),  // Fork bomb
+      /chmod\s+-R\s+777\s+\//,
+      /shutdown/,
+      /reboot/,
+      /init\s+0/,
+      /halt/,
+      /poweroff/,
+    ];
+    
+    for (const pattern of dangerousPatterns) {
+      if (pattern.test(command)) {
+        throw new Error(`Dangerous shell command detected: ${pattern.source}`);
+      }
+    }
+  }
+
+  /**
    * Get all audit logs
    */
   getAuditLogs() {
