@@ -12,6 +12,16 @@
 
 import { Sandbox } from '@e2b/code-interpreter';
 import { storagePut, storageGet } from '../storage';
+import {
+  createProject as createDbProject,
+  updateProject,
+  syncFromSandbox,
+  syncToSandbox,
+  startAutoSave,
+  stopAutoSave,
+  saveProjectNow,
+  getProject,
+} from './projectPersistence';
 
 // Types
 export interface RealFile {
@@ -42,6 +52,7 @@ const activeSandboxes: Map<string, {
   sandbox: InstanceType<typeof Sandbox>;
   previews: Map<number, ProjectPreview>;
   createdAt: Date;
+  projectId?: number; // ID du projet dans la DB pour la persistance
 }> = new Map();
 
 /**
@@ -509,6 +520,195 @@ class RealProjectSystemService {
       'eot': 'application/vnd.ms-fontobject',
     };
     return mimeTypes[ext] || 'application/octet-stream';
+  }
+
+  // ============================================================================
+  // PERSISTENCE INTEGRATION
+  // ============================================================================
+
+  /**
+   * Créer un projet avec persistance en base de données
+   */
+  async createProjectWithPersistence(
+    sessionId: string,
+    userId: number,
+    projectName: string,
+    files: RealFile[],
+    projectType: "static" | "nodejs" | "python" | "react" | "nextjs" | "other" = "static",
+    description?: string
+  ): Promise<{
+    success: boolean;
+    projectId?: number;
+    projectPath: string;
+    filesCreated: string[];
+    errors: string[];
+  }> {
+    try {
+      // 1. Créer le projet dans la DB
+      const dbProject = await createDbProject(userId, projectName, projectType, description);
+      if (!dbProject) {
+        return {
+          success: false,
+          projectPath: '',
+          filesCreated: [],
+          errors: ['Failed to create project in database'],
+        };
+      }
+
+      // 2. Créer le projet dans le sandbox
+      const result = await this.createProject(sessionId, projectName, files);
+
+      // 3. Associer le projectId au sandbox
+      const sessionData = activeSandboxes.get(sessionId);
+      if (sessionData) {
+        sessionData.projectId = dbProject.id;
+
+        // 4. Démarrer la sauvegarde automatique
+        startAutoSave(dbProject.id, sessionData.sandbox, result.projectPath);
+      }
+
+      // 5. Synchroniser les fichiers vers la DB
+      if (sessionData) {
+        await syncFromSandbox(dbProject.id, sessionData.sandbox, result.projectPath);
+      }
+
+      // 6. Mettre à jour le projet avec le sandboxId
+      await updateProject(dbProject.id, {
+        sandboxId: sessionData?.sandbox.sandboxId,
+        sandboxExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      });
+
+      return {
+        success: result.success,
+        projectId: dbProject.id,
+        projectPath: result.projectPath,
+        filesCreated: result.filesCreated,
+        errors: result.errors,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        projectPath: '',
+        filesCreated: [],
+        errors: [error.message],
+      };
+    }
+  }
+
+  /**
+   * Restaurer un projet depuis la DB vers un nouveau sandbox
+   */
+  async restoreProjectFromDb(
+    sessionId: string,
+    projectId: number
+  ): Promise<{
+    success: boolean;
+    projectPath?: string;
+    filesRestored?: number;
+    error?: string;
+  }> {
+    try {
+      const project = await getProject(projectId);
+      if (!project) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      const sandbox = await this.getOrCreateSandbox(sessionId);
+      const projectPath = `/home/user/projects/${project.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+      // Synchroniser les fichiers depuis la DB
+      const result = await syncToSandbox(projectId, sandbox, projectPath);
+
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      // Associer le projectId au sandbox
+      const sessionData = activeSandboxes.get(sessionId);
+      if (sessionData) {
+        sessionData.projectId = projectId;
+
+        // Démarrer la sauvegarde automatique
+        startAutoSave(projectId, sandbox, projectPath);
+      }
+
+      // Mettre à jour le projet
+      await updateProject(projectId, {
+        sandboxId: sandbox.sandboxId,
+        sandboxExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      });
+
+      return {
+        success: true,
+        projectPath,
+        filesRestored: result.filesAdded,
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Sauvegarder le projet actuel vers la DB
+   */
+  async saveProjectToDb(sessionId: string): Promise<{
+    success: boolean;
+    filesAdded?: number;
+    filesUpdated?: number;
+    error?: string;
+  }> {
+    const sessionData = activeSandboxes.get(sessionId);
+    if (!sessionData || !sessionData.projectId) {
+      return { success: false, error: 'No project associated with this session' };
+    }
+
+    const project = await getProject(sessionData.projectId);
+    if (!project) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    const projectPath = `/home/user/projects/${project.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const result = await syncFromSandbox(sessionData.projectId, sessionData.sandbox, projectPath);
+
+    return {
+      success: result.success,
+      filesAdded: result.filesAdded,
+      filesUpdated: result.filesUpdated,
+      error: result.error,
+    };
+  }
+
+  /**
+   * Fermer le sandbox avec sauvegarde automatique
+   */
+  async closeSandboxWithSave(sessionId: string): Promise<void> {
+    const sessionData = activeSandboxes.get(sessionId);
+    if (sessionData && sessionData.projectId) {
+      const project = await getProject(sessionData.projectId);
+      if (project) {
+        const projectPath = `/home/user/projects/${project.name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        // Sauvegarder avant de fermer
+        await saveProjectNow(sessionData.projectId, sessionData.sandbox, projectPath);
+        
+        // Mettre à jour le statut
+        await updateProject(sessionData.projectId, {
+          sandboxId: null,
+          sandboxExpiresAt: null,
+          isPreviewActive: false,
+          previewUrl: null,
+        });
+      }
+    }
+    
+    await this.closeSandbox(sessionId);
+  }
+
+  /**
+   * Obtenir le projectId associé à une session
+   */
+  getSessionProjectId(sessionId: string): number | undefined {
+    return activeSandboxes.get(sessionId)?.projectId;
   }
 }
 

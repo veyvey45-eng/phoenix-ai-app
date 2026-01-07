@@ -1757,3 +1757,49 @@ Profitez de votre visite !
 
 ### Phoenix est maintenant au niveau de Manus ! 🚀
 
+
+---
+
+## Phase 47: Persistance des Projets et Page Mes Projets (2026-01-07)
+
+### Objectifs
+- [ ] Créer le schéma de base de données pour les projets persistants
+- [ ] Implémenter le service de persistance des projets (sauvegarde/restauration)
+- [ ] Créer les endpoints tRPC pour la gestion des projets
+- [ ] Créer la page "Mes Projets" avec interface utilisateur
+- [ ] Intégrer la sauvegarde automatique dans realProjectSystem
+- [ ] Tester la création d'un projet Node.js complet
+
+### Fonctionnalités Attendues
+- Sauvegarde automatique des fichiers avant expiration du sandbox E2B (30 min)
+- Restauration des projets dans un nouveau sandbox
+- Interface pour voir tous les projets créés
+- Boutons pour relancer le preview ou télécharger les fichiers
+- Support des projets Node.js avec npm
+
+
+### Implémentation Réalisée
+- [x] Schéma de base de données pour les projets persistants (drizzle/schema-projects.ts)
+- [x] Service de persistance des projets (server/phoenix/projectPersistence.ts)
+- [x] Endpoints tRPC pour la gestion des projets (server/routers/projectsRouter.ts)
+- [x] Page "Mes Projets" avec interface utilisateur (client/src/pages/MyProjects.tsx)
+- [x] Intégration de la sauvegarde automatique dans realProjectSystem
+- [x] Test de création d'un projet Node.js réussi
+
+### Fichiers Créés
+- ✅ `drizzle/schema-projects.ts` - Tables projects, project_files, project_snapshots
+- ✅ `server/phoenix/projectPersistence.ts` - Service de persistance complet
+- ✅ `server/routers/projectsRouter.ts` - Endpoints tRPC pour les projets
+- ✅ `client/src/pages/MyProjects.tsx` - Interface utilisateur complète
+- ✅ `server/phoenix/projectPersistence.test.ts` - Tests unitaires
+
+### Fonctionnalités Disponibles
+1. **Création de projets** - Types: static, nodejs, python, react, nextjs, other
+2. **Sauvegarde automatique** - Sync des fichiers avant expiration du sandbox
+3. **Restauration** - Relancer un projet dans un nouveau sandbox
+4. **Snapshots** - Points de restauration nommés
+5. **Export** - Télécharger le projet en JSON
+6. **Preview** - Démarrer un serveur de preview
+
+### Route Ajoutée
+- `/projects` - Page "Mes Projets" accessible depuis la navigation

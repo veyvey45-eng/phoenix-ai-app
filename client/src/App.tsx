@@ -18,6 +18,7 @@ import Tools from "./pages/Tools";
 import MCPBridge from "./pages/MCPBridge";
 import AgentMode from "./pages/AgentMode";
 import Workspace from "./pages/Workspace";
+import MyProjects from "./pages/MyProjects";
 import { CommandPalette } from "./components/CommandPalette";
 
 function Router() {
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/mcp-bridge" component={MCPBridge} />
       <Route path="/agent" component={AgentMode} />
       <Route path="/workspace" component={Workspace} />
+      <Route path="/projects" component={MyProjects} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
