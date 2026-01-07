@@ -10,7 +10,10 @@ import { invokeLLM } from './llm';
 import { toolRegistry, ToolContext, ToolResult } from '../phoenix/toolRegistry';
 import { executeWithAutoCorrection } from '../phoenix/autoCorrectionFlow';
 import { streamChatResponse, formatMessagesForStreaming } from '../phoenix/streamingChat';
-import { detectIntent, generateSystemPromptForIntent } from '../phoenix/intentDetector';
+import { detectIntent, generateSystemPromptForIntent, DetectedIntent } from '../phoenix/intentDetector';
+import { detectIntentMultiLevel, detectIntentQuick } from '../phoenix/multiLevelIntentDetector';
+import { getOrCreateContext, updateContextWithAnalysis } from '../phoenix/conversationContext';
+import { analyzeSemantics, quickAnalyze } from '../phoenix/semanticAnalyzer';
 import { contextEnricher } from '../phoenix/contextEnricher';
 import { getDb } from '../db';
 import { conversationMessages } from '../../drizzle/schema';
@@ -494,9 +497,57 @@ export async function unifiedChatEndpoint(req: Request, res: Response) {
       fullMessage += `\n\n[CONTENU DU FICHIER]\n${fileContent}\n[FIN CONTENU]`;
     }
 
-    // Détecter l'intention de l'utilisateur
-    const intent = detectIntent(fullMessage, !!fileContent);
-    console.log('[UnifiedChat] Detected intent:', intent.type, 'confidence:', intent.confidence);
+    // Récupérer ou créer le contexte conversationnel
+    const convIdNum = conversationId ? (typeof conversationId === 'string' ? parseInt(conversationId) : conversationId) : 0;
+    const conversationContext = convIdNum > 0 ? getOrCreateContext(convIdNum, userId.toString()) : null;
+    
+    // Détection rapide pour décider si on a besoin de l'analyse complète
+    const quickIntent = detectIntentQuick(fullMessage, !!fileContent);
+    const quickSemantic = quickAnalyze(fullMessage);
+    
+    // Utiliser l'analyse multi-niveaux si nécessaire
+    let intent: DetectedIntent;
+    let multiLevelResult = null;
+    
+    const needsFullAnalysis = 
+      quickIntent.confidence < 0.8 ||
+      quickSemantic.references?.hasNegation ||
+      quickSemantic.references?.hasTransition ||
+      quickSemantic.references?.hasPronounReferences;
+    
+    if (needsFullAnalysis) {
+      console.log('[UnifiedChat] Using multi-level intent detection');
+      multiLevelResult = await detectIntentMultiLevel(fullMessage, conversationContext, !!fileContent, true);
+      intent = {
+        type: multiLevelResult.finalIntent,
+        confidence: multiLevelResult.finalConfidence,
+        details: {
+          keywords: [],
+          hasNegation: multiLevelResult.hasNegation,
+          hasTransition: multiLevelResult.hasTransition,
+          negatedIntent: multiLevelResult.negatedIntent,
+          transitionFrom: multiLevelResult.transitionFrom,
+          transitionTo: multiLevelResult.transitionTo
+        }
+      };
+      console.log('[UnifiedChat] Multi-level result:', {
+        intent: intent.type,
+        confidence: intent.confidence,
+        hasNegation: multiLevelResult.hasNegation,
+        hasTransition: multiLevelResult.hasTransition,
+        method: multiLevelResult.resolutionMethod
+      });
+      
+      // Mettre à jour le contexte conversationnel
+      if (conversationContext) {
+        const semanticAnalysis = await analyzeSemantics(fullMessage);
+        updateContextWithAnalysis(conversationContext, semanticAnalysis, intent.type);
+      }
+    } else {
+      // Utiliser la détection rapide par patterns
+      intent = detectIntent(fullMessage, !!fileContent);
+      console.log('[UnifiedChat] Quick detection:', intent.type, 'confidence:', intent.confidence);
+    }
 
     // PRIORITÉ 1: Génération d'images - traitement direct et immédiat
     if (intent.type === 'image_generation') {

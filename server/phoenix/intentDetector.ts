@@ -31,6 +31,12 @@ export interface DetectedIntent {
     language?: string;      // Pour le code
     searchQuery?: string;   // Pour la recherche
     imagePrompt?: string;   // Pour la génération d'image
+    // Nouvelles propriétés pour la détection multi-niveaux
+    hasNegation?: boolean;  // Si une négation a été détectée
+    hasTransition?: boolean; // Si une transition a été détectée
+    negatedIntent?: IntentType; // L'intention qui a été niée
+    transitionFrom?: IntentType; // L'intention de départ de la transition
+    transitionTo?: IntentType; // L'intention d'arrivée de la transition
   };
 }
 

@@ -8,6 +8,9 @@ import { streamChatResponse, formatMessagesForStreaming } from '../phoenix/strea
 import { phoenix, PhoenixContext } from '../phoenix/core';
 import { contextEnricher } from '../phoenix/contextEnricher';
 import { detectIntent, generateSystemPromptForIntent, DetectedIntent } from '../phoenix/intentDetector';
+import { detectIntentMultiLevel, detectIntentQuick } from '../phoenix/multiLevelIntentDetector';
+import { getOrCreateContext, updateContextWithAnalysis, addActionToHistory, generateContextSummary } from '../phoenix/conversationContext';
+import { analyzeSemantics, quickAnalyze } from '../phoenix/semanticAnalyzer';
 import { autonomousBrowser } from '../phoenix/autonomousBrowser';
 import { getMemoriesByUser, getRecentUtterances, getActiveIssues, getActiveCriteria, getOrCreatePhoenixState, getDb } from '../db';
 import { getFileProcessor } from '../phoenix/fileProcessor';
@@ -38,10 +41,57 @@ export async function streamChatEndpoint(req: Request, res: Response) {
       return;
     }
 
-    // Détecter l'intention de l'utilisateur (avec l'intention précédente pour détecter les transitions)
-    // Note: previousIntent sera passé si disponible dans l'historique
-    const intent = detectIntent(message, !!fileContent);
-    console.log('[StreamingEndpoint] Detected intent:', intent.type, 'confidence:', intent.confidence);
+    // Récupérer ou créer le contexte conversationnel
+    const convIdNum = conversationId ? (typeof conversationId === 'string' ? parseInt(conversationId) : conversationId) : 0;
+    const conversationContext = convIdNum > 0 ? getOrCreateContext(convIdNum, userId.toString()) : null;
+    
+    // Détection rapide pour décider si on a besoin de l'analyse complète
+    const quickIntent = detectIntentQuick(message, !!fileContent);
+    const quickSemantic = quickAnalyze(message);
+    
+    // Utiliser l'analyse multi-niveaux si nécessaire
+    let intent: DetectedIntent;
+    let multiLevelResult = null;
+    
+    const needsFullAnalysis = 
+      quickIntent.confidence < 0.8 ||
+      quickSemantic.references?.hasNegation ||
+      quickSemantic.references?.hasTransition ||
+      quickSemantic.references?.hasPronounReferences;
+    
+    if (needsFullAnalysis) {
+      console.log('[StreamingEndpoint] Using multi-level intent detection');
+      multiLevelResult = await detectIntentMultiLevel(message, conversationContext, !!fileContent, true);
+      intent = {
+        type: multiLevelResult.finalIntent,
+        confidence: multiLevelResult.finalConfidence,
+        details: {
+          keywords: [],
+          hasNegation: multiLevelResult.hasNegation,
+          hasTransition: multiLevelResult.hasTransition,
+          negatedIntent: multiLevelResult.negatedIntent,
+          transitionFrom: multiLevelResult.transitionFrom,
+          transitionTo: multiLevelResult.transitionTo
+        }
+      };
+      console.log('[StreamingEndpoint] Multi-level result:', {
+        intent: intent.type,
+        confidence: intent.confidence,
+        hasNegation: multiLevelResult.hasNegation,
+        hasTransition: multiLevelResult.hasTransition,
+        method: multiLevelResult.resolutionMethod
+      });
+    } else {
+      // Utiliser la détection rapide par patterns
+      intent = detectIntent(message, !!fileContent);
+      console.log('[StreamingEndpoint] Quick detection:', intent.type, 'confidence:', intent.confidence);
+    }
+    
+    // Mettre à jour le contexte conversationnel
+    if (conversationContext && multiLevelResult) {
+      const semanticAnalysis = await analyzeSemantics(message);
+      updateContextWithAnalysis(conversationContext, semanticAnalysis, intent.type);
+    }
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
