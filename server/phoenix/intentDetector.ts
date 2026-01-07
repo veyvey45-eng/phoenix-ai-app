@@ -55,8 +55,29 @@ const CODE_REQUEST_PATTERNS = [
 
 // Patterns pour détecter les demandes d'EXÉCUTION de code
 const CODE_EXECUTION_PATTERNS = [
-  /(?:exécute|exécuter|lance|lancer|run|execute)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
-  /(?:teste|tester|test)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
+  // Français - exécution explicite
+  /(?:exécute|exécuter|lance|lancer|fais\s+tourner)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script|programme)/i,
+  /(?:teste|tester|test|debug|débugue)[\s-]*(?:ce|le|this|the)?[\s-]*(?:code|script)/i,
+  // Anglais - exécution explicite
+  /(?:run|execute|launch)[\s-]*(?:this|the|my)?[\s-]*(?:code|script|program)/i,
+  // Calculs et algorithmes
+  /(?:calcule|calculer|calculate|compute)[\s-]/i,
+  /(?:combien\s+fait|what\s+is)[\s-]*\d+/i,
+  /(?:trie|trier|sort)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:liste|array|tableau)/i,
+  /(?:inverse|inverser|reverse)[\s-]*(?:cette|ce|this|the)?[\s-]*(?:chaîne|string)/i,
+  /(?:compte|compter|count)[\s-]*(?:les)?[\s-]*(?:voyelles|consonnes|vowels|consonants)/i,
+  /(?:vérifie|vérifier|check)[\s-]*(?:si|if)[\s-]*.*(?:palindrome)/i,
+  /(?:trouve|trouver|find)[\s-]*(?:le|la|the)?[\s-]*(?:maximum|minimum|max|min)/i,
+  /(?:convertis|convertir|convert)[\s-]/i,
+  /(?:génère|générer|generate)[\s-]*(?:un|une|a)?[\s-]*(?:mot\s+de\s+passe|password|uuid|id)/i,
+  /(?:parse|stringify|encode|decode|hash)[\s-]/i,
+  /(?:factorielle|factorial|fibonacci)/i,
+  /(?:aire|area|rayon|radius|cercle|circle)/i,
+  /(?:celsius|fahrenheit|kelvin)/i,
+  // Code inline
+  /print\s*\(/i,
+  /console\.log/i,
+  /\[\d+(?:,\s*\d+)*\]/i,  // Arrays comme [1, 2, 3]
 ];
 
 // Patterns pour détecter les demandes de génération d'IMAGE

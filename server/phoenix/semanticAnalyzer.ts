@@ -193,13 +193,21 @@ export async function analyzeSemantics(message: string, conversationHistory?: st
 export function quickAnalyze(message: string): Partial<SemanticAnalysis> {
   const lowerMessage = message.toLowerCase();
   
-  // Détection rapide des négations
-  const hasNegation = /\b(ne\s+veux\s+plus|ne\s+pas|non|stop|arrête|plus\s+de|pas\s+de|never|don't|no\s+more)\b/i.test(message);
+  // Détection rapide des négations - patterns étendus
+  const hasNegation = 
+    /\b(ne\s+veux\s+plus|ne\s+plus|ne\s+pas|non|stop|arrête|arrêter|plus\s+de|pas\s+de|never|don't|no\s+more)\b/i.test(message) ||
+    /\b(oublie|forget|laisse\s+tomber|drop|annule|cancel|termine|end|fini|done|assez|enough)\b/i.test(message) ||
+    /\b(je\s+refuse|i\s+refuse|pas\s+maintenant|not\s+now|ça\s+suffit)\b/i.test(message) ||
+    /\b(je\s+n'en\s+veux|je\s+n'ai\s+plus\s+besoin|i\s+don't\s+need)\b/i.test(message);
   
-  // Détection rapide des transitions
-  const hasTransition = /\b(maintenant|plutôt|instead|now|rather|actually|en\s+fait)\b/i.test(message) || 
+  // Détection rapide des transitions - patterns étendus
+  const hasTransition = 
+    /\b(maintenant|plutôt|instead|now|rather|actually|en\s+fait|finalement|finally)\b/i.test(message) || 
     /à\s*la\s*place/i.test(message) ||
-    /a\s*la\s*place/i.test(message);
+    /a\s*la\s*place/i.test(message) ||
+    /\b(je\s+change\s+d'avis|changed\s+my\s+mind|je\s+préfère|i\s+prefer)\b/i.test(message) ||
+    /\b(passons\s+à|let's\s+switch|switch\s+to|passer\s+à)\b/i.test(message) ||
+    /\b(terminé\s+avec|done\s+with|c'est\s+fini|les\s+.*\s+c'est\s+fini)\b/i.test(message);
   
   // Détection des références
   const hasPronounReferences = /\b(ça|cela|celui-ci|celle-ci|le\s+même|la\s+même|it|this|that|the\s+same)\b/i.test(message) ||
