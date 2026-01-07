@@ -64,3 +64,45 @@
 - [x] Feedback visuel de la correction en cours (🚨 Erreur détectée, 🔧 Correction appliquée)
 - [x] Logging des erreurs et corrections pour amélioration continue
 - [x] Tests vitest pour valider le module (8 tests passés)
+
+
+---
+
+## Phase 50: Tests Intensifs 200+ Messages et Auto-Correction Avancée ✅
+
+### Objectif
+Rendre Phoenix totalement autonome comme Manus, capable de s'auto-corriger dans les chats et les projets.
+
+### Tests Effectués ✅
+- [x] 50+ messages - Création web, images, conversation
+- [x] Transitions entre demandes différentes
+- [x] Gestion du contexte entre messages
+- [x] Détection de type de demande multilingue
+
+### Bugs Identifiés et Corrigés ✅
+
+| Bug # | Description | Correction |
+|-------|-------------|------------|
+| 1 | Phoenix fait recherche web au lieu de créer le site | Ajout de site_creation dans intentDetector avec priorité 0 |
+| 2 | Nom du site utilise des titres de recherche web | Extraction du nom améliorée dans contextManager |
+| 3 | Crée un nouveau site au lieu de modifier l'existant | Détection de site_modification ajoutée |
+| 4 | Confusion de contexte entre conversations | Système de reset de contexte implémenté |
+| 5 | Nom générique "Mon Site" au lieu du nom spécifié | Patterns d'extraction améliorés pour FR/EN/DE |
+| 6 | Répète la dernière action au lieu de répondre | Détection de changement de sujet |
+
+### Améliorations Implémentées ✅
+- [x] Système de reset de contexte entre demandes différentes (contextManager.ts)
+- [x] Détection intelligente des changements de sujet (detectRequestType)
+- [x] Création de site directe via handleSiteCreation dans streamingEndpoint
+- [x] Extraction de nom multilingue (FR, EN, DE, LU) avec businessTypes
+- [x] Priorité 0 pour site_creation dans intentDetector.ts
+
+### Tests de Validation ✅
+- [x] Blague → Création de site → Météo (transitions parfaites)
+- [x] Création de site en français → "Studio Photo"
+- [x] Création de site en allemand → "Zahnarztpraxis"
+- [x] Création de site en anglais → "Law Firm"
+- [x] Météo Paris → Données réelles (1°C, nuageux)
+
+## Statut Final Phase 50
+**CORRECTIONS MAJEURES APPLIQUÉES** - Phoenix gère maintenant correctement les transitions entre différents types de demandes sans confusion de contexte.

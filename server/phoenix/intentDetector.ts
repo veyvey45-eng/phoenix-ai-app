@@ -8,6 +8,7 @@ export type IntentType =
   | 'code_request'      // Demande explicite de code
   | 'code_execution'    // Demande d'exécuter du code
   | 'image_generation'  // Demande de générer une image
+  | 'site_creation'     // Demande de création de site web
   | 'web_browse'        // Navigation web directe
   | 'web_search'        // Besoin de recherche web
   | 'weather'           // Demande météo
@@ -119,6 +120,27 @@ const CALCULATION_PATTERNS = [
   /\d+[\s]*[\+\-\*\/\^][\s]*\d+/,  // Expressions mathématiques simples
 ];
 
+// Patterns pour la CRÉATION de site web (PRIORITÉ HAUTE)
+const SITE_CREATION_PATTERNS = [
+  // Français - Patterns explicites
+  /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site|page)/i,
+  // "crée un site pour X" - pattern très commun
+  /cr[ée]e[rz]?\s+(?:moi\s+)?(?:un[e]?\s+)?site\s+(?:web\s+)?(?:pour|d'|de)/i,
+  // "site pour un X" avec types de business
+  /(?:un[e]?\s+)?site\s+(?:web\s+)?pour\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio|coach|avocat|dentiste|plombier|fleuriste|architecte|musicien|photographe|boulanger|[ée]lectricien|psychologue|startup|salon|cabinet|boutique|magasin|agence|studio)/i,
+  /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:site|page)/i,
+  /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
+  // Anglais
+  /(?:create|make|build|generate|develop)\s+(?:me\s+)?(?:a\s+)?(?:website|web\s+page|landing\s+page|site)/i,
+  /(?:can\s+you|could\s+you|please)\s+(?:create|make|build|generate)\s+(?:a\s+)?(?:website|site|page)/i,
+  /(?:i\s+want|i\s+need|i'd\s+like)\s+(?:a\s+)?(?:website|site|page)\s+for/i,
+  // Allemand
+  /(?:erstelle|erstellen|mache|machen|baue|bauen|generiere|generieren)\s+(?:mir\s+)?(?:eine?\s+)?(?:webseite|website|seite)/i,
+  /(?:ich\s+möchte|ich\s+brauche|ich\s+will)\s+(?:eine?\s+)?(?:webseite|website|seite)\s+für/i,
+  // Luxembourgeois
+  /(?:maach|maachen|bau|bauen)\s+(?:mir\s+)?(?:eng?\s+)?(?:websäit|site)/i,
+];
+
 /**
  * Détecte l'intention principale de l'utilisateur
  */
@@ -132,6 +154,20 @@ export function detectIntent(message: string, hasFileContent: boolean = false): 
       confidence: 0.9,
       details: { keywords: ['file', 'analysis'] }
     };
+  }
+  
+  // PRIORITÉ 0: Vérifier les demandes de CRÉATION de site web EN PREMIER
+  for (const pattern of SITE_CREATION_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Site creation detected with pattern:', pattern);
+      return {
+        type: 'site_creation',
+        confidence: 0.98,
+        details: { 
+          keywords: extractKeywords(normalizedMessage, pattern)
+        }
+      };
+    }
   }
   
   // Vérifier les demandes explicites de code

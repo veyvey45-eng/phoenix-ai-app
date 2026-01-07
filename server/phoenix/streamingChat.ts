@@ -13,6 +13,7 @@ import { shouldUseAgentLoop, processWithAgentLoop } from './agentLoop';
 import { autonomousBrowser } from './autonomousBrowser';
 import { staticSiteGenerator } from './staticSiteGenerator';
 import { createHostedSite } from '../hostedSites';
+import { detectRequestType, extractSiteName, shouldResetContext, updateContext, getContext, resetContext, RequestType } from './contextManager';
 
 interface StreamingOptions {
   temperature?: number;
@@ -63,9 +64,12 @@ function detectWebsiteCreationRequest(message: string): WebsiteCreationRequest {
   // Patterns pour détecter une demande de CRÉATION de site (pas navigation)
   // Français, Anglais, Allemand, Luxembourgeois
   const creationPatterns = [
-    // Français
-    /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site\s+(?:web\s+)?|page\s+(?:web\s+)?|landing\s+page)/i,
-    /(?:site|page)\s+(?:web\s+)?(?:pour|d'|de)\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio)/i,
+    // Français - Patterns améliorés
+    /(?:cr[ée]e|cr[ée]er|fais|faire|g[ée]n[èe]re|g[ée]n[ée]rer|construis|construire|d[ée]veloppe|d[ée]velopper)\s+(?:moi\s+)?(?:un[e]?\s+)?(?:site|page)/i,
+    // "crée un site pour X" - pattern très commun
+    /cr[ée]e[rz]?\s+(?:moi\s+)?(?:un[e]?\s+)?site\s+(?:web\s+)?(?:pour|d'|de)/i,
+    // "site pour un X" avec verbe de création implicite
+    /(?:un[e]?\s+)?site\s+(?:web\s+)?pour\s+(?:un[e]?\s+)?(?:h[ôo]tel|restaurant|entreprise|business|portfolio|coach|avocat|dentiste|plombier|fleuriste|architecte|musicien|photographe|boulanger|[ée]lectricien|psychologue|startup)/i,
     /(?:j'aimerais|je\s+voudrais|je\s+veux)\s+(?:que\s+tu\s+)?(?:cr[ée]es?|fasses?|g[ée]n[èe]res?)\s+(?:un[e]?\s+)?(?:site|page)/i,
     /(?:peux|peut|pourrais|pourrait)[-\s]*(?:tu|vous)?\s*(?:cr[ée]er|faire|g[ée]n[ée]rer)\s+(?:un[e]?\s+)?(?:site|page)/i,
     // Anglais
@@ -181,13 +185,34 @@ function detectWebsiteCreationRequest(message: string): WebsiteCreationRequest {
 /**
  * Génère un site web basé sur la demande détectée
  */
-async function generateWebsite(request: WebsiteCreationRequest, userId: number): Promise<string> {
+async function generateWebsite(request: WebsiteCreationRequest, userId: number, originalMessage: string): Promise<string> {
   console.log('[StreamingChat] Generating website:', request);
   
   const { type, details } = request;
   
-  // Générer le nom si non fourni
-  const siteName = details.name || `Mon ${type === 'hotel' ? 'Hôtel' : type === 'restaurant' ? 'Restaurant' : 'Site'}`;
+  // Utiliser extractSiteName du contextManager pour une meilleure extraction
+  const extractedName = extractSiteName(originalMessage);
+  
+  // Générer le nom avec priorité: details.name > extractedName > nom générique basé sur le type
+  let siteName: string;
+  if (details.name && details.name !== 'Mon Site') {
+    siteName = details.name;
+  } else if (extractedName) {
+    siteName = extractedName;
+  } else {
+    // Noms génériques améliorés par type
+    const typeNames: Record<string, string> = {
+      'hotel': 'Hôtel Prestige',
+      'restaurant': 'Restaurant Gourmet',
+      'business': 'Entreprise Pro',
+      'portfolio': 'Portfolio Créatif',
+      'landing': 'Landing Page',
+      'custom': 'Site Professionnel'
+    };
+    siteName = typeNames[type] || 'Site Professionnel';
+  }
+  
+  console.log(`[StreamingChat] Site name resolved: "${siteName}" (from: details=${details.name}, extracted=${extractedName})`);
   
   // Générer le HTML selon le type
   let htmlContent: string;
@@ -681,6 +706,20 @@ export async function* streamChatResponse(
     // Get the user message (last message)
     const userMessage = messages[messages.length - 1]?.content || '';
     
+    // === GESTION DU CONTEXTE ===
+    // Détecter le type de demande actuelle
+    const currentRequestType = detectRequestType(userMessage);
+    const conversationId = userId || 0;
+    const previousContext = getContext(conversationId);
+    
+    // Vérifier si le contexte doit être réinitialisé
+    if (shouldResetContext(currentRequestType, previousContext)) {
+      console.log(`[StreamingChat] Context reset: ${previousContext?.lastRequestType} -> ${currentRequestType}`);
+      resetContext(conversationId);
+    }
+    
+    console.log(`[StreamingChat] Request type detected: ${currentRequestType}, previous: ${previousContext?.lastRequestType || 'none'}`);
+    
     // PRIORITÉ 0: Demandes conversationnelles simples - utiliser Google AI directement
     // Cela évite les problèmes de rate limit de Groq pour les questions simples
     if (isSimpleConversationalRequest(userMessage)) {
@@ -696,7 +735,13 @@ export async function* streamChatResponse(
       yield `🎨 Je crée votre site ${websiteRequest.type === 'hotel' ? "d'hôtel" : websiteRequest.type}...\n\n`;
       
       try {
-        const result = await generateWebsite(websiteRequest, userId || 1);
+        const result = await generateWebsite(websiteRequest, userId || 1, userMessage);
+        
+        // Mettre à jour le contexte avec les informations du site créé
+        const siteName = extractSiteName(userMessage) || websiteRequest.details.name;
+        const siteSlugMatch = result.match(/\/sites\/([\w-]+)/);
+        updateContext(conversationId, 'site_creation', siteName || undefined, siteSlugMatch?.[1]);
+        
         yield result;
         return;
       } catch (error) {

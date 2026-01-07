@@ -111,6 +111,12 @@ Utilise ce contenu pour répondre aux questions de l'utilisateur.`;
       userMessageWithContext = `[DONNEES ENRICHIES]\n${enrichedContext}\n\n${userMessageWithContext}`;
     }
 
+    // Traitement spécial pour la CRÉATION de site web (PRIORITÉ HAUTE)
+    if (intent.type === 'site_creation') {
+      await handleSiteCreation(res, message, userId);
+      return;
+    }
+
     // Traitement spécial pour la génération d'images
     if (intent.type === 'image_generation') {
       await handleImageGeneration(res, intent, message);
@@ -202,6 +208,157 @@ async function handleImageGeneration(res: Response, intent: DetectedIntent, mess
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'Image generation failed' })}\n\n`);
     res.end();
   }
+}
+
+/**
+ * Gère la création de site web directement
+ */
+async function handleSiteCreation(res: Response, message: string, userId: number) {
+  console.log('[handleSiteCreation] Démarrage avec message:', message);
+  
+  try {
+    // Importer les modules nécessaires
+    const { staticSiteGenerator } = await import('../phoenix/staticSiteGenerator');
+    const { extractSiteName } = await import('../phoenix/contextManager');
+    
+    // Extraire le nom du site
+    const siteName = extractSiteName(message) || 'Site Professionnel';
+    console.log('[handleSiteCreation] Nom du site extrait:', siteName);
+    
+    // Détecter le type de site
+    const lowerMessage = message.toLowerCase();
+    let siteType = 'custom';
+    if (/h[ôo]tel/i.test(lowerMessage)) siteType = 'hotel';
+    else if (/restaurant|resto|caf[ée]/i.test(lowerMessage)) siteType = 'restaurant';
+    else if (/portfolio|cv|r[ée]sum[ée]/i.test(lowerMessage)) siteType = 'portfolio';
+    else if (/landing|accueil|promo/i.test(lowerMessage)) siteType = 'landing';
+    else if (/entreprise|business|soci[ée]t[ée]|commerce|startup/i.test(lowerMessage)) siteType = 'business';
+    
+    // Envoyer le message initial
+    res.write(`data: ${JSON.stringify({ type: 'token', content: `🎨 Je crée votre site ${siteType}...\n\n` })}\n\n`);
+    
+    // Générer le HTML du site
+    const htmlContent = generateSiteHTML(siteName, siteType, message);
+    
+    // Sauvegarder en base de données
+    const result = await staticSiteGenerator.createFromHTML(
+      userId,
+      siteName,
+      htmlContent,
+      {
+        description: `Site ${siteType} créé par Phoenix AI`,
+        siteType: 'business',
+        isPublic: true
+      }
+    );
+    
+    if (result.success && result.permanentUrl) {
+      const successMsg = `## 🎉 Site créé avec succès!\n\n**${siteName}** est maintenant en ligne!\n\n🔗 **URL PERMANENTE:** [${result.permanentUrl}](${result.permanentUrl})\n\nCette URL ne disparaîtra JAMAIS et est prête à être partagée!\n\n### ✨ Ce qui a été créé:\n- Design moderne et responsive\n- Page de présentation professionnelle\n- Section contact\n- Optimisé pour mobile\n\n\n\n💡 Cliquez sur le lien pour voir votre site!`;
+      res.write(`data: ${JSON.stringify({ type: 'token', content: successMsg })}\n\n`);
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'token', content: `❌ Erreur lors de la création du site: ${result.error || 'Erreur inconnue'}` })}\n\n`);
+    }
+    
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error) {
+    console.error('[handleSiteCreation] Error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Site creation failed' })}\n\n`);
+    res.end();
+  }
+}
+
+/**
+ * Génère le HTML d'un site selon le type
+ */
+function generateSiteHTML(siteName: string, siteType: string, originalMessage: string): string {
+  // Template HTML moderne et responsive
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${siteName}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; color: #333; }
+        .hero { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 100px 20px; text-align: center; }
+        .hero h1 { font-size: 3rem; margin-bottom: 20px; }
+        .hero p { font-size: 1.3rem; opacity: 0.9; max-width: 600px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 60px 20px; }
+        .section { margin-bottom: 60px; }
+        .section h2 { font-size: 2rem; margin-bottom: 30px; color: #667eea; }
+        .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; }
+        .service-card { background: #f8f9fa; padding: 30px; border-radius: 12px; text-align: center; transition: transform 0.3s, box-shadow 0.3s; }
+        .service-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .service-card h3 { color: #667eea; margin-bottom: 15px; }
+        .contact { background: #f8f9fa; padding: 60px 20px; text-align: center; }
+        .contact h2 { margin-bottom: 30px; }
+        .contact-info { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+        .contact-item { display: flex; align-items: center; gap: 10px; }
+        .btn { display: inline-block; background: #667eea; color: white; padding: 15px 40px; border-radius: 30px; text-decoration: none; font-weight: 600; transition: background 0.3s; }
+        .btn:hover { background: #764ba2; }
+        footer { background: #333; color: white; text-align: center; padding: 30px; }
+        @media (max-width: 768px) { .hero h1 { font-size: 2rem; } .hero p { font-size: 1rem; } }
+    </style>
+</head>
+<body>
+    <section class="hero">
+        <h1>${siteName}</h1>
+        <p>Bienvenue ! Découvrez nos services professionnels et notre expertise.</p>
+        <br><br>
+        <a href="#contact" class="btn">Contactez-nous</a>
+    </section>
+    
+    <div class="container">
+        <section class="section">
+            <h2>À Propos</h2>
+            <p>Nous sommes une équipe passionnée dédiée à fournir des services de qualité supérieure. Notre mission est de vous accompagner dans tous vos projets avec professionnalisme et dévouement.</p>
+        </section>
+        
+        <section class="section">
+            <h2>Nos Services</h2>
+            <div class="services">
+                <div class="service-card">
+                    <h3>🌟 Service Premium</h3>
+                    <p>Un service d'exception pour répondre à tous vos besoins avec la plus grande attention.</p>
+                </div>
+                <div class="service-card">
+                    <h3>💼 Conseil Expert</h3>
+                    <p>Bénéficiez de notre expertise pour optimiser vos projets et atteindre vos objectifs.</p>
+                </div>
+                <div class="service-card">
+                    <h3>🤝 Accompagnement</h3>
+                    <p>Un suivi personnalisé tout au long de votre parcours pour garantir votre satisfaction.</p>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <section class="contact" id="contact">
+        <h2>Contact</h2>
+        <div class="contact-info">
+            <div class="contact-item">
+                <span>📞</span>
+                <span>+352 000 000 000</span>
+            </div>
+            <div class="contact-item">
+                <span>📧</span>
+                <span>contact@${siteName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com</span>
+            </div>
+            <div class="contact-item">
+                <span>📍</span>
+                <span>Luxembourg</span>
+            </div>
+        </div>
+    </section>
+    
+    <footer>
+        <p>&copy; ${new Date().getFullYear()} ${siteName}. Tous droits réservés.</p>
+        <p style="margin-top: 10px; opacity: 0.7; font-size: 0.9rem;">Créé avec ❤️ par Phoenix AI</p>
+    </footer>
+</body>
+</html>`;
 }
 
 /**
