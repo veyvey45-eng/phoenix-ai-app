@@ -1428,3 +1428,69 @@ Rapprocher Phoenix de Manus avec correction intelligente d'erreurs, génération
 
 ### Conclusion
 Phoenix AI fonctionne correctement avec tous les outils principaux opérationnels.
+
+
+---
+
+## Phase 68: Bug Agent - Exécution Python (2026-01-07)
+
+### Bug Signalé
+- [ ] L'Agent génère une page web au lieu d'exécuter du code Python quand on lui demande
+
+### Tâches
+- [ ] Reproduire le bug
+- [ ] Diagnostiquer la cause (mauvaise sélection d'outil)
+- [ ] Corriger le comportement de l'Agent
+- [ ] Tester la correction
+
+
+---
+
+## Phase 68: Détection et Affichage des Fichiers Générés (2026-01-07)
+
+### Objectif
+Quand du code Python/JavaScript génère une image ou une page web, Phoenix doit automatiquement détecter et afficher le résultat visuel.
+
+### Tâches
+- [ ] Modifier E2B Sandbox pour détecter les fichiers générés (PNG, JPG, SVG, HTML)
+- [ ] Uploader automatiquement les fichiers vers S3
+- [ ] Retourner les URLs des fichiers dans la réponse
+- [ ] Modifier l'interface Code Executor pour afficher les images/HTML
+- [ ] Tester avec matplotlib (graphique Python)
+- [ ] Tester avec génération HTML (JavaScript)
+
+
+---
+
+## Phase 69: Affichage Automatique des Images Générées - COMPLÉTÉE ✅
+
+### Date: 2026-01-07
+
+### Objectif
+Quand le code Python/JavaScript génère une image (matplotlib, PIL, etc.), Phoenix doit automatiquement détecter et afficher cette image dans l'interface.
+
+### Tâches Complétées
+- [x] Modifier e2bSandbox.ts pour détecter les images générées (PNG, JPEG, SVG)
+- [x] Uploader automatiquement les images vers S3/CloudFront
+- [x] Retourner les URLs des fichiers générés dans la réponse
+- [x] Modifier CodeExecutor.tsx pour afficher les images
+- [x] Ajouter section "Fichiers Générés" avec prévisualisation
+- [x] Ajouter bouton "Ouvrir" pour voir l'image en plein écran
+- [x] Tester avec matplotlib - SUCCÈS
+
+### Résultat Final
+✅ **SUCCÈS COMPLET** - Les images générées par matplotlib sont maintenant:
+1. Détectées automatiquement par E2B
+2. Uploadées vers S3/CloudFront
+3. Affichées visuellement dans l'interface Code Executor
+4. Avec bouton "Ouvrir" pour voir en plein écran
+
+### Fichiers Modifiés
+- server/phoenix/e2bSandbox.ts - Détection et upload des images
+- client/src/components/CodeExecutor.tsx - Affichage des images
+
+### Test Validé
+- Code: matplotlib graphique sinusoïdal
+- Temps d'exécution: 1276ms
+- Image générée: `generated-1767751542239.png`
+- Affichage: ✅ Image visible dans l'interface

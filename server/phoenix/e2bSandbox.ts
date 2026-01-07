@@ -8,6 +8,14 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { storagePut } from '../storage';
+
+interface GeneratedFile {
+  name: string;
+  type: 'image' | 'html' | 'other';
+  url: string;
+  mimeType: string;
+}
 
 interface ExecutionResult {
   success: boolean;
@@ -15,7 +23,42 @@ interface ExecutionResult {
   error?: string;
   executionTime: number;
   language: 'python' | 'javascript';
-  filesGenerated?: string[];
+  filesGenerated?: GeneratedFile[];
+}
+
+// Extensions de fichiers supportées pour la détection
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp'];
+const HTML_EXTENSIONS = ['.html', '.htm'];
+
+// MIME types pour les fichiers
+const MIME_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+};
+
+/**
+ * Détecte le type de fichier généré
+ */
+function getFileType(filename: string): 'image' | 'html' | 'other' {
+  const ext = path.extname(filename).toLowerCase();
+  if (IMAGE_EXTENSIONS.includes(ext)) return 'image';
+  if (HTML_EXTENSIONS.includes(ext)) return 'html';
+  return 'other';
+}
+
+/**
+ * Récupère le MIME type d'un fichier
+ */
+function getMimeType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase();
+  return MIME_TYPES[ext] || 'application/octet-stream';
 }
 
 class E2BSandboxService {
@@ -112,13 +155,110 @@ class E2BSandboxService {
         };
       }
       
+      // Détecter et uploader les fichiers générés (images, HTML)
+      const filesGenerated: GeneratedFile[] = [];
+      
+      // Vérifier si le code génère des fichiers (matplotlib, PIL, etc.)
+      if (execution.results && execution.results.length > 0) {
+        for (const result of execution.results) {
+          // E2B retourne les images en base64 dans result.png ou result.jpeg
+          if (result.png) {
+            try {
+              const imageBuffer = Buffer.from(result.png, 'base64');
+              const filename = `generated-${Date.now()}.png`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                imageBuffer,
+                'image/png'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'image',
+                url,
+                mimeType: 'image/png'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated image: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload image:', uploadError);
+            }
+          }
+          if (result.jpeg) {
+            try {
+              const imageBuffer = Buffer.from(result.jpeg, 'base64');
+              const filename = `generated-${Date.now()}.jpg`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                imageBuffer,
+                'image/jpeg'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'image',
+                url,
+                mimeType: 'image/jpeg'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated JPEG: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload JPEG:', uploadError);
+            }
+          }
+          if (result.svg) {
+            try {
+              const filename = `generated-${Date.now()}.svg`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                result.svg,
+                'image/svg+xml'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'image',
+                url,
+                mimeType: 'image/svg+xml'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated SVG: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload SVG:', uploadError);
+            }
+          }
+          if (result.html) {
+            try {
+              const filename = `generated-${Date.now()}.html`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                result.html,
+                'text/html'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'html',
+                url,
+                mimeType: 'text/html'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated HTML: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload HTML:', uploadError);
+            }
+          }
+        }
+      }
+      
       const executionTime = Date.now() - startTime;
+      
+      // Ajouter info sur les fichiers générés dans l'output
+      if (filesGenerated.length > 0) {
+        output += `\n\n📎 Fichiers générés: ${filesGenerated.length}`;
+        for (const file of filesGenerated) {
+          output += `\n- ${file.name} (${file.type})`;
+        }
+      }
       
       return {
         success: true,
         output: output || '[No output]',
         executionTime,
         language: 'python',
+        filesGenerated: filesGenerated.length > 0 ? filesGenerated : undefined,
       };
     } finally {
       if (sandbox) {
@@ -264,13 +404,69 @@ class E2BSandboxService {
         };
       }
       
+      // Détecter et uploader les fichiers générés (HTML, images)
+      const filesGenerated: GeneratedFile[] = [];
+      
+      if (execution.results && execution.results.length > 0) {
+        for (const result of execution.results) {
+          if (result.html) {
+            try {
+              const filename = `generated-${Date.now()}.html`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                result.html,
+                'text/html'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'html',
+                url,
+                mimeType: 'text/html'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated HTML: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload HTML:', uploadError);
+            }
+          }
+          if (result.png) {
+            try {
+              const imageBuffer = Buffer.from(result.png, 'base64');
+              const filename = `generated-${Date.now()}.png`;
+              const { url } = await storagePut(
+                `code-output/${userId}/${filename}`,
+                imageBuffer,
+                'image/png'
+              );
+              filesGenerated.push({
+                name: filename,
+                type: 'image',
+                url,
+                mimeType: 'image/png'
+              });
+              console.log(`[E2B Sandbox] Uploaded generated image: ${url}`);
+            } catch (uploadError) {
+              console.error('[E2B Sandbox] Failed to upload image:', uploadError);
+            }
+          }
+        }
+      }
+      
       const executionTime = Date.now() - startTime;
+      
+      // Ajouter info sur les fichiers générés dans l'output
+      if (filesGenerated.length > 0) {
+        output += `\n\n📎 Fichiers générés: ${filesGenerated.length}`;
+        for (const file of filesGenerated) {
+          output += `\n- ${file.name} (${file.type})`;
+        }
+      }
       
       return {
         success: true,
         output: output || '[No output]',
         executionTime,
         language: 'javascript',
+        filesGenerated: filesGenerated.length > 0 ? filesGenerated : undefined,
       };
     } finally {
       if (sandbox) {

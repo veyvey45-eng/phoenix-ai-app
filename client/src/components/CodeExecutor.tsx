@@ -3,8 +3,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { trpc } from '@/lib/trpc';
-import { AlertCircle, Play, Copy, Download } from 'lucide-react';
+import { AlertCircle, Play, Copy, Download, Image, FileCode, ExternalLink } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+interface GeneratedFile {
+  name: string;
+  type: 'image' | 'html' | 'other';
+  url: string;
+  mimeType: string;
+}
 
 interface ExecutionResult {
   success: boolean;
@@ -12,12 +19,25 @@ interface ExecutionResult {
   error?: string;
   executionTime: number;
   language: 'python' | 'javascript';
+  filesGenerated?: GeneratedFile[];
 }
 
 export const CodeExecutor: React.FC = () => {
-  const [pythonCode, setPythonCode] = useState(`import math
-result = math.sqrt(16)
-print(f"Square root of 16: {result}")`);
+  const [pythonCode, setPythonCode] = useState(`# Exemple: Générer un graphique avec matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+plt.figure(figsize=(10, 6))
+plt.plot(x, y, 'b-', linewidth=2)
+plt.title('Graphique Sinusoidal')
+plt.xlabel('x')
+plt.ylabel('sin(x)')
+plt.grid(True)
+plt.show()
+print("Graphique genere avec succes!")`);
   
   const [jsCode, setJsCode] = useState(`const numbers = [1, 2, 3, 4, 5];
 const sum = numbers.reduce((a, b) => a + b, 0);
@@ -37,12 +57,12 @@ console.log(\`Sum: \${sum}\`);`);
         const res = await executePythonMutation.mutateAsync({
           code: pythonCode,
         });
-        setResult(res);
+        setResult(res as ExecutionResult);
       } else {
         const res = await executeJSMutation.mutateAsync({
           code: jsCode,
         });
-        setResult(res);
+        setResult(res as ExecutionResult);
       }
     } catch (error) {
       setResult({
@@ -180,6 +200,75 @@ ${result.error ? `Error:\n${result.error}` : ''}`;
                   </div>
                 </div>
               </div>
+
+              {/* Fichiers générés (images, HTML) */}
+              {result.filesGenerated && result.filesGenerated.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Image className="w-5 h-5 text-green-500" />
+                    Fichiers Générés ({result.filesGenerated.length})
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {result.filesGenerated.map((file, index) => (
+                      <div key={index} className="border border-slate-700 rounded-lg overflow-hidden bg-slate-900">
+                        {file.type === 'image' ? (
+                          <div className="space-y-2">
+                            <div className="bg-white p-2">
+                              <img 
+                                src={file.url} 
+                                alt={file.name}
+                                className="w-full h-auto max-h-64 object-contain"
+                              />
+                            </div>
+                            <div className="p-3 flex items-center justify-between">
+                              <span className="text-xs text-slate-400 truncate">{file.name}</span>
+                              <a 
+                                href={file.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Ouvrir
+                              </a>
+                            </div>
+                          </div>
+                        ) : file.type === 'html' ? (
+                          <div className="space-y-2">
+                            <div className="p-6 bg-slate-800 flex items-center justify-center">
+                              <FileCode className="w-12 h-12 text-slate-500" />
+                            </div>
+                            <div className="p-3 flex items-center justify-between">
+                              <span className="text-xs text-slate-400 truncate">{file.name}</span>
+                              <a 
+                                href={file.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Prévisualiser
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3 flex items-center justify-between">
+                            <span className="text-xs text-slate-400 truncate">{file.name}</span>
+                            <a 
+                              href={file.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                            >
+                              Télécharger
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -192,6 +281,7 @@ ${result.error ? `Error:\n${result.error}` : ''}`;
               <li>✅ Read-only access to files and database</li>
               <li>❌ No file deletion, system calls, or network access</li>
               <li>📝 All executions are logged for audit</li>
+              <li>🖼️ Images générées (matplotlib, PIL) sont automatiquement affichées</li>
             </ul>
           </div>
         </CardContent>
