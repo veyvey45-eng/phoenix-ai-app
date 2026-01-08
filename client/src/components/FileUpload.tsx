@@ -62,15 +62,15 @@ export function FileUpload({
   const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: supportedTypes } = trpc.files.supportedTypes.useQuery();
-  const uploadMutation = trpc.files.upload.useMutation();
-  const deleteMutation = trpc.files.delete.useMutation();
-  const { data: persistedFiles = [], refetch: refetchFiles, isLoading: isLoadingFiles } = trpc.files.list.useQuery();
+  const { data: supportedTypes } = trpc.uploadedFiles.supportedTypes.useQuery();
+  const uploadMutation = trpc.uploadedFiles.upload.useMutation();
+  const deleteMutation = trpc.uploadedFiles.delete.useMutation();
+  const { data: persistedFiles = [], refetch: refetchFiles, isLoading: isLoadingFiles } = trpc.uploadedFiles.list.useQuery();
 
   // Charger les fichiers persistés depuis la base de données
   useEffect(() => {
     if (persistedFiles && persistedFiles.length > 0) {
-      setUploadedFiles(persistedFiles.map(f => ({
+      setUploadedFiles(persistedFiles.map((f: { id: string | number; originalName: string; mimeType: string; size: number; hasExtractedText: boolean; uploadedAt: Date }) => ({
         id: f.id.toString(),
         originalName: f.originalName,
         mimeType: f.mimeType,

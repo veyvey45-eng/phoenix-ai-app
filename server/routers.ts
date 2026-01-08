@@ -40,6 +40,7 @@ import { workspaceRouter } from './routers/workspaceRouter';
 import { projectsRouter } from './routers/projectsRouter';
 import { hostedSitesRouter } from './routers/hostedSitesRouter';
 import { persistentAgentRouter } from './routers/persistentAgentRouter';
+import { filesRouter } from './routers/filesRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -106,6 +107,7 @@ export const appRouter = router({
   projects: projectsRouter,
   hostedSites: hostedSitesRouter,
   persistentAgent: persistentAgentRouter,
+  persistentFiles: filesRouter,  // Système de fichiers persistant (comme Manus)
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -712,10 +714,10 @@ export const appRouter = router({
   }),
 
   // ============================================================================
-  // FILES - File upload and processing
+  // UPLOADED FILES - File upload and processing (fichiers uploadés par l'utilisateur)
   // ============================================================================
   
-  files: router({
+  uploadedFiles: router({
     /**
      * Get supported file types
      */

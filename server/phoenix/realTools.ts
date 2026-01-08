@@ -5,46 +5,74 @@
  * et peuvent exposer des URLs publiques
  * 
  * MODIFICATION: Sauvegarde automatique dans hostedSites pour URLs permanentes
+ * MODIFICATION 2: Synchronisation avec FileSystemManager pour persistance
  */
 
 import { Tool, ToolContext, ToolResult } from './toolRegistry';
 import { realProjectSystem } from './realProjectSystem';
 import { createHostedSite } from '../hostedSites';
+import { fileSystemManager } from './fileSystemManager';
 
 // ==================== REAL FILE CREATE ====================
 
 export const realFileCreateTool: Tool = {
   name: 'real_file_create',
-  description: `Crée un fichier RÉEL dans le sandbox E2B.
+  description: `Crée un fichier RÉEL et PERSISTANT.
   
-Ce fichier est créé dans un vrai système de fichiers, pas une simulation.
-Le fichier peut ensuite être servi via un serveur HTTP.
+Ce fichier est créé dans:
+1. Le sandbox E2B (pour exécution immédiate)
+2. Le système de fichiers persistant S3 (pour accès permanent)
 
-Exemple: Créer index.html dans /home/user/projects/monsite/`,
+Les fichiers persistent même après la fin de la session E2B.
+
+Exemple: Créer index.html dans /projects/monsite/`,
   category: 'file',
   parameters: [
-    { name: 'path', type: 'string', description: 'Chemin du fichier (ex: projects/monsite/index.html)', required: true },
+    { name: 'path', type: 'string', description: 'Chemin du fichier (ex: /projects/monsite/index.html)', required: true },
     { name: 'content', type: 'string', description: 'Contenu du fichier', required: true }
   ],
   execute: async (args: Record<string, any>, context: ToolContext): Promise<ToolResult> => {
     try {
-      const result = await realProjectSystem.createRealFile(
+      // 1. Créer dans E2B pour exécution immédiate
+      const e2bResult = await realProjectSystem.createRealFile(
         context.sessionId,
         args.path,
         args.content
       );
       
-      if (result.success) {
+      // 2. Persister dans le système de fichiers S3
+      let persistentFile = null;
+      if (context.userId) {
+        try {
+          const userIdNum = parseInt(context.userId, 10);
+          if (!isNaN(userIdNum)) {
+            persistentFile = await fileSystemManager.createFile({
+              userId: userIdNum,
+            path: args.path.startsWith('/') ? args.path : `/${args.path}`,
+              content: args.content
+            });
+            console.log(`[real_file_create] Fichier persisté: ${persistentFile.path}`);
+          }
+        } catch (persistError) {
+          console.warn(`[real_file_create] Erreur persistance (non bloquant):`, persistError);
+        }
+      }
+      
+      if (e2bResult.success) {
         return {
           success: true,
-          output: `✅ Fichier créé: ${result.fullPath}`,
-          metadata: { path: result.fullPath }
+          output: `✅ Fichier créé: ${e2bResult.fullPath}${persistentFile ? ' (persisté en S3)' : ''}`,
+          metadata: { 
+            path: e2bResult.fullPath,
+            persistentPath: persistentFile?.path,
+            persistentId: persistentFile?.id
+          }
         };
       } else {
         return {
           success: false,
           output: '',
-          error: result.error
+          error: e2bResult.error
         };
       }
     } catch (error: any) {
@@ -57,20 +85,49 @@ Exemple: Créer index.html dans /home/user/projects/monsite/`,
 
 export const realFileReadTool: Tool = {
   name: 'real_file_read',
-  description: `Lit un fichier RÉEL depuis le sandbox E2B.`,
+  description: `Lit un fichier RÉEL.
+  
+Essaie d'abord de lire depuis le système persistant S3,
+puis depuis le sandbox E2B si non trouvé.`,
   category: 'file',
   parameters: [
     { name: 'path', type: 'string', description: 'Chemin du fichier à lire', required: true }
   ],
   execute: async (args: Record<string, any>, context: ToolContext): Promise<ToolResult> => {
     try {
+      const normalizedPath = args.path.startsWith('/') ? args.path : `/${args.path}`;
+      
+      // 1. Essayer de lire depuis le système persistant
+      if (context.userId) {
+        try {
+          const userIdNum = parseInt(context.userId, 10);
+          if (isNaN(userIdNum)) throw new Error('Invalid userId');
+          const persistentFile = await fileSystemManager.readFileByPath(normalizedPath, userIdNum);
+          if (persistentFile && persistentFile.content) {
+            return {
+              success: true,
+              output: persistentFile.content,
+              metadata: { 
+                path: persistentFile.path,
+                source: 'persistent',
+                version: persistentFile.version
+              }
+            };
+          }
+        } catch (persistError) {
+          // Fichier non trouvé en persistant, essayer E2B
+          console.log(`[real_file_read] Fichier non trouvé en persistant, essai E2B...`);
+        }
+      }
+      
+      // 2. Fallback: lire depuis E2B
       const result = await realProjectSystem.readRealFile(context.sessionId, args.path);
       
       if (result.success) {
         return {
           success: true,
           output: result.content || '',
-          metadata: { path: args.path }
+          metadata: { path: args.path, source: 'e2b' }
         };
       } else {
         return { success: false, output: '', error: result.error };

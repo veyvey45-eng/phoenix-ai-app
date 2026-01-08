@@ -613,3 +613,108 @@ Résoudre le problème de limitation à 5 actions par requête HTTP pour permett
 - [x] Tester le lancement de tâches complexes
 - [x] Tester la reprise après interruption
 - [x] Tester le suivi en temps réel
+
+
+## Phase 63: Système de Fichiers Réel Persistant (comme Manus)
+
+### Objectif
+Transformer le workspace virtuel en DB en un vrai système de fichiers persistant avec stockage S3
+
+### Étape 1: Architecture et Conception
+- [ ] Analyser le workspace actuel (fichiers en DB)
+- [ ] Concevoir le nouveau système avec S3
+- [ ] Définir la structure des dossiers utilisateur
+
+### Étape 2: Schéma Base de Données
+- [ ] Créer table userFiles (métadonnées)
+- [ ] Créer table userFolders (arborescence)
+- [ ] Créer table fileVersions (historique)
+
+### Étape 3: FileSystemManager
+- [ ] Créer le module FileSystemManager
+- [ ] Implémenter createFile avec upload S3
+- [ ] Implémenter readFile avec download S3
+- [ ] Implémenter updateFile avec versioning
+- [ ] Implémenter deleteFile
+- [ ] Implémenter listFiles/listFolders
+- [ ] Implémenter moveFile/copyFile
+
+### Étape 4: Routes tRPC
+- [ ] Route files.create
+- [ ] Route files.read
+- [ ] Route files.update
+- [ ] Route files.delete
+- [ ] Route files.list
+- [ ] Route folders.create
+- [ ] Route folders.delete
+- [ ] Route folders.list
+
+### Étape 5: Interface Workspace
+- [ ] Arborescence de fichiers interactive
+- [ ] Éditeur de fichiers intégré
+- [ ] Upload/Download de fichiers
+- [ ] Création de dossiers
+- [ ] Glisser-déposer
+
+### Étape 6: Intégration Agent
+- [ ] Outil real_file_create utilise le nouveau système
+- [ ] Outil real_file_read utilise le nouveau système
+- [ ] Synchronisation avec E2B pour exécution
+
+
+## Phase 63: Système de Fichiers Réel Persistant ✅
+
+### Objectif
+Implémenter un système de fichiers réel persistant comme Manus:
+- Manus: Accès complet au filesystem, fichiers persistants
+- Phoenix (avant): Workspace virtuel en DB, fichiers E2B temporaires
+- Phoenix (après): Fichiers persistants en S3, métadonnées en DB
+
+### Étape 1: Analyse et Conception ✅
+- [x] Analyser l'architecture actuelle du workspace
+- [x] Concevoir le système de fichiers persistant avec S3
+
+### Étape 2: Schéma Base de Données ✅
+- [x] Créer la table workspaceFiles (id, userId, path, name, fileType, mimeType, size, etc.)
+- [x] Créer la table workspaceFileHistory (versioning)
+- [x] Ajouter les index nécessaires
+
+### Étape 3: FileSystemManager ✅
+- [x] Implémenter le singleton FileSystemManager
+- [x] Implémenter createFile avec stockage S3 pour gros fichiers
+- [x] Implémenter readFile avec fallback S3/DB
+- [x] Implémenter updateFile avec versioning automatique
+- [x] Implémenter deleteFile
+- [x] Implémenter moveFile et copyFile
+- [x] Implémenter listFiles et searchFiles
+- [x] Implémenter getFileHistory et restoreVersion
+
+### Étape 4: Routes tRPC ✅
+- [x] Créer filesRouter.ts (persistentFiles)
+- [x] Ajouter les routes CRUD (create, read, update, delete)
+- [x] Ajouter les routes de recherche et historique
+- [x] Ajouter les routes de dossiers (createDirectory, deleteDirectory)
+
+### Étape 5: Interface Workspace ✅
+- [x] Mettre à jour FileExplorer pour utiliser trpc.persistentFiles
+- [x] Corriger les types et références
+
+### Étape 6: Intégration Agent ✅
+- [x] Mettre à jour real_file_create pour persister en S3
+- [x] Mettre à jour real_file_read pour lire depuis S3 en priorité
+- [x] Fallback E2B si fichier non trouvé en persistant
+
+### Étape 7: Tests ✅
+- [x] Écrire les tests unitaires (19 tests passés)
+- [x] Valider l'intégration complète
+
+### Comparaison Avant/Après
+| Aspect | Avant | Après |
+|--------|-------|-------|
+| Stockage | DB content column | S3 + DB metadata |
+| Persistance | Perdu après session E2B | Permanent via S3 |
+| Taille max | Limité par DB | Illimité (S3) |
+| Versioning | Aucun | Historique complet |
+| Structure | Plate | Hiérarchique |
+| Recherche | Basique | Par nom et contenu |
+

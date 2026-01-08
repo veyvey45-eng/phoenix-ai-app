@@ -108,12 +108,14 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
   const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState('/');
 
-  // Requêtes tRPC
-  const { data: filesData, refetch: refetchFiles, isLoading } = trpc.workspace.listFiles.useQuery({
+  // Requêtes tRPC - Utilise le nouveau système de fichiers persistant
+  const { data: filesData, refetch: refetchFiles, isLoading } = trpc.persistentFiles.list.useQuery({
+    directory: '/',
     recursive: true,
+    fileType: 'all',
   });
 
-  const createFileMutation = trpc.workspace.createFile.useMutation({
+  const createFileMutation = trpc.persistentFiles.create.useMutation({
     onSuccess: () => {
       toast.success('Fichier créé');
       refetchFiles();
@@ -125,7 +127,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
     },
   });
 
-  const createDirMutation = trpc.workspace.createDirectory.useMutation({
+  const createDirMutation = trpc.persistentFiles.createDirectory.useMutation({
     onSuccess: () => {
       toast.success('Dossier créé');
       refetchFiles();
@@ -137,7 +139,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
     },
   });
 
-  const deleteFileMutation = trpc.workspace.deleteFile.useMutation({
+  const deleteFileMutation = trpc.persistentFiles.delete.useMutation({
     onSuccess: () => {
       toast.success('Fichier supprimé');
       refetchFiles();
@@ -148,7 +150,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
     },
   });
 
-  const readFileMutation = trpc.workspace.readFile.useQuery(
+  const readFileMutation = trpc.persistentFiles.readByPath.useQuery(
     { path: selectedFile?.path || '' },
     { enabled: !!selectedFile && selectedFile.fileType === 'file' }
   );
@@ -179,7 +181,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
     return tree;
   };
 
-  const files = filesData?.files || [];
+  const files = filesData || [];
   const tree = buildTree(files as WorkspaceFile[]);
 
   // Toggle dossier
@@ -227,7 +229,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
   // Supprimer un fichier
   const handleDelete = (file: WorkspaceFile) => {
     if (confirm(`Supprimer ${file.name} ?`)) {
-      deleteFileMutation.mutate({ path: file.path });
+      deleteFileMutation.mutate({ fileId: file.id });
     }
   };
 
@@ -456,7 +458,7 @@ export function FileExplorer({ onFileSelect, className }: FileExplorerProps) {
         {files.length} fichier{files.length > 1 ? 's' : ''}
         {files.length > 0 && (
           <span className="ml-2">
-            ({formatSize(files.reduce((sum, f) => sum + ((f as WorkspaceFile).size || 0), 0))})
+            ({formatSize((files as WorkspaceFile[]).reduce((sum: number, f: WorkspaceFile) => sum + (f.size || 0), 0))})
           </span>
         )}
       </div>
