@@ -746,3 +746,9 @@ Phoenix se comporte comme un tuteur/consultant au lieu d'un exécutant autonome:
 - [x] Modifier intentDetector.ts - prompts spécifiques pour création
 - [ ] Tester que Phoenix crée directement une app sans demander
 
+
+## Phase 62: Bug d'affichage des sites hébergés
+- [x] Analyser pourquoi /sites/:slug affiche une page blanche
+- [x] Vérifier le router tRPC hostedSites.getBySlug
+- [x] Corriger le composant HostedSite.tsx si nécessaire
+- [x] Tester l'affichage du site créé
