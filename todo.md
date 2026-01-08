@@ -460,3 +460,57 @@ Implémenter les 4 capacités cognitives avancées de Manus AI dans Phoenix:
 - server/phoenix/manusLikeCognition.ts (NOUVEAU)
 - server/phoenix/streamingChat.ts (MODIFIÉ)
 
+
+## Phase 61: Agent Autonome et Préférences Utilisateur
+
+### Mode Agent Autonome
+- [ ] Créer le module autonomousAgentMode.ts pour enchaînement d'actions
+- [ ] Implémenter le pipeline recherche → résumé → image
+- [ ] Ajouter la détection automatique des tâches multi-étapes
+- [ ] Intégrer dans le flux de chat
+
+### Panneau de Préférences Utilisateur
+- [ ] Créer la table userPreferences dans la base de données
+- [ ] Créer le composant UserPreferences.tsx
+- [ ] Implémenter les préférences: langue, style, domaines d'intérêt
+- [ ] Intégrer les préférences dans le flux de chat
+
+### Batterie de Tests
+- [ ] Tester le mode agent autonome
+- [ ] Tester le panneau de préférences
+- [ ] Tester les fonctionnalités existantes via le chat
+- [ ] Corriger les bugs identifiés
+
+
+## Phase 60: Mode Agent Autonome et Tests Complets ✅
+
+### Mode Agent Autonome ✅
+- [x] Création du module autonomousAgentMode.ts
+- [x] Détection des tâches multi-étapes (recherche + résumé + image)
+- [x] Planification automatique des actions
+- [x] Exécution séquentielle avec feedback de progression
+- [x] Intégration dans streamingChat.ts
+
+### Correction Bug Conversations Simples ✅
+- [x] Ajout de SIMPLE_CONVERSATION_PATTERNS pour exclure les salutations
+- [x] Fonction isSimpleConversation() pour filtrer les requêtes courtes
+- [x] Test validé: "Bonjour, comment vas-tu?" ne déclenche plus de recherche
+
+### Batterie de Tests ✅
+| Test | Description | Résultat |
+|------|-------------|----------|
+| 1 | Mode Agent Autonome (Recherche IA + Résumé) | ✅ Succès |
+| 2 | Génération d'Image (Robot futuriste) | ✅ Succès |
+| 3 | Exécution de Code Python | ✅ Succès |
+| 4 | Conversation Simple (avant correction) | ⚠️ Bug détecté |
+| 5 | Conversation Simple (après correction) | ✅ Succès |
+| 6 | Mode Agent Autonome (Bitcoin + Résumé) | ✅ Succès |
+
+### Fonctionnalités Validées ✅
+- [x] Mode Agent Autonome avec enchaînement d'actions
+- [x] Génération d'images
+- [x] Exécution de code Python
+- [x] Recherche web avec Serper API
+- [x] Intégration crypto en temps réel
+- [x] Conversations simples sans recherche inutile
+

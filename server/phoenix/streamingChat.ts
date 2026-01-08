@@ -17,6 +17,7 @@ import { detectRequestType, extractSiteName, shouldResetContext, updateContext, 
 import { getAutonomyCore, AutonomyConfig } from './autonomyCore';
 import { detectIntent } from './intentDetector';
 import { getManusLikeCognition, CognitiveAnalysis } from './manusLikeCognition';
+import { getAutonomousAgentMode, detectMultiStepTask } from './autonomousAgentMode';
 
 interface StreamingOptions {
   temperature?: number;
@@ -849,7 +850,29 @@ export async function* streamChatResponse(
       }
     }
     
-    // PRIORITÉ 4: Vérifier si c'est une tâche complexe multi-étapes (Agent Loop)
+    // PRIORITÉ 4: MODE AGENT AUTONOME - Enchaînement automatique d'actions
+    if (detectMultiStepTask(userMessage)) {
+      console.log('[StreamingChat] Multi-step task detected, using Autonomous Agent Mode');
+      yield '🤖 **Mode Agent Autonome activé**\n\nJe détecte une tâche multi-étapes. Je vais enchaîner automatiquement les actions nécessaires...\n\n';
+      
+      try {
+        const agentMode = getAutonomousAgentMode();
+        const pipeline = await agentMode.execute(userMessage, (action, index, total) => {
+          console.log(`[AgentMode] Action ${index + 1}/${total}: ${action.type} - ${action.status}`);
+        });
+        
+        if (pipeline.finalResult) {
+          yield pipeline.finalResult;
+          return;
+        }
+      } catch (error) {
+        console.error('[StreamingChat] Autonomous Agent Mode error:', error);
+        yield `⚠️ Erreur du mode agent autonome: ${error instanceof Error ? error.message : 'Erreur inconnue'}\n\n`;
+        // Continuer avec l'Agent Loop classique en fallback
+      }
+    }
+    
+    // PRIORITÉ 4b: Agent Loop classique (fallback)
     if (shouldUseAgentLoop(userMessage)) {
       console.log('[StreamingChat] Complex task detected, using Agent Loop');
       yield '🧠 Tâche complexe détectée. Je décompose et exécute automatiquement...\n\n';
