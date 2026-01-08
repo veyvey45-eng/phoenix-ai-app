@@ -112,7 +112,7 @@ describe('PhoenixActionEngine', () => {
     });
 
     it('should block content with API keys', () => {
-      const result = engine.checkSecurityFilters('api_key=sk_live_abcdefghijklmnopqrstuvwxyz');
+      const result = engine.checkSecurityFilters('api_key=test_key_placeholder_12345');
       
       expect(result.blocked).toBe(true);
       expect(result.triggeredFilters).toContain('API Keys');
