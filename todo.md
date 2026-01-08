@@ -752,3 +752,26 @@ Phoenix se comporte comme un tuteur/consultant au lieu d'un exécutant autonome:
 - [x] Vérifier le router tRPC hostedSites.getBySlug
 - [x] Corriger le composant HostedSite.tsx si nécessaire
 - [x] Tester l'affichage du site créé
+
+
+## Phase 66: Tests Massifs via API et Correction de Bugs
+
+### Objectif
+Exécuter 100-500 tests automatisés via l'API pour identifier et corriger tous les bugs restants.
+
+### Tests à effectuer
+- [ ] Tests de conversation simple (50)
+- [ ] Tests de création de sites (50)
+- [ ] Tests de création d'applications (50)
+- [ ] Tests de génération d'images (50)
+- [ ] Tests d'exécution de code (50)
+- [ ] Tests de météo (30)
+- [ ] Tests de crypto (30)
+- [ ] Tests de recherche web (30)
+- [ ] Tests de transitions (50)
+- [ ] Tests de négations (30)
+
+### Bugs à corriger
+- [ ] Identifier les bugs via les tests
+- [ ] Corriger chaque bug trouvé
+- [ ] Valider les corrections
