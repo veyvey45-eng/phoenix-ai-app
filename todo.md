@@ -514,3 +514,76 @@ Implémenter les 4 capacités cognitives avancées de Manus AI dans Phoenix:
 - [x] Intégration crypto en temps réel
 - [x] Conversations simples sans recherche inutile
 
+
+## Phase 62: Boucle d'Agent Persistante (50+ actions comme Manus)
+
+### Objectif
+Transformer Phoenix pour qu'il puisse exécuter 50+ actions consécutives comme Manus, au lieu de 5 actions max par requête HTTP.
+
+### Analyse du Problème
+- [ ] Identifier pourquoi chaque requête HTTP est isolée
+- [ ] Analyser le flux actuel de l'agent (agentLoopV2.ts)
+- [ ] Comprendre les limitations du streaming SSE actuel
+- [ ] Documenter l'architecture cible
+
+### Architecture de la Boucle Persistante
+- [ ] Concevoir le worker background qui tourne en continu
+- [ ] Concevoir le système de file d'attente des tâches
+- [ ] Concevoir le système de checkpoints pour sauvegarder l'état
+- [ ] Concevoir la communication bidirectionnelle (WebSocket)
+
+### Implémentation
+- [ ] Créer le module PersistentAgentWorker
+- [ ] Créer le système de file d'attente (TaskQueue)
+- [ ] Créer le système de checkpoints (StateManager)
+- [ ] Créer la communication WebSocket
+- [ ] Intégrer avec l'interface utilisateur
+
+### Tests
+- [ ] Tester avec une tâche de 10 actions
+- [ ] Tester avec une tâche de 30 actions
+- [ ] Tester avec une tâche de 50+ actions
+- [ ] Tester la reprise après interruption
+
+
+## Phase 61: Boucle d'Agent Persistante (Manus-like)
+
+### Objectif
+Résoudre le problème de limitation à 5 actions par requête HTTP pour permettre 100+ actions comme Manus.
+
+### Analyse du Problème ✅
+- [x] Identifier les 5 limitations: timeout HTTP (30s), état non persistant, pas de worker background, streaming unidirectionnel, maxIterations trop bas
+
+### Architecture Implémentée ✅
+- [x] Créer les tables DB (agentTasks, agentSteps, agentCheckpoints, agentQueue, agentEvents)
+- [x] Implémenter TaskQueue (file d'attente persistante)
+- [x] Implémenter StateManager (gestion d'état et checkpoints)
+- [x] Implémenter PersistentWorker (worker background sans timeout)
+- [x] Implémenter WebSocket bidirectionnel
+- [x] Créer le router tRPC pour l'agent persistant
+- [x] Créer le composant React PersistentAgentPanel
+- [x] Écrire les tests unitaires (11 tests passés)
+
+### Améliorations vs Ancien Système
+| Aspect | Avant | Après |
+|--------|-------|-------|
+| Max Iterations | 30 | 100 |
+| Max Tool Calls | 40 | 150 |
+| Timeout | 5 min | 30 min |
+| Persistance | Mémoire | Base de données |
+| Reprise | Impossible | Via checkpoints |
+| Interruption | Impossible | Via WebSocket |
+
+### Fichiers Créés
+- server/phoenix/persistentAgent/taskQueue.ts
+- server/phoenix/persistentAgent/stateManager.ts
+- server/phoenix/persistentAgent/worker.ts
+- server/phoenix/persistentAgent/websocket.ts
+- server/phoenix/persistentAgent/index.ts
+- server/routers/persistentAgentRouter.ts
+- client/src/components/PersistentAgentPanel.tsx
+- server/phoenix/persistentAgent/taskQueue.test.ts
+
+### Tests ✅
+- [x] Tests unitaires: 11 passés
+- [x] Vérification TypeScript: 0 erreurs

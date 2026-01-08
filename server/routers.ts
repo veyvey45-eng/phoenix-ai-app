@@ -39,6 +39,7 @@ import { agentRouter } from './routers/agentRouter';
 import { workspaceRouter } from './routers/workspaceRouter';
 import { projectsRouter } from './routers/projectsRouter';
 import { hostedSitesRouter } from './routers/hostedSitesRouter';
+import { persistentAgentRouter } from './routers/persistentAgentRouter';
 import { synthesizeSpeech, checkTTSAvailability, splitTextForTTS, TTSVoice, TTSFormat } from './_core/tts';
 import {
   createUtterance,
@@ -104,6 +105,7 @@ export const appRouter = router({
   workspace: workspaceRouter,
   projects: projectsRouter,
   hostedSites: hostedSitesRouter,
+  persistentAgent: persistentAgentRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

@@ -1037,3 +1037,216 @@ export const hostedSites = mysqlTable("hostedSites", {
 
 export type HostedSite = typeof hostedSites.$inferSelect;
 export type InsertHostedSite = typeof hostedSites.$inferInsert;
+
+
+// ============================================================================
+// PERSISTENT AGENT SYSTEM - Système d'agent autonome persistant
+// ============================================================================
+
+/**
+ * AGENT TASKS - Tâches d'agent autonome
+ * Permet de stocker les tâches en cours et terminées avec leur état complet
+ */
+export const agentTasks = mysqlTable("agentTasks", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: int("userId").notNull(),
+  
+  // Objectif et configuration
+  goal: text("goal").notNull(),
+  config: json("config").$type<{
+    maxIterations: number;
+    maxToolCalls: number;
+    requireConfirmation: boolean;
+    verbose: boolean;
+    timeout: number;
+  }>(),
+  
+  // État actuel
+  status: mysqlEnum("status", [
+    "pending",      // En attente d'exécution
+    "running",      // En cours d'exécution
+    "paused",       // Mis en pause par l'utilisateur
+    "waiting",      // En attente d'une action utilisateur
+    "completed",    // Terminé avec succès
+    "failed",       // Échoué
+    "cancelled"     // Annulé par l'utilisateur
+  ]).default("pending").notNull(),
+  currentPhase: varchar("currentPhase", { length: 255 }),
+  currentIteration: int("currentIteration").default(0),
+  totalToolCalls: int("totalToolCalls").default(0),
+  
+  // Résultat
+  result: text("result"),
+  error: text("error"),
+  
+  // Mémoire de travail (contexte persistant)
+  workingMemory: json("workingMemory").$type<Record<string, unknown>>(),
+  
+  // Artifacts générés
+  artifacts: json("artifacts").$type<Array<{
+    type: string;
+    name?: string;
+    content: string;
+    url?: string;
+    mimeType?: string;
+    createdAt: string;
+  }>>(),
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  lastCheckpointAt: timestamp("lastCheckpointAt"),
+});
+
+export type AgentTask = typeof agentTasks.$inferSelect;
+export type InsertAgentTask = typeof agentTasks.$inferInsert;
+
+/**
+ * AGENT STEPS - Étapes d'exécution de l'agent
+ * Chaque action de l'agent est enregistrée comme une étape
+ */
+export const agentSteps = mysqlTable("agentSteps", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull(),
+  stepNumber: int("stepNumber").notNull(),
+  
+  // Type d'étape
+  type: mysqlEnum("type", [
+    "think",      // Réflexion
+    "plan",       // Planification
+    "tool_call",  // Appel d'outil
+    "observe",    // Observation du résultat
+    "answer",     // Réponse finale
+    "error",      // Erreur
+    "checkpoint"  // Point de sauvegarde
+  ]).notNull(),
+  
+  // Contenu
+  content: text("content"),
+  thinking: text("thinking"),
+  
+  // Pour les appels d'outils
+  toolName: varchar("toolName", { length: 255 }),
+  toolArgs: json("toolArgs").$type<Record<string, unknown>>(),
+  toolResult: json("toolResult").$type<{
+    success: boolean;
+    output?: string;
+    error?: string;
+    artifacts?: Array<{
+      type: string;
+      content: string;
+      name?: string;
+      mimeType?: string;
+    }>;
+    metadata?: Record<string, unknown>;
+  }>(),
+  
+  // État
+  status: mysqlEnum("status", [
+    "pending",
+    "executing",
+    "completed",
+    "failed",
+    "skipped"
+  ]).default("pending").notNull(),
+  
+  // Timestamps et durée
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  durationMs: int("durationMs"),
+});
+
+export type AgentStep = typeof agentSteps.$inferSelect;
+export type InsertAgentStep = typeof agentSteps.$inferInsert;
+
+/**
+ * AGENT CHECKPOINTS - Points de sauvegarde pour reprise
+ * Permet de reprendre une tâche exactement où elle s'est arrêtée
+ */
+export const agentCheckpoints = mysqlTable("agentCheckpoints", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull(),
+  stepNumber: int("stepNumber").notNull(),
+  
+  // État complet sérialisé
+  state: json("state").$type<{
+    currentPhase: string;
+    currentIteration: number;
+    totalToolCalls: number;
+    workingMemory: Record<string, unknown>;
+    observations: string[];
+    lastToolResult?: {
+      tool: string;
+      success: boolean;
+      output?: string;
+    };
+  }>().notNull(),
+  
+  // Métadonnées
+  reason: varchar("reason", { length: 255 }), // Pourquoi ce checkpoint a été créé
+  isAutomatic: boolean("isAutomatic").default(true), // Automatique ou manuel
+  
+  // Timestamps
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentCheckpoint = typeof agentCheckpoints.$inferSelect;
+export type InsertAgentCheckpoint = typeof agentCheckpoints.$inferInsert;
+
+/**
+ * AGENT QUEUE - File d'attente des tâches à exécuter
+ * Permet de gérer l'ordre d'exécution et la priorité
+ */
+export const agentQueue = mysqlTable("agentQueue", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull().unique(),
+  
+  // Priorité et ordre
+  priority: int("priority").default(0), // Plus élevé = plus prioritaire
+  position: int("position").notNull(), // Position dans la queue
+  
+  // État
+  status: mysqlEnum("status", [
+    "queued",     // En attente dans la queue
+    "processing", // En cours de traitement
+    "completed",  // Traitement terminé
+    "failed"      // Échec du traitement
+  ]).default("queued").notNull(),
+  
+  // Worker assigné
+  workerId: varchar("workerId", { length: 64 }),
+  
+  // Timestamps
+  queuedAt: timestamp("queuedAt").defaultNow().notNull(),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+});
+
+export type AgentQueueItem = typeof agentQueue.$inferSelect;
+export type InsertAgentQueueItem = typeof agentQueue.$inferInsert;
+
+/**
+ * AGENT EVENTS - Événements en temps réel pour le streaming
+ * Stocke les événements pour permettre la reconnexion
+ */
+export const agentEvents = mysqlTable("agentEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: varchar("taskId", { length: 64 }).notNull(),
+  
+  // Type d'événement
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  
+  // Données de l'événement
+  data: json("data").$type<Record<string, unknown>>().notNull(),
+  
+  // Séquence pour l'ordre
+  sequence: int("sequence").notNull(),
+  
+  // Timestamp
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AgentEvent = typeof agentEvents.$inferSelect;
+export type InsertAgentEvent = typeof agentEvents.$inferInsert;
