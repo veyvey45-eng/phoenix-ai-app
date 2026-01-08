@@ -16,6 +16,7 @@ import { createHostedSite } from '../hostedSites';
 import { detectRequestType, extractSiteName, shouldResetContext, updateContext, getContext, resetContext, RequestType } from './contextManager';
 import { getAutonomyCore, AutonomyConfig } from './autonomyCore';
 import { detectIntent } from './intentDetector';
+import { getManusLikeCognition, CognitiveAnalysis } from './manusLikeCognition';
 
 interface StreamingOptions {
   temperature?: number;
@@ -733,6 +734,45 @@ export async function* streamChatResponse(
     autonomyCore['workingMemory'].store('confidence', intentResult.confidence, { type: 'context' });
     
     console.log(`[StreamingChat] Intent detected: ${intentResult.type} (confidence: ${intentResult.confidence})`);
+    
+    // === INTÉGRATION MANUS-LIKE COGNITION ===
+    // Analyse cognitive complète pour les capacités avancées
+    const manusLikeCognition = getManusLikeCognition();
+    let cognitiveAnalysis: CognitiveAnalysis | null = null;
+    
+    // Effectuer l'analyse cognitive pour les requêtes non triviales
+    if (intentResult.confidence < 0.9 || intentResult.type !== 'conversation') {
+      try {
+        const conversationHistory = messages.map(m => ({ role: m.role, content: m.content }));
+        cognitiveAnalysis = await manusLikeCognition.analyzeCompletely(
+          userMessage,
+          conversationHistory,
+          intentResult.type
+        );
+        
+        console.log(`[StreamingChat] Cognitive analysis: readiness=${cognitiveAnalysis.overallReadiness.toFixed(2)}, action=${cognitiveAnalysis.recommendedAction}`);
+        
+        // Si clarification nécessaire, demander à l'utilisateur
+        if (cognitiveAnalysis.recommendedAction === 'clarify' && cognitiveAnalysis.ambiguity.clarificationNeeded) {
+          const clarificationMessage = manusLikeCognition.generateClarificationMessage(cognitiveAnalysis.ambiguity);
+          if (clarificationMessage) {
+            yield clarificationMessage;
+            return;
+          }
+        }
+        
+        // Stocker le contexte cognitif dans la mémoire de travail
+        autonomyCore['workingMemory'].store('cognitive_analysis', {
+          readiness: cognitiveAnalysis.overallReadiness,
+          confidence: cognitiveAnalysis.metacognition.currentConfidence,
+          topic: cognitiveAnalysis.memory.currentTopic
+        }, { type: 'context' });
+        
+      } catch (error) {
+        console.error('[StreamingChat] Cognitive analysis error:', error);
+        // Continuer sans l'analyse cognitive
+      }
+    }
     
     // PRIORITÉ 0: Demandes conversationnelles simples - utiliser Google AI directement
     // Cela évite les problèmes de rate limit de Groq pour les questions simples

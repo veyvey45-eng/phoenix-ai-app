@@ -431,3 +431,32 @@ Tester Phoenix avec 500+ questions variées pour valider la compréhension
 - [x] Valider le bon fonctionnement global
 
 **Résultat: 3/3 tests réussis (100%)**es de demandes
+
+
+## Phase 60: Capacités Cognitives Manus-Like ✅
+
+### Objectif
+Implémenter les 4 capacités cognitives avancées de Manus AI dans Phoenix:
+1. Gestion d'ambiguïté
+2. Métacognition
+3. Mémoire de travail
+4. Initiative proactive
+
+### Implémentation ✅
+- [x] Créer le module ManusLikeCognition unifié
+- [x] Implémenter l'analyse d'ambiguïté avec questions de clarification
+- [x] Implémenter l'évaluation métacognitive (confiance, limites)
+- [x] Améliorer la mémoire de travail (contexte persistant)
+- [x] Implémenter l'initiative proactive (suggestions, anticipation)
+- [x] Intégrer dans streamingChat.ts
+
+### Fonctionnalités
+- **Gestion d'ambiguïté**: Détecte les demandes floues et pose des questions de clarification
+- **Métacognition**: Auto-évalue la confiance et les limites de connaissances
+- **Mémoire de travail**: Conserve le contexte entre les échanges
+- **Initiative proactive**: Propose des suggestions et anticipe les besoins
+
+### Fichiers créés/modifiés
+- server/phoenix/manusLikeCognition.ts (NOUVEAU)
+- server/phoenix/streamingChat.ts (MODIFIÉ)
+
