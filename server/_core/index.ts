@@ -12,6 +12,7 @@ import { unifiedChatEndpoint } from "./unifiedChatEndpoint";
 import { handleCodeExecution, handleCodeExecutionStream, executePhoenixCodeEndpoint } from "./codeExecutionEndpoint";
 import codeExecutionRouter from "../phoenix/codeExecutionEndpoint";
 import { handleStripeWebhook } from "../stripe/webhookHandler";
+import { initPersistentAgent } from "../phoenix/persistentAgent";
 
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -149,8 +150,16 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, async () => {
     console.log(`Server running on http://localhost:${port}/`);
+    
+    // Initialiser le système d'agent persistant (worker + WebSocket)
+    try {
+      await initPersistentAgent(server);
+      console.log('[Server] Persistent Agent system initialized');
+    } catch (error) {
+      console.error('[Server] Failed to initialize Persistent Agent:', error);
+    }
   });
 }
 

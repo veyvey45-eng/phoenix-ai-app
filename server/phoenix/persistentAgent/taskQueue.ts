@@ -384,6 +384,19 @@ export class TaskQueue {
   }
 
   /**
+   * Récupère toutes les tâches (admin)
+   */
+  async getAllTasks(limit: number = 100): Promise<typeof agentTasks.$inferSelect[]> {
+    const db = await getDb();
+    if (!db) return [];
+    
+    return db.select()
+      .from(agentTasks)
+      .orderBy(desc(agentTasks.createdAt))
+      .limit(limit);
+  }
+
+  /**
    * Nettoie les tâches anciennes
    */
   async cleanup(daysOld: number = 7): Promise<number> {

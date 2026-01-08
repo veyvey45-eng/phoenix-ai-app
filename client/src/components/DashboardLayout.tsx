@@ -27,13 +27,14 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
+const menuItems: Array<{ icon: any; label: string; path: string; adminOnly?: boolean }> = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Wrench, label: "Outils", path: "/tools" },
   { icon: Plug, label: "MCP Bridge", path: "/mcp-bridge" },
   { icon: Code, label: "Code Executor", path: "/code-executor" },
   { icon: FolderOpen, label: "Workspace", path: "/workspace" },
   { icon: Shield, label: "Administration", path: "/admin" },
+  { icon: Activity, label: "File d'attente", path: "/admin/tasks", adminOnly: true },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -271,7 +272,9 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
+              {menuItems
+                .filter(item => !item.adminOnly || user?.role === 'admin')
+                .map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>

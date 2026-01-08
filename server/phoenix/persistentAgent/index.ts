@@ -8,9 +8,12 @@
  * - AgentWebSocket: Communication bidirectionnelle
  */
 
-export { taskQueue, TaskQueue, TaskConfig, CreateTaskInput, QueuedTask } from './taskQueue';
-export { StateManager, createStateManager, AgentState, StepData, EventData } from './stateManager';
-export { persistentWorker, PersistentWorker, WorkerConfig, WorkerEvent } from './worker';
+export { taskQueue, TaskQueue } from './taskQueue';
+export type { TaskConfig, CreateTaskInput, QueuedTask } from './taskQueue';
+export { StateManager, createStateManager } from './stateManager';
+export type { AgentState, StepData, EventData } from './stateManager';
+export { persistentWorker, PersistentWorker } from './worker';
+export type { WorkerConfig, WorkerEvent } from './worker';
 export { agentWebSocket, AgentWebSocketServer } from './websocket';
 
 // Types combinés

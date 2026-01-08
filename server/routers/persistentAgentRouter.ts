@@ -356,6 +356,24 @@ export const persistentAgentRouter = router({
       }
       
       return taskQueue.getQueuedTasks();
+    }),
+
+  /**
+   * Récupère toutes les tâches (admin only)
+   */
+  getAllTasks: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(500).optional()
+    }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'admin') {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Admin access required'
+        });
+      }
+
+      return taskQueue.getAllTasks(input.limit || 100);
     })
 });
 
