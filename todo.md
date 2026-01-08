@@ -718,3 +718,31 @@ Implémenter un système de fichiers réel persistant comme Manus:
 | Structure | Plate | Hiérarchique |
 | Recherche | Basique | Par nom et contenu |
 
+
+
+## Phase 64: Phoenix doit AGIR pas DÉCRIRE (Bug Critique)
+
+### Problème Identifié
+Phoenix se comporte comme un tuteur/consultant au lieu d'un exécutant autonome:
+- Demande des confirmations inutiles
+- Donne des instructions manuelles (npm init, npm install...)
+- Propose des étapes théoriques
+- Attend que l'utilisateur exécute
+
+### Comportement Attendu (comme Manus)
+- Créer directement les fichiers dans E2B
+- Exécuter les commandes automatiquement
+- Installer les dépendances sans demander
+- Livrer l'application fonctionnelle avec URL
+
+### Corrections Apportées ✅
+- [x] Modifier le system prompt pour interdire les instructions manuelles
+- [x] Forcer l'utilisation des outils real_project_create, real_file_create
+- [x] Supprimer les demandes de confirmation pour les créations
+- [x] Ajouter une logique d'exécution automatique dans streamingEndpoint
+- [x] Modifier unifiedChatEndpoint.ts - nouveau system prompt strict
+- [x] Modifier groqToolHandler.ts - nouveau system prompt strict
+- [x] Modifier phoenixSimple.ts - nouveau system prompt strict
+- [x] Modifier intentDetector.ts - prompts spécifiques pour création
+- [ ] Tester que Phoenix crée directement une app sans demander
+
