@@ -113,17 +113,27 @@ export class PlanningEngine {
     goal: string,
     context?: string
   ): Promise<'simple' | 'moderate' | 'complex'> {
+    // AMÉLIORÉ: Détection automatique des tâches complexes par mots-clés
+    const complexKeywords = /application|projet|site\s+web|système|architecture|multi|complet|détaillé|20\+|plusieurs|\d{2,}\s*étapes/i;
+    const moderateKeywords = /crée|génère|analyse|recherche|rapport|article/i;
+    
+    // Vérification rapide par mots-clés
+    if (complexKeywords.test(goal)) {
+      console.log('[PlanningEngine] Complex task detected by keywords');
+      return 'complex';
+    }
+    
     const prompt = `Analyse la complexité de cette tâche:
 
 Objectif: "${goal}"
 ${context ? `Contexte: ${context}` : ''}
 
-Critères:
-- Simple: 1-2 étapes, pas de dépendances, < 1 minute
-- Modérée: 3-5 étapes, quelques dépendances, 1-5 minutes
-- Complexe: 6+ étapes, nombreuses dépendances, > 5 minutes
+Critères AMÉLIORÉS:
+- Simple: 1-3 étapes, tâche unique, < 1 minute (ex: question simple, calcul)
+- Modérée: 4-10 étapes, quelques sous-tâches, 1-10 minutes (ex: recherche, article)
+- Complexe: 10-25 étapes, nombreuses sous-tâches, > 10 minutes (ex: application, projet complet)
 
-Réponds en JSON: { "complexity": "simple|moderate|complex", "reason": "..." }`;
+Réponds en JSON: { "complexity": "simple|moderate|complex", "reason": "...", "estimatedPhases": <nombre> }`;
 
     try {
       const response = await invokeLLM({
@@ -156,7 +166,9 @@ Réponds en JSON: { "complexity": "simple|moderate|complex", "reason": "..." }`;
     context: string | undefined,
     complexity: 'simple' | 'moderate' | 'complex'
   ): Promise<PlanPhase[]> {
-    const phaseCount = complexity === 'simple' ? 2 : complexity === 'moderate' ? 4 : 7;
+    // AMÉLIORÉ: Support de 2 à 25 phases selon la complexité
+    // Simple: 2-4 phases, Moderate: 5-10 phases, Complex: 10-25 phases
+    const phaseCount = complexity === 'simple' ? 3 : complexity === 'moderate' ? 7 : 15;
 
     const prompt = `Crée un plan détaillé pour cette tâche:
 

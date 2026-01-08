@@ -201,6 +201,47 @@ const WEB_SEARCH_PATTERNS = [
   /\b(?:qui\s+est|who\s+is)\s+(?:le|la|the)?\s*(?:pr[eé]sident|CEO|fondateur|founder|directeur|director)\b/i,
 ];
 
+// Patterns pour la GÉNÉRATION DE TEXTE LONG (articles, essais, rapports)
+// Ces patterns doivent être vérifiés AVANT code_execution pour éviter la confusion de rôle
+const TEXT_GENERATION_PATTERNS = [
+  // Demandes explicites d'articles
+  /(?:écris|écrire|rédige|rédiger|génère|générer|crée|créer)[\ s-]*(?:moi)?[\ s-]*(?:un|une)?[\ s-]*(?:article|essai|rapport|dissertation|texte|rédaction|composition)/i,
+  /(?:write|create|generate|compose)[\ s-]*(?:me)?[\ s-]*(?:an?|the)?[\ s-]*(?:article|essay|report|paper|text|composition)/i,
+  // Demandes avec nombre de mots
+  /(?:de|of|avec|with)?[\ s-]*(?:\d+)[\ s-]*(?:mots?|words?|caractères?|characters?)/i,
+  // Demandes de contenu long
+  /(?:long|détaillé|complet|approfondi|exhaustif|detailed|comprehensive|thorough)[\ s-]*(?:article|texte|essai|rapport|text|essay|report)/i,
+  // Demandes de rédaction sur un sujet
+  /(?:rédige|écris|write)[\ s-]*(?:moi)?[\ s-]*(?:sur|about|on)[\ s-]+/i,
+  // Demandes de paragraphes
+  /(?:écris|rédige|write|compose)[\ s-]*(?:moi)?[\ s-]*(?:\d+)?[\ s-]*(?:paragraphes?|paragraphs?)/i,
+];
+
+// Patterns pour les QUESTIONS FACTUELLES/ABSURDES (doivent être détectées AVANT image_generation)
+// Ces patterns empêchent la confusion entre une question sur un sujet et une demande de création
+const FACTUAL_QUESTION_PATTERNS = [
+  // Questions "combien de X vivent/existent/sont"
+  /\b(?:combien\s+(?:de|d')\s*\w+\s+(?:vivent|existent|sont|habitent|y\s+a|there\s+are))\b/i,
+  /\b(?:how\s+many\s+\w+\s+(?:live|exist|are|inhabit))\b/i,
+  // Questions "est-ce que X existe"
+  /\b(?:est[\s-]*ce\s+que?\s+(?:les?|la|des?)\s*\w+\s+exist)/i,
+  /\b(?:do(?:es)?\s+\w+\s+exist)\b/i,
+  // Questions "pourquoi X fait/est Y"
+  /\b(?:pourquoi\s+(?:les?|la|des?|un[e]?)\s*\w+\s+(?:font|fait|sont|est|vivent|existent))\b/i,
+  /\b(?:why\s+(?:do(?:es)?|are|is)\s+\w+)\b/i,
+  // Questions "où vivent/habitent X"
+  /\b(?:o[ùu]\s+(?:vivent|habitent|sont|existent)\s+(?:les?|la|des?)\s*\w+)\b/i,
+  /\b(?:where\s+(?:do(?:es)?|are)\s+\w+\s+(?:live|exist|inhabit))\b/i,
+  // Questions absurdes avec créatures mythiques dans un contexte factuel
+  /\b(?:combien\s+(?:de|d')\s*(?:licornes?|dragons?|f[éeè]es?|sir[èe]nes?|unicorns?|fairies?|mermaids?))\b/i,
+  /\b(?:(?:les?|la|des?)\s*(?:licornes?|dragons?|f[éeè]es?|sir[èe]nes?)\s+(?:existent|vivent|sont\s+r[éeè]el))\b/i,
+  // Questions sur l'existence ou la réalité
+  /\b(?:(?:est[\s-]*ce\s+que?|is|are)\s+(?:les?|la|des?|the)?\s*\w+\s+(?:r[éeè]el(?:le)?s?|real|exist(?:e|ent)?s?))\b/i,
+  // Questions "Y a-t-il des X sur Y"
+  /\b(?:y\s+a[\s-]*t[\s-]*il\s+(?:des?|un[e]?)\s*\w+\s+(?:sur|dans|en))\b/i,
+  /\b(?:are\s+there\s+(?:any)?\s*\w+\s+(?:on|in|at))\b/i,
+];
+
 // Patterns pour les demandes conversationnelles simples (PAS de recherche web)
 // IMPORTANT: Ces patterns NE DOIVENT PAS matcher les questions de définition ou de recherche
 const CONVERSATIONAL_PATTERNS = [
@@ -558,6 +599,21 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
     }
   }
   
+  // PRIORITÉ -1: Vérifier les demandes de GÉNÉRATION DE TEXTE LONG (AVANT code)
+  // Ceci évite la confusion de rôle où Phoenix pense devoir écrire du code au lieu de texte
+  for (const pattern of TEXT_GENERATION_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Text generation detected with pattern:', pattern);
+      return {
+        type: 'conversation',
+        confidence: 0.98,
+        details: { 
+          keywords: ['text_generation', 'article', 'writing']
+        }
+      };
+    }
+  }
+  
   // PRIORITÉ 0: Vérifier les demandes explicites de CODE (AVANT app_creation)
   // Ceci évite que "programme un algorithme" soit détecté comme app_creation
   for (const pattern of CODE_REQUEST_PATTERNS) {
@@ -668,6 +724,19 @@ export function detectIntent(message: string, hasFileContent: boolean = false, p
         searchQuery: message
       }
     };
+  }
+  
+  // PRIORITÉ 3.5: Vérifier les questions factuelles/absurdes AVANT les images
+  // Cela évite de confondre "Combien de licornes vivent sur la Lune?" avec une demande d'image
+  for (const pattern of FACTUAL_QUESTION_PATTERNS) {
+    if (pattern.test(normalizedMessage)) {
+      console.log('[IntentDetector] Factual/absurd question detected, routing to conversation');
+      return {
+        type: 'conversation',
+        confidence: 0.95,
+        details: { keywords: ['factual', 'question'] }
+      };
+    }
   }
   
   // PRIORITÉ 4: Vérifier les demandes de génération d'image
@@ -913,8 +982,22 @@ Effectue le calcul demandé et explique le résultat.`;
     default:
       return `${basePrompt}
 
-CONTEXTE: Conversation générale.
-Réponds de manière naturelle et engageante.
+CONTEXTE: Conversation générale ou génération de contenu textuel.
+
+## CAPACITÉS DE GÉNÉRATION DE TEXTE
+Tu es capable de:
+- Rédiger des articles, essais, rapports de n'importe quelle longueur
+- Écrire des histoires, poèmes, textes créatifs
+- Composer des emails, lettres, documents professionnels
+- Générer du contenu détaillé et structuré sur n'importe quel sujet
+
+## IMPORTANT
+- Tu n'es PAS limité à l'exécution de code
+- Tu peux rédiger du texte long sans problème
+- Si on te demande un article de 500 mots, tu l'écris directement
+- Ne refuse JAMAIS une demande de rédaction de texte
+
+Réponds de manière naturelle, engageante et complète.
 Sois utile et informatif.`;
   }
 }
